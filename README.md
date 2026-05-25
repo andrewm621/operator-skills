@@ -161,4 +161,4 @@ The Lobby is free. Come say hi.
 
 MIT -- see [LICENSE](LICENSE).
 
-Built by [Andrew Miller](https://github.com/andrewmiller).
+Built by [Andrew Miller](https://github.com/andrewm621).
