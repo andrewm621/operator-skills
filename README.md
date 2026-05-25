@@ -1,27 +1,45 @@
 # Operator Skills
 
-**Claude Code slash commands for people who build things.**
+**Claude slash commands for people who build things.**
 
-33 custom skills that turn Claude Code into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
+33 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
 
 They started as one-off prompts, became reusable slash commands, then became a system where skills call other skills — roadmaps feed into phases, phases feed into todos, todos feed into parallel agents, and everything gets logged. This is that system, open-sourced.
 
-**Requires:** [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
+Works with **Claude Code** (CLI), **Claude Cowork** (desktop), and **Claude.ai** (web).
 
-## Quick Start
+## Setup
+
+### Claude Code (CLI)
 
 ```bash
-# Option 1: Copy everything
-cp skills/*.md ~/.claude/commands/
+git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
 
-# Option 2: Symlink (stays in sync with git pull)
-for f in /path/to/operator-skills/skills/*.md; do ln -s "$f" ~/.claude/commands/; done
-
-# Option 3: Cherry-pick
-cp skills/parallel.md skills/invert.md skills/freeze.md ~/.claude/commands/
+# Symlink into Claude's skills directory (stays in sync with git pull)
+ln -s ~/operator-skills/skills ~/.claude/skills/operator
 ```
 
-Open a new Claude Code session and type `/` to see your commands.
+Open a new Claude Code session and type `/` to see all 33 skills.
+
+### Claude Cowork (Desktop)
+
+Same as Code — Cowork reads `~/.claude/skills/` natively.
+
+```bash
+git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
+ln -s ~/operator-skills/skills ~/.claude/skills/operator
+```
+
+See [`docs/cowork-setup-guide.md`](docs/cowork-setup-guide.md) for optional Global Instructions.
+
+### Claude.ai (Web)
+
+No CLI needed. Two steps:
+
+1. **Project Instructions** — Create a Claude.ai project, paste the contents of [`docs/claude-ai-project-instructions.md`](docs/claude-ai-project-instructions.md) into Custom Instructions
+2. **Knowledge File** — Upload [`docs/claude-ai-skill-reference.md`](docs/claude-ai-skill-reference.md) as a project Knowledge document
+
+Then invoke skills naturally: "run /parallel on these three tasks" or "use the invert skill on our auth flow."
 
 ## Skill Catalog
 
@@ -52,7 +70,7 @@ Open a new Claude Code session and type `/` to see your commands.
 | `/test` | Auto-detect framework, run tests, parse failures, suggest fixes | `/test coverage` |
 | `/pr-review` | Structured review — security, logic, patterns, breaking changes | `/pr-review 47` |
 | `/deps` | Audit vulns, update packages, align versions across projects | `/deps align stripe` |
-| `/perf` | Lighthouse + bundle size + Core Web Vitals | `/perf http://localhost:3000` |
+| `/perf` | Lighthouse + bundle size + Core Web Vitals | `/perf` |
 | `/project-health` | One-shot audit: security + deps + build + lint + types | `/project-health` |
 | `/parallel-check` | Verify a shared dependency change doesn't break consumers | `/parallel-check all` |
 
@@ -74,7 +92,7 @@ Open a new Claude Code session and type `/` to see your commands.
 | `/db-status` | Database connection, migration status, table inventory | `/db-status` |
 | `/migrate` | Full migration workflow — generate, review, apply, rollback | `/migrate generate` |
 | `/port-check` | What's running on dev ports + project identification | `/port-check` |
-| `/verify-app` | Browser-based app verification via CDP — screenshots + errors | `/verify-app http://localhost:3000` |
+| `/verify-app` | Browser-based app verification via CDP — screenshots + errors | `/verify-app` |
 
 ### Knowledge
 
@@ -144,10 +162,21 @@ The [`.claude/CLAUDE.md`](.claude/CLAUDE.md) template shows how skills wire toge
 
 - **Paths** — Several skills reference `~/Projects/`. Adapt to your directory structure.
 - **Notion** — `/notion` and `/notion-ctx` need a Notion MCP server. Skip them if you don't use Notion.
-- **Browser tools** — `/verify-app` and `/perf` use Chrome DevTools Protocol (any Chromium browser on port 9222).
+- **Browser tools** — `/verify-app` and `/perf` use Chrome DevTools Protocol (any Chromium browser on port 9222). These are Claude Code-specific.
 - **`/scaffold`** — Opinionated toward my stack (Next.js, Neon, Drizzle). Fork the templates for yours.
 
 The best skills are the ones you modify to match how you actually work.
+
+## Platform Compatibility
+
+| Feature | Code (CLI) | Cowork (Desktop) | Claude.ai (Web) |
+|---------|-----------|-----------------|-----------------|
+| All 33 skills | Full | Full | Full |
+| `/` autocomplete | Native | Native | Manual invoke |
+| Subagent spawning | Full | Full | Simulated |
+| File system access | Full | Full | Via Knowledge files |
+| Browser CDP tools | Full | Limited | Not available |
+| Git operations | Full | Full | Not available |
 
 ## Builder's Loft
 

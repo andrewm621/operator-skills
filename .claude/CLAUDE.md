@@ -2,6 +2,16 @@
 
 This is a template showing how custom skills wire together at the project level. Copy this to your project's `.claude/CLAUDE.md` (or root `CLAUDE.md`) and adapt the paths, project names, and conventions to your setup.
 
+## Skill Structure
+
+Skills live at `skills/<name>/SKILL.md` with YAML frontmatter for discoverability. Install via symlink:
+
+```bash
+ln -s ~/operator-skills/skills ~/.claude/skills/operator
+```
+
+Works with Claude Code (CLI), Claude Cowork (desktop), and Claude.ai (web — see `docs/`).
+
 ## Overview
 
 <!-- Replace with your project/workspace description -->
