@@ -21,7 +21,7 @@ Arguments: $ARGUMENTS
 2. **Find the data source** — Determine where to read/write tasks:
 
    **For roadmap-connected tasks:**
-   - Read `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/INDEX.md`
+   - Read `~/.claude/projects/<your-project-path>/dev-notes/roadmaps/INDEX.md`
    - Find the active roadmap (status: active)
    - If exactly one, use it. If multiple, ask the user to pick. If none, fall through to standalone.
    - Read the roadmap's `roadmap.md` and locate the current phase (from `current_phase` in frontmatter)
