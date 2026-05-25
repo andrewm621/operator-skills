@@ -1,20 +1,29 @@
 # Operator Skills — Claude Cowork Setup Guide
 
-Claude Cowork (the desktop app) reads skills from the same `~/.claude/skills/` directory as Claude Code. Setup is identical.
+## Installation — Ask Claude to Do It
 
-## Installation
+Open Cowork and send this message:
 
+> Clone https://github.com/andrewm621/operator-skills.git to ~/operator-skills and symlink the skills directory to ~/.claude/skills/operator. Then confirm it worked by listing what's in ~/.claude/skills/operator.
+
+Claude runs the commands and confirms the install. Type `/` — you should see all 33 skills in autocomplete.
+
+## Manual Install (No Claude)
+
+If you'd rather do it yourself:
+
+**Option A — Terminal:**
 ```bash
-# Clone the repo
 git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
-
-# Symlink into Claude's skills directory
 ln -s ~/operator-skills/skills ~/.claude/skills/operator
 ```
 
-## Verify
-
-Open Claude Cowork and type `/` — you should see all 33 operator skills in autocomplete.
+**Option B — Finder/Explorer:**
+1. Download the ZIP from GitHub (Code → Download ZIP)
+2. Extract it somewhere (e.g. `~/operator-skills`)
+3. Show hidden files (Cmd+Shift+. on Mac)
+4. Navigate to `~/.claude/skills/` (create `skills/` if it doesn't exist)
+5. Drag the `skills/` folder from the extracted repo into `~/.claude/skills/` and rename it `operator`
 
 ## Global Instructions (Optional)
 
@@ -48,11 +57,9 @@ argument-hint: "<task1> | <task2> | <task3>"
 
 ## Updating
 
-```bash
-cd ~/operator-skills && git pull
-```
+Ask Claude: "pull the latest operator-skills" — or run `cd ~/operator-skills && git pull` yourself.
 
-Skills update instantly — no restart needed. The symlink means Cowork always reads the latest files.
+Skills update instantly. The symlink means Cowork always reads the latest files.
 
 ## Platform Notes
 
