@@ -10,36 +10,31 @@ Works with **Claude Code** (CLI), **Claude Cowork** (desktop), and **Claude.ai**
 
 ## Setup
 
+### Claude.ai (Web) — No CLI Needed
+
+1. **Project Instructions** — Create a Claude.ai project, open Settings → Custom Instructions, paste the contents of [`docs/claude-ai-project-instructions.md`](docs/claude-ai-project-instructions.md)
+2. **Knowledge File** — Click "Add Knowledge" → upload [`docs/claude-ai-skill-reference.md`](docs/claude-ai-skill-reference.md)
+
+Ask Claude "what skills do you have?" to confirm. Invoke them naturally: "run /parallel on these three tasks" or "use /invert on the checkout flow."
+
+### Claude Cowork (Desktop) — Let Claude Install It
+
+Open Cowork and send this message:
+
+> Clone https://github.com/andrewm621/operator-skills.git to ~/operator-skills and symlink the skills directory to ~/.claude/skills/operator
+
+Claude runs the commands for you. Type `/` to see all 33 skills in autocomplete.
+
+See [`docs/cowork-setup-guide.md`](docs/cowork-setup-guide.md) for manual install and optional Global Instructions.
+
 ### Claude Code (CLI)
 
 ```bash
 git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
-
-# Symlink into Claude's skills directory (stays in sync with git pull)
 ln -s ~/operator-skills/skills ~/.claude/skills/operator
 ```
 
-Open a new Claude Code session and type `/` to see all 33 skills.
-
-### Claude Cowork (Desktop)
-
-Same as Code — Cowork reads `~/.claude/skills/` natively.
-
-```bash
-git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
-ln -s ~/operator-skills/skills ~/.claude/skills/operator
-```
-
-See [`docs/cowork-setup-guide.md`](docs/cowork-setup-guide.md) for optional Global Instructions.
-
-### Claude.ai (Web)
-
-No CLI needed. Two steps:
-
-1. **Project Instructions** — Create a Claude.ai project, paste the contents of [`docs/claude-ai-project-instructions.md`](docs/claude-ai-project-instructions.md) into Custom Instructions
-2. **Knowledge File** — Upload [`docs/claude-ai-skill-reference.md`](docs/claude-ai-skill-reference.md) as a project Knowledge document
-
-Then invoke skills naturally: "run /parallel on these three tasks" or "use the invert skill on our auth flow."
+Type `/` in a new session to see all 33 skills.
 
 ## Skill Catalog
 
