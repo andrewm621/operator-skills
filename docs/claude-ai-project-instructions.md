@@ -71,6 +71,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 
 | Workflow | Skills |
 |----------|--------|
+| Orchestrate a goal | `/orchestrate <goal>` → auto-routes `/research` → build → `/pr-review`, gated |
 | New project | `/scaffold` → `/switch` → `/map` |
 | Ship feature | `/todo` → code → `/test` → `/pr-review` → `/changelog` |
 | Debug issue | `/project-health` → `/env-check` → `/db-status` |

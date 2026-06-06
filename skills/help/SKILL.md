@@ -85,6 +85,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
 ═══════════════════════════════════════════════════════════════
  QUICK COMBOS
 ═══════════════════════════════════════════════════════════════
+ Orchestrate a goal /orchestrate <goal> → routes research → build → review, gated
  New project        /scaffold → /switch → /map
  Ship feature       /todo → code → /test → /pr-review → /changelog
  Debug issue        /project-health → /env-check → /db-status → /verify-app
