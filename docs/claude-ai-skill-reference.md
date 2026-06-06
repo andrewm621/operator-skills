@@ -3,7 +3,7 @@
 > Upload this file as a **Knowledge** document in your Claude.ai project.
 > Pair with the Project Instructions from `claude-ai-project-instructions.md`.
 
-This file contains the full prompt text for all 33 operator skills.
+This file contains the full prompt text for all 34 operator skills.
 When a user invokes a skill (e.g., `/parallel`, `/invert`), follow the
 instructions for that skill exactly.
 
@@ -2520,6 +2520,64 @@ Templates: Dev Notes @Today (30283fe6-25a6-818c-992e-ffe1219cc0b7), New Idea (30
    ```
 10. **Project context** -- Always show `[notion: <project>]` at start of output to confirm which project was resolved.
 11. **Registry-driven** -- Never hardcode page IDs except in the fallback block. All IDs come from the resolved project entry in registry.yaml.
+
+---
+
+## /orchestrate
+
+
+Orchestrate a goal end-to-end: decompose it, route each piece to the best specialist agent, run pieces in parallel or as a pipeline, gate quality, and report. The smart layer above `/parallel` and `/subagent`.
+
+Goal: $ARGUMENTS
+
+Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `/orchestrate` decides the *shape* of the work, picks the *right specialist* per task, applies *isolation and structured output* automatically, and *graduates to the `Workflow` tool* when the work outgrows simple fan-out.
+
+## Steps
+
+1. **Understand & decompose** — From `$ARGUMENTS`, determine the true goal (not just the surface ask). Break it into the smallest set of tasks that each have one clear owner and one clear output. For each task note: (a) is it read-only or does it write files? (b) does it depend on another task's output? (c) roughly how long / how much context does it need?
+
+   If two readings of the goal are both plausible, ask one clarifying question before spawning anything. A wrong fan-out wastes more than a question does.
+
+2. **Decide the shape** — Pick the execution model from this table. This is the most important step — it's the signpost that keeps simple work simple and routes heavy work to the right primitive.
+
+   | The work is… | Use | Why |
+   |---|---|---|
+   | One task, right-sized (1–10 files, clear scope) | `/subagent` (or a single `Agent` call) | No orchestration overhead needed |
+   | 2–5 **independent** tasks, no handoff between them | `/orchestrate` flat fan-out (this skill) | True parallelism, clean rollup |
+   | Multi-stage where stage N needs stage N-1's output (research → write → review) | `/orchestrate` pipeline (this skill) | Sequenced handoff, still parallel within a stage |
+   | A loop until a condition, a conditional branch, >5–8 items to pipeline, or you need resume / a token budget / schema-validated fan-out at scale | **`Workflow` tool** | Deterministic control flow, concurrency cap, resume, budget — beyond what prose orchestration can hold |
+   | Tasks depend on each other but can't be expressed as clean stages | Sequential `Agent` calls | Correctness over speed |
+
+   **If the row says `Workflow`, stop and author a Workflow script instead.** The Workflow tool requires explicit opt-in — if the user hasn't opted in, briefly describe the workflow you'd run and ask. Do not silently downgrade a Workflow-grade job into a fragile flat fan-out.
+
+3. **Route each task to a specialist** — Match the task to the richest-fit named agent, not a generic one.
+
+   | Task is about… | `agentType` | Notes |
+   |---|---|---|
+   | Research, fact-check, comparison, market/tech scan | `researcher` | Returns cited findings |
+   | Drafting/editing/repurposing content, docs, copy | `writer` | Read-only — return text, then land it |
+   | Writing/changing/debugging code | `coder` | Reads conventions first, verifies build/tests |
+   | Auditing a diff/PR/change before merge | `reviewer` | Read-only; reports, doesn't fix |
+   | Designing an implementation strategy before code | `planner` | Returns a plan, not code |
+   | Broad read-only search across many files/dirs | `Explore` | Returns the conclusion, not file dumps |
+   | No clean specialist, or mixes read + write + bash | `general-purpose` | Full tool access — the fallback |
+
+   If a read-only specialist (`researcher`, `writer`, `reviewer`, `Explore`) must *write files*, use `general-purpose` or split it (specialist produces, general-purpose lands).
+
+4. **Apply isolation & structured output automatically** — Use **worktree isolation** (`isolation: "worktree"`) for any set of parallel agents that *write to the same repo* (parallel writers without it race the git index). Use **schema'd returns** when you'll aggregate results programmatically.
+
+5. **Mandate context pointers** — Every spawned prompt MUST tell the agent where to look first: the working dir / repo ("read `CLAUDE.md` or the README first"), the specific file/dir that bears on the task, and the exact output format expected.
+
+6. **Spawn** — Launch all independent tasks in a **single message with multiple `Agent` calls** for true parallelism; default long/independent tasks to background. For a pipeline, spawn stage 1, then stage 2 with its output. Show a one-line launch summary first.
+
+7. **Gate quality & retry** — Review results before presenting; re-delegate weak results with specific feedback (max 2 retries). Do sequencing-sensitive tail steps (git commit/push, deploy) yourself after agents finish.
+
+8. **Report** — Present a unified rollup in original task order, leading with the answer (numbered list, agentType + status per task, then "Result: …" and any open decisions).
+
+## Notes
+- Use `/parallel` for a quick flat fan-out you've already scoped, `/subagent` for a single fire-and-forget change, and the `Workflow` tool for loops/conditionals/large pipelines/resume/budget.
+- Specialist routing is the quality lever — stop spawning blank `general-purpose` agents for work that has a better-fit owner.
+- Hand every agent context pointers. This is the most common reason a delegation comes back shallow.
 
 ---
 

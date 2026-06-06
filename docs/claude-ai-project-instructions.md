@@ -5,12 +5,13 @@
 
 ---
 
-You have 33 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 34 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
 | Skill | What it does |
 |-------|-------------|
+| `/orchestrate` | Decompose a goal, route each piece to the best specialist, run parallel/pipeline, gate, report |
 | `/parallel` | Run tasks simultaneously via subagents, aggregate results |
 | `/subagent` | Dispatch a background agent to explore + implement |
 | `/research` | Background research — structured findings |
@@ -80,9 +81,32 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 
 ---
 
-## Big Five — Full Skill Prompts
+## Big Six — Full Skill Prompts
 
-The five most powerful skills are included inline below. For all 33, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 34, see the uploaded Knowledge file.
+
+### /orchestrate
+
+Orchestrate a goal end-to-end: decompose it, route each piece to the best specialist agent, run pieces in parallel or as a pipeline, gate quality, and report. The smart layer above `/parallel` and `/subagent`.
+
+**Usage:** `/orchestrate ship the billing page: research the API, build it, review the diff`
+
+**Steps:**
+1. **Decompose** — Find the true goal and break it into the smallest tasks that each have one owner and one output. Note per task: read-only vs writes files, depends on another task, rough size. If two readings are both plausible, ask one clarifying question first.
+2. **Decide the shape** — One right-sized task → `/subagent`. 2–5 independent tasks → flat fan-out. Multi-stage with handoff (research → write → review) → pipeline. Loops/conditionals/large pipelines/resume/budget → graduate to the `Workflow` tool (opt-in). Tangled dependencies → sequential `Agent` calls.
+3. **Route to a specialist** — `researcher` (research/fact-check), `writer` (content/docs — read-only), `coder` (code), `reviewer` (audit a diff — read-only), `planner` (strategy), `Explore` (broad read-only search), `general-purpose` (fallback / mixed read+write+bash). If a read-only specialist must write files, use `general-purpose` or split it.
+4. **Isolate & schema** — Worktree isolation for parallel agents writing to the same repo; schema'd returns when you'll aggregate programmatically.
+5. **Context pointers** — Every prompt tells the agent where to look first (repo, CLAUDE.md/README, the specific file/dir) and the exact output format.
+6. **Spawn** — All independent tasks in a single message (true parallelism); background the long ones. Pipelines: stage 1, then stage 2 with its output. Show a one-line launch summary first.
+7. **Gate & retry** — Review before presenting; re-delegate weak results with specific feedback (max 2 retries). Do git commit/push and deploys yourself after agents finish.
+8. **Report** — Unified rollup in task order, leading with the answer.
+
+**Key rules:**
+- `/parallel` = quick flat fan-out you've already scoped; `/subagent` = one fire-and-forget change; `Workflow` = control flow beyond prose orchestration.
+- Specialist routing is the quality lever — don't spawn blank `general-purpose` agents for work with a better-fit owner.
+- Max ~5 agents per visible fan-out; more than that is a `Workflow`.
+
+---
 
 ### /parallel
 
