@@ -937,7 +937,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  32 custom commands
+ SKILL CATALOG  33 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -952,6 +952,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
 ═══════════════════════════════════════════════════════════════
  AGENT ORCHESTRATION
 ═══════════════════════════════════════════════════════════════
+ /orchestrate <goal>      Decompose → route to specialists → gate → report
  /subagent <task>         Background agent: explore → implement → verify
  /parallel <a> | <b>      Run tasks simultaneously, aggregate results
  /research <topic>        Background research → structured findings
@@ -1007,7 +1008,6 @@ Display the following skill catalog directly. Do NOT read files or run commands 
 ═══════════════════════════════════════════════════════════════
  QUICK COMBOS
 ═══════════════════════════════════════════════════════════════
- Orchestrate a goal /orchestrate <goal> → routes research → build → review, gated
  New project        /scaffold → /switch → /map
  Ship feature       /todo → code → /test → /pr-review → /changelog
  Debug issue        /project-health → /env-check → /db-status → /verify-app
