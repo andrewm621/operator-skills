@@ -106,7 +106,15 @@ Type `/` in a new session to see all 34 skills.
 
 Individual skills are useful. The system is where it gets interesting — skills share data formats, reference each other's output, and chain together.
 
-### Pattern 1: Parallel Everything
+### Pattern 1: Orchestrate a Whole Goal
+
+```
+/orchestrate ship the billing page: research the Stripe API, build it, review the diff
+```
+
+This is the smart layer above the rest. `/orchestrate` decomposes the goal, picks the *shape* (flat fan-out, pipeline, or — for loops and large batches — graduates to a Workflow), routes each piece to the best-fit specialist (`researcher` → `coder` → `reviewer`), runs them in parallel or as a sequenced pipeline, gates quality, and reports a unified rollup. Reach for it when the work is substantive and multi-step; drop to `/parallel` or `/subagent` when you've already scoped the shape yourself.
+
+### Pattern 2: Parallel Everything
 
 ```
 /parallel research Stripe billing | check agencyos build | verify localhost:3000
@@ -114,7 +122,7 @@ Individual skills are useful. The system is where it gets interesting — skills
 
 This spawns three independent agents simultaneously. One researches an API, one runs a build, one verifies a running app. Results come back aggregated with pass/fail status and timing. No waiting for sequential execution.
 
-### Pattern 2: Plan, Execute, Track
+### Pattern 3: Plan, Execute, Track
 
 ```
 /roadmap agencyos v2 launch
@@ -134,7 +142,7 @@ Then the execution loop:
 
 The roadmap, phases, and todos all read/write the same file. Progress flows through the system.
 
-### Pattern 3: Red Team Before Shipping
+### Pattern 4: Red Team Before Shipping
 
 ```
 /invert the checkout flow
