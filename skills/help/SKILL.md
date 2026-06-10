@@ -14,7 +14,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  33 custom commands
+ SKILL CATALOG  34 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -40,6 +40,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
 ═══════════════════════════════════════════════════════════════
  /switch <project>        Context-switch into any ~/Projects/* project
  /scaffold <name> [tmpl]  New project from templates (next/vite/api/monorepo)
+ /dark-mode [where]       Light/Dark/System toggle — OS default, no-flash
  /map [project]           Architectural diagrams (Mermaid) → ARCHITECTURE.md
  /search-all <query>      Search code/files/packages across all projects
  /document <subject>      Write docs to dev-notes, Notion, inline, or README

@@ -5,7 +5,7 @@
 
 ---
 
-You have 34 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 35 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -29,6 +29,7 @@ You have 34 operator skills for software projects. Use them when a user's reques
 | `/project-health` | One-shot audit: security + deps + build + lint + types |
 | `/parallel-check` | Verify shared dependency changes don't break consumers |
 | `/scaffold` | New project from templates (Next.js, Vite, API, monorepo) |
+| `/dark-mode` | Light/Dark/System theme toggle — OS default, persisted, flash-free |
 | `/map` | Architectural diagrams (Mermaid) — folders, data flow, DB |
 | `/report` | Interactive HTML reports and dashboards |
 | `/git-sync` | Full git report — branches, ahead/behind, stashes |
@@ -73,6 +74,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 |----------|--------|
 | Orchestrate a goal | `/orchestrate <goal>` → auto-routes `/research` → build → `/pr-review`, gated |
 | New project | `/scaffold` → `/switch` → `/map` |
+| Add dark mode | `/dark-mode` → `/verify-app` |
 | Ship feature | `/todo` → code → `/test` → `/pr-review` → `/changelog` |
 | Debug issue | `/project-health` → `/env-check` → `/db-status` |
 | Plan work | `/roadmap` → `/phases` → `/todo` |
@@ -84,7 +86,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 34, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 35, see the uploaded Knowledge file.
 
 ### /orchestrate
 
