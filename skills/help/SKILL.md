@@ -14,7 +14,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  34 custom commands
+ SKILL CATALOG  35 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -51,6 +51,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /test [scope]            Run tests — auto-detects framework, parses failures
  /pr-review [PR#|branch]  Structured code review (security, logic, patterns)
  /changelog [start]       Generate changelog from git commits
+ /ship [bump|version]     Release: pre-flight → verify → bump → tag → deploy
 
 ═══════════════════════════════════════════════════════════════
  DIAGNOSTICS

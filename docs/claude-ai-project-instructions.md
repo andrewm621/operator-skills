@@ -5,7 +5,7 @@
 
 ---
 
-You have 35 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 36 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -32,6 +32,7 @@ You have 35 operator skills for software projects. Use them when a user's reques
 | `/dark-mode` | Light/Dark/System theme toggle — OS default, persisted, flash-free |
 | `/map` | Architectural diagrams (Mermaid) — folders, data flow, DB |
 | `/report` | Interactive HTML reports and dashboards |
+| `/ship` | Release end-to-end — pre-flight, verify, version bump, changelog, tag, deploy (hard stop before irreversible) |
 | `/git-sync` | Full git report — branches, ahead/behind, stashes |
 | `/changelog` | Categorized changelog from git commits |
 | `/env-check` | Compare expected vs actual env vars (no secrets shown) |
@@ -76,6 +77,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 | New project | `/scaffold` → `/switch` → `/map` |
 | Add dark mode | `/dark-mode` → `/verify-app` |
 | Ship feature | `/todo` → code → `/test` → `/pr-review` → `/changelog` |
+| Cut a release | `/ship` → verifies, bumps version, tags, deploys (confirms first) |
 | Debug issue | `/project-health` → `/env-check` → `/db-status` |
 | Plan work | `/roadmap` → `/phases` → `/todo` |
 | Pre-merge | `/invert <feature>` → `/test` → `/pr-review` |
@@ -86,7 +88,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 35, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 36, see the uploaded Knowledge file.
 
 ### /orchestrate
 
