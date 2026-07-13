@@ -99,7 +99,36 @@ diff /tmp/a /tmp/b && echo "IDENTICAL"
 # 4. try it live
 ln -sf "$PWD/skills" ~/.claude/skills/operator   # if not already linked
 # open a new Claude Code session and type /<name>
+
+# 5. generated/ (Codex + Cursor + AGENTS.md) matches skills/*/SKILL.md
+node verify-adapters.mjs
 ```
+
+There is a **seventh surface** past the six above: `generated/` transpiles every
+`SKILL.md` into Codex CLI prompts, Cursor commands, and one `AGENTS.md` digest.
+It's produced by `generate-adapters.mjs`, not hand-edited — after adding or
+editing a skill, run `node generate-adapters.mjs` to regenerate it, then
+`node verify-adapters.mjs` (check #5 above) to confirm nothing drifted. See
+`generated/README.md` for what's in there and how to install it into Codex/Cursor.
+
+Every skill lands in one of two output buckets, `generated/portable/` or
+`generated/claude-only/`, based on a curated `CLAUDE_ONLY` set at the top of
+`generate-adapters.mjs`:
+
+- **`portable/`** — no dependency on Claude Code/claude.ai-specific tooling;
+  works as-is in Codex, Cursor, or any other agent.
+- **`claude-only/`** — hard-depends on Claude Code tools (Agent/Task/Workflow,
+  named `subagent_type`s), `mcp__claude_ai_*`/`mcp__chrome-devtools__*` MCP
+  tools, or the Dia Browser + `agent-browser` + CDP setup.
+
+A new skill that spawns subagents, calls an `mcp__claude_ai_*`/
+`mcp__chrome-devtools__*` tool, or drives Dia/`agent-browser` belongs in
+`CLAUDE_ONLY`; everything else is portable by default and needs no entry. The
+generator also runs a token-based safety net on every skill body — it warns
+(to stderr, without failing generation) when a skill contains a tell-tale
+Claude-only token but isn't in `CLAUDE_ONLY`, or vice versa — so a
+classification that's gone stale gets flagged instead of silently drifting.
+`AGENTS.md` mirrors the split as two labeled sections.
 
 ## Editing an existing skill
 
