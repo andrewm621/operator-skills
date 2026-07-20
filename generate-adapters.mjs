@@ -26,7 +26,7 @@
 //   node generate-adapters.mjs --out <dir>      # write into an arbitrary dir (used by verify-adapters.mjs)
 
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -124,7 +124,7 @@ function checkClassification(skill) {
  * (bare scalars, quoted scalars, and `>` folded blocks).
  */
 function parseSkillFile(raw) {
-  const lines = raw.split("\n");
+  const lines = raw.split(/\r?\n/);
   if (lines[0].trim() !== "---") {
     throw new Error("missing opening frontmatter fence (---)");
   }
@@ -408,8 +408,10 @@ function main() {
 }
 
 // Only run main() when invoked directly (so verify-adapters.mjs can import
-// `generate` without triggering a second write pass).
-if (import.meta.url === `file://${process.argv[1]}`) {
+// `generate` without triggering a second write pass). Compare resolved
+// filesystem paths rather than string-building a file:// URL, which does not
+// round-trip on Windows (backslashes, drive letters).
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   main();
 }
 

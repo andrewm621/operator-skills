@@ -1,0 +1,12 @@
+# Normalize line endings to LF across all platforms.
+# The generator (generate-adapters.mjs) and its verifier parse SKILL.md
+# frontmatter line-by-line; CRLF checkouts (Windows default autocrlf=true)
+# previously broke parsing. Enforcing LF keeps the build reproducible
+# regardless of contributor OS.
+* text=auto eol=lf
+
+# Explicitly treat these as text so they always normalize to LF.
+*.md   text eol=lf
+*.mjs  text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
