@@ -4,8 +4,13 @@ Arguments: $ARGUMENTS (optional: action and target)
 
 ## Data Location
 
-- Registry: `~/.claude/projects/-Users-andrewmiller-Projects/notion-context/registry.yaml`
-- Cache: `~/.claude/projects/-Users-andrewmiller-Projects/notion-context/cache/<project>.yaml`
+- Registry: `~/.claude/notion-context/registry.yaml`
+- Cache: `~/.claude/notion-context/cache/<project>.yaml`
+
+> Machine-independent location (shared across all projects). Older installs kept
+> this under `~/.claude/projects/<project-slug>/notion-context/`; if that path
+> exists and `~/.claude/notion-context/` does not, migrate it once:
+> `mv ~/.claude/projects/*/notion-context ~/.claude/notion-context`.
 
 ## Actions
 
@@ -27,7 +32,7 @@ Arguments: $ARGUMENTS (optional: action and target)
 
 ## Tool Strategy
 
-**Primary: `ntn` CLI** (`/usr/local/bin/ntn`) — far fewer tokens than MCP.
+**Primary: `ntn` CLI** (resolved from `PATH`) — far fewer tokens than MCP. If `ntn` is not on `PATH` (e.g. a machine where only the Notion MCP is configured), skip it and use the MCP fallback below for reads too.
 - `ntn pages get <id>` — fetch page as markdown with frontmatter
 - `ntn datasources query <ds-id>` — query database pages
 
@@ -43,7 +48,7 @@ projects:
   <project-key>:
     label: Human-readable name
     description: One-line project description
-    dir: <directory-name>    # Maps to ~/Projects/<dir>/ for auto-detection from cwd
+    dir: <directory-name>    # Matched against cwd path components for auto-detection (root-agnostic)
     hub: <page-id>           # Optional hub/parent page
     notes_db: <datasource-id> # Optional notes database
     pages:
@@ -190,7 +195,7 @@ Add with: /notion-ctx add <project> <page-id>
 ### New
 
 1. Read registry
-2. Check if `~/Projects/<project>/` exists and set `dir` accordingly (null if no local directory)
+2. Determine the project's local directory name if it has one, and set `dir` accordingly (null if no local directory)
 3. Add a new empty project entry:
    ```yaml
    <project>:
