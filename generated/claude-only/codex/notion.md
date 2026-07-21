@@ -19,7 +19,7 @@ Arguments: $ARGUMENTS (optional: action and details)
 
 ## Tool Strategy
 
-**Primary: `ntn` CLI** (Notion CLI at `/usr/local/bin/ntn`) -- uses far fewer tokens than MCP tool calls.
+**Primary: `ntn` CLI** (Notion CLI, resolved from `PATH`) -- uses far fewer tokens than MCP tool calls. If `ntn` is not on `PATH` (e.g. a machine where only the Notion MCP is configured), skip it and use the MCP fallback below for every step.
 - `ntn pages create` -- create pages with markdown content via stdin or `--content`
 - `ntn pages get <id>` -- fetch page content as markdown with frontmatter
 - `ntn pages update <id>` -- update page content via stdin or `--content`
@@ -36,19 +36,28 @@ Arguments: $ARGUMENTS (optional: action and details)
 
 ## Notion Workspace Reference
 
-**Source of truth:** `~/.claude/projects/-Users-andrewmiller-Projects/notion-context/registry.yaml`
+**Source of truth:** `~/.claude/notion-context/registry.yaml`
+
+> Machine-independent location. Older installs kept this under
+> `~/.claude/projects/<project-slug>/notion-context/`; if that path exists and
+> `~/.claude/notion-context/` does not, move it there once:
+> `mv ~/.claude/projects/*/notion-context ~/.claude/notion-context`.
 
 ### Project Resolution (Step 0 -- runs before every action)
 
 1. Get cwd
-2. Extract directory name: first path component after `~/Projects/`
-   - e.g., `/Users/andrewmiller/Projects/agencyos/v2/src/` -> `agencyos`
-3. Read registry.yaml
-4. Match: scan projects for one where `dir` == extracted directory name
-5. Fuzzy fallback: normalize both sides (lowercase, strip spaces/hyphens), compare against project keys
-6. If no match: ask user which project, or check if first argument is a project key
-7. If still unresolved and no arguments: default to `rebelsites` for backward compat
-8. Output: `[notion: <project-key>]` at start of response
+2. Read registry.yaml and collect every project's `dir` value
+3. Match by walking cwd from the deepest component upward: for each path
+   component (starting at the basename), check if it equals any project's `dir`.
+   The first match wins. This is root-agnostic — it works whether projects live
+   under `~/Projects/<dir>/`, `~/<dir>/`, or anywhere else.
+   - e.g. `/Users/andrewmiller/Projects/agencyos/v2/src/` -> tries `src`, `v2`,
+     `agencyos` -> matches `agencyos`
+   - e.g. `C:\Users\Andrew\knowledge` -> tries `knowledge` -> matches `knowledge`
+4. Fuzzy fallback: normalize both sides (lowercase, strip spaces/hyphens), compare each cwd component against project keys
+5. If no match: ask user which project, or check if first argument is a project key
+6. If still unresolved and no arguments: default to `rebelsites` for backward compat
+7. Output: `[notion: <project-key>]` at start of response
 
 After resolution, use these from the matched project entry:
 - `$HUB` -- hub page ID (parent for sub-pages)
@@ -156,7 +165,7 @@ Templates: Dev Notes @Today (30283fe6-25a6-818c-992e-ffe1219cc0b7), New Idea (30
 
 ### For `scaffold <project>`
 
-1. **Validate** -- Check `~/Projects/<project>/` exists (unless `dir` is null, e.g., `infrastructure`). Check if already in registry.
+1. **Validate** -- Confirm the project has a local directory (its `dir`, resolvable from cwd or a known projects root), unless `dir` is null (e.g., `infrastructure`). Check if already in registry.
    - If already has hub + notes_db: "Already scaffolded. Run `/notion status`."
    - If in registry but missing notes_db: offer to create just the DB.
 
