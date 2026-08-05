@@ -5,7 +5,7 @@
 
 ---
 
-You have 35 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 38 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -39,6 +39,7 @@ You have 35 operator skills for software projects. Use them when a user's reques
 | `/migrate` | Full migration workflow: generate, push, rollback, seed |
 | `/port-check` | What's running on dev ports + project identification |
 | `/verify-app` | Browser-based app verification via CDP |
+| `/gleap` | Gleap feedback SDK + REST API — install, query, audit an integration |
 | `/learn` | Catalog lessons learned — gotchas, quirks, searchable |
 | `/session-notes` | End-of-session snapshot: what was done, decisions, next |
 | `/document` | Write to dev-notes, Notion, inline docs, or README |
@@ -46,6 +47,8 @@ You have 35 operator skills for software projects. Use them when a user's reques
 | `/help` | Cheat sheet of all skills with quick combos |
 | `/notion` | Sync notes and decisions to a Notion workspace |
 | `/notion-ctx` | Per-project Notion doc registry with cached summaries |
+| `/slack-reply` | Draft a Slack reply in your voice — never sends, stages a draft |
+| `/slack-ctx` | Local Slack directory of people, channels, threads + cached ids |
 
 ## Auto-Parallel Behavior
 
@@ -77,16 +80,18 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 | Add dark mode | `/dark-mode` → `/verify-app` |
 | Ship feature | `/todo` → code → `/test` → `/pr-review` → `/changelog` |
 | Debug issue | `/project-health` → `/env-check` → `/db-status` |
+| Wire up feedback | `/gleap install` → `/env-check` → `/gleap audit` |
 | Plan work | `/roadmap` → `/phases` → `/todo` |
 | Pre-merge | `/invert <feature>` → `/test` → `/pr-review` |
 | End of day | `/log wrap` or `/session-notes` |
 | Switch threads | `/freeze` → new chat → `/freeze thaw` |
+| Answer in Slack | `/slack-ctx find <person>` → `/slack-reply <url>` → review draft in Slack |
 
 ---
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 35, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 36, see the uploaded Knowledge file.
 
 ### /orchestrate
 

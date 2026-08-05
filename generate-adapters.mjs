@@ -64,6 +64,8 @@ const CLAUDE_ONLY = new Set([
   "port-check",
   "notion",
   "notion-ctx",
+  "slack-reply",
+  "slack-ctx",
 ]);
 
 /**

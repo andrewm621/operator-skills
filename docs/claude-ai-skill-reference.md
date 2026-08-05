@@ -3,7 +3,7 @@
 > Upload this file as a **Knowledge** document in your Claude.ai project.
 > Pair with the Project Instructions from `claude-ai-project-instructions.md`.
 
-This file contains the full prompt text for all 35 operator skills.
+This file contains the full prompt text for all 38 operator skills.
 When a user invokes a skill (e.g., `/parallel`, `/invert`), follow the
 instructions for that skill exactly.
 
@@ -1227,6 +1227,156 @@ Target directory: $ARGUMENTS (default: current working directory)
 
 ---
 
+## /gleap
+
+
+Integrate, query, or audit a [Gleap](https://gleap.io) setup.
+
+Task: $ARGUMENTS
+
+## The one thing to get right first
+
+Gleap has **two separate interfaces with two different keys**. Mixing them up is the
+most common failure.
+
+| | Web SDK (browser) | Server REST API |
+|---|---|---|
+| Key | Frontend API key — **public** | Secret API key (a JWT) — **never in the browser** |
+| Found in | Project Settings → Widget | Project Settings → Security → API Key |
+| Auth | `Gleap.initialize(key)` | `Authorization: Bearer <jwt>` **and** `Project: <projectId>` |
+| Base | `sdk.gleap.io/latest/index.js` | `https://api.gleap.io/v3` |
+
+The server API requires **both** headers. Sending only `Authorization` returns
+`400 Project header is required` as **plain text, not JSON**.
+
+## Steps
+
+1. **Figure out which half the request is about.** Widget/SDK work → step 2.
+   Server/REST work → step 3. Debugging an existing setup → step 5.
+
+2. **Widget install.** Check whether the project already has a Gleap setup skill or
+   provider before writing one. Otherwise:
+   - `npm install gleap`
+   - Call `Gleap.initialize(key)` **exactly once**. In React/Next.js put it at
+     **module scope** behind `typeof window !== "undefined"`, not in a `useEffect` —
+     an effect double-fires under Strict Mode.
+   - Read the key from an env var (`NEXT_PUBLIC_GLEAP_API_KEY`, `VITE_…`, `PUBLIC_…`).
+     Never hardcode it — staging needs to point at a different project.
+   - `Gleap.identify(userId, {...})` on sign-in; `Gleap.updateContact()` for later
+     changes; `Gleap.clearIdentity()` on sign-out.
+   - `Gleap.setEnvironment(process.env.NODE_ENV === "production" ? "prod" : "dev")`
+     so local noise stays out of the inbox.
+
+3. **Server API.** Confirm `GLEAP_API_KEY` and `GLEAP_PROJECT_ID` are set, then
+   verify auth with the cheapest call:
+   ```bash
+   curl -s https://api.gleap.io/v3/users/me \
+     -H "Authorization: Bearer $GLEAP_API_KEY" -H "Project: $GLEAP_PROJECT_ID"
+   ```
+   The key is a JWT — decode it to check which project it belongs to before assuming
+   the key is bad:
+   ```bash
+   echo "$GLEAP_API_KEY" | cut -d. -f2 | base64 -d 2>/dev/null | python3 -m json.tool
+   ```
+
+4. **Build the query.** Every `GET` list endpoint filters on **any field present on
+   the stored document** — there's no fixed allowlist. Fetch one record and read its
+   keys to discover filters.
+
+   | Pattern | Example |
+   |---|---|
+   | Exact | `?status=OPEN` |
+   | OR | `?status=OPEN,DONE,INPROGRESS` |
+   | Comparison | `?createdAt>=2026-01-01T00:00:00.000Z` (`>=` `<=` `>` `<`) |
+   | AND | `?status=OPEN&priority=HIGH` |
+   | Paging | `?limit=50&skip=100` |
+
+   Dates are ISO 8601. Prefer `GET /tickets/export` or `/tickets/csv-export` over
+   paging for bulk pulls.
+
+   ⚠️ **Comparison filters break `URLSearchParams`.** In `createdAt>=2026-01-01…` the
+   operator *is* the separator — there's no `=` after it. `params.append("createdAt>=",
+   v)` emits `createdAt%3E%3D=v`, and the server then reads the value as `=2026-01-01…`
+   and fails with `Cast to date failed`. Build those fragments by hand:
+   ```ts
+   const OPERATOR_RE = /(>=|<=|>|<)$/;
+   const m = key.match(OPERATOR_RE);
+   const part = m
+     ? `${encodeURIComponent(key.slice(0, -m[1].length))}${m[1]}${encodeURIComponent(value)}`
+     : `${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+   ```
+   `curl -G --data-urlencode "createdAt>=$VALUE"` is fine — curl splits on the first
+   `=` and adds no extra separator.
+
+5. **Apply the known traps** when writing or debugging client code:
+   - **Envelopes are inconsistent.** `GET /tickets` returns
+     `{ tickets, count, totalCount }`. Every other list endpoint — `/sessions`,
+     `/companies`, `/messages`, `/teams`, `/helpcenter/collections` — returns a
+     **bare array**. Normalize once at the boundary.
+   - **Errors come in four shapes:** `{error:{message}}` (401),
+     `{fields:{…}}` (validation 400), `{codeName:"MaxTimeMSExpired"}` (backend 409),
+     and **plain text** (missing `Project` header). Never call `res.json()`
+     unconditionally — read text, then try to parse.
+   - **`409` is retryable**, not a client error — it's a backend query timeout
+     leaking a raw database error. A blanket `if (status >= 400) throw` mishandles it.
+   - **No rate-limit headers.** Only `Retry-After` is exposed, and only on a `429`.
+     You can't pace proactively — react and back off. Documented limits: 1000 req/60s
+     for most endpoints, 200 req/60s for ticket endpoints.
+
+6. **Audit an existing integration** (`/gleap audit`) — check each:
+   - Is the secret API key ever bundled client-side? (grep for it outside server code)
+   - Is the widget key hardcoded, or duplicated across files that can drift?
+   - Does `Gleap.identify()` pass a **user hash** (third argument)? Without it anyone
+     can impersonate any user from the browser console. Generate it server-side:
+     `crypto.createHmac("sha256", SECRET).update(String(userId)).digest("hex")` —
+     note `String(...)`, Gleap treats userId as a string and a numeric hash silently
+     fails to verify.
+   - Do PII-rendering pages mask inputs for replays? Add `rr-mask` (value) or
+     `rr-block` (subtree); `Gleap.setReplayOptions({maskAllInputs:true})` must run
+     **before** `initialize()`.
+   - If a strict CSP is in place, are `sdk.gleap.io` and `*.gleap.io` allowed? (Only
+     needed when loading the SDK via `<script>` — npm-bundled installs don't fetch it.)
+   - Is `Gleap.setEnvironment()` wired, so dev traffic isn't in the production inbox?
+
+7. **Report** what you changed or found. For an audit, lead with anything
+   security-relevant (missing user hash, leaked secret key), then correctness, then
+   hygiene.
+
+## Fetching current docs
+
+Gleap's docs are Mintlify, so they're machine-readable — don't scrape the HTML:
+
+```bash
+curl -s https://api.gleap.io/api-docs.json      # full OpenAPI 3.0 spec (258 operations)
+curl -s https://docs.gleap.io/llms-full.txt     # entire docs corpus as markdown
+curl -s https://docs.gleap.io/llms.txt          # page index
+```
+
+Any single page also serves clean markdown by appending `.md`:
+`https://docs.gleap.io/documentation/javascript/user-identity.md`
+
+## Notes
+
+- **Resource groups in the API:** `/tickets` (44 ops — the support inbox),
+  `/sessions` (24 — identified contacts), `/engagement/*` (~80 — surveys, tours,
+  banners, emails, checklists), `/helpcenter/*` (29), `/companies`, `/teams`,
+  `/statistics`, `/messages`. Full schemas live in the OpenAPI spec above.
+- **Don't double-instrument.** If the project also runs Sentry and PostHog, keep the
+  split clean: Sentry owns errors, PostHog owns behavioural analytics, Gleap owns
+  human-reported feedback. Routing one signal to two tools makes both less trustworthy.
+- The SDK's nested `company: { id, name }` object needs **≥ 16.3.0**. On older
+  versions use the flat `companyId` / `companyName` properties.
+- Custom data is capped at **35 keys** per identify call, and values must be string,
+  number, or boolean — nested objects won't work in segment filters.
+- Un-identified visitors become guest sessions; identifying later **merges** their
+  existing feedback into the user session, so a late `identify()` doesn't lose reports.
+- Enable identity-verification enforcement in the dashboard only **after** every
+  client passes a user hash — enforcement rejects un-hashed calls immediately.
+- Use `/env-check` to confirm the Gleap env vars are present before debugging auth,
+  and `/search-all` to find every project that already depends on `gleap`.
+
+---
+
 ## /help
 
 
@@ -1239,7 +1389,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  34 custom commands
+ SKILL CATALOG  37 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -1300,6 +1450,13 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /deps [subcommand]       Audit, update, align versions across all projects
 
 ═══════════════════════════════════════════════════════════════
+ INTEGRATIONS
+═══════════════════════════════════════════════════════════════
+ /gleap [install|api|audit] Gleap feedback SDK + REST API: wire up, query, audit
+ /slack-reply <who|url>   Draft a Slack reply in your voice → staged as a draft
+ /slack-ctx [action]      Slack directory: save, find, list, sync, regen, prune
+
+═══════════════════════════════════════════════════════════════
  @REBEL/UI DESIGN SYSTEM
 ═══════════════════════════════════════════════════════════════
  /rebel-ui                Component reference — props, patterns, themes
@@ -1321,6 +1478,8 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  Status report      /report <project or topic> → opens in browser
  Design system      /rebel-new-component → /parallel-check all
  Cross-project      /search-all → /deps align → /parallel build-check
+ Wire up feedback   /gleap install → /env-check → /gleap audit
+ Answer in Slack    /slack-ctx find <person> → /slack-reply <url>
 ```
 
 If `$ARGUMENTS` names a specific skill (e.g., `/help migrate`), show its full description by reading `~/.claude/commands/<skill>.md` and presenting a summary.
@@ -5130,6 +5289,300 @@ Arguments: $ARGUMENTS (optional: topic override or "notion" to also create a Not
 - The conversation review step works by analyzing what was discussed — it has full context
 - If multiple projects were touched, organize by project in the "What Was Done" section
 - Session notes are append-only historical records — they supplement memory (what's true now) with context (what happened and why)
+
+---
+
+## /slack-ctx
+
+
+Manage the local Slack directory that backs `/slack-reply`.
+
+Arguments: $ARGUMENTS
+
+## Data — one writer, one mirror
+
+| File | Role |
+|------|------|
+| `~/.claude/projects/-Users-andrewmiller-knowledge/slack/registry.yaml` | **Source of truth.** The only file written by hand or by skill. |
+| `~/knowledge/03-Resources/slack-directory.md` | **Generated mirror.** Human-browsable in the vault, git-tracked. Never edited directly — `regen` overwrites it wholesale. |
+| `~/knowledge/03-Resources/slack-reply-log.md` | Append-only log of what was drafted, written by `/slack-reply`. |
+
+The mirror exists so the directory is greppable by `kb search` and readable in Tolaria. It
+is disposable — if it ever disagrees with the YAML, the YAML wins and `regen` fixes it.
+Any action that mutates the registry must run `regen` afterward, or the two drift.
+
+## Actions
+
+| Input | Action |
+|-------|--------|
+| *(empty)* | Status — entry counts by table, workspace domain, staleness, last regen |
+| `init` | Create the registry if missing; discover `workspace.domain` + `team_id` |
+| `save <url> [name]` | Parse a Slack permalink → upsert channel/person/thread entries |
+| `save <name> <channel-or-user>` | Save by name; resolves the id via search |
+| `find <query>` | Resolve a name/alias/topic to a channel or person — registry first, then Slack |
+| `list [channels\|people\|threads]` | Print a table of the registry (all tables if unspecified) |
+| `sync` | Re-verify every cached id against Slack; flag renamed, archived, or lost-access entries |
+| `regen` | Rewrite the vault mirror from the registry |
+| `prune` | Drop `threads` entries past 30 / older than 60 days / `status: closed` |
+| `remove <key>` | Delete an entry from the registry, then `regen` |
+
+## Steps
+
+1. **Parse the action** from `$ARGUMENTS`. Bare invocation = status.
+2. **Read the registry.** If missing and the action isn't `init`, say so and run `init`.
+3. **Execute the action** per the table above.
+4. **On any mutation, run `regen`** so the vault mirror matches.
+5. **Report what changed** — entries added/updated/removed, and anything `sync` flagged.
+
+## Resolving an id (used by `save` and `find`)
+
+Same ladder as `/slack-reply`, cheapest first:
+
+1. **Permalink** → parse directly (see the parser in `/slack-reply` step 1). Zero API calls.
+2. **Registry** → grep `aliases`, `name`, and keys, case-insensitive.
+3. **Slack** → `mcp__claude_ai_Slack__slack_search_channels` for channels, `mcp__claude_ai_Slack__slack_search_users` for people,
+   `mcp__claude_ai_Slack__slack_search_public_and_private` for a thread by content.
+
+Always record **aliases** when saving. The whole point is that "josh", "Josh Heller", and
+"UTI Josh" all land on one entry — a directory that only matches the canonical name saves
+almost nothing. Add the obvious variants unprompted; ask only when genuinely ambiguous.
+
+## Entry shapes
+
+```yaml
+people:
+  josh-heller:
+    name: Josh Heller
+    aliases: [josh, josh h, uti josh]
+    user_id: U0XXXXXXXXX      # doubles as channel_id for DMs
+    context: UTI + Keymark partnership
+    projects: [uti, keymark]
+    last_used: 2026-08-04
+
+channels:
+  rebel-team:
+    name: "#rebel-team"
+    aliases: [team, internal]
+    channel_id: C0AMDBAJMQE
+    type: public              # public | private | dm | group_dm
+    purpose: Internal Rebel Ops team channel
+    projects: [rebel-ops]
+    last_used: 2026-08-04
+
+threads:
+  uti-rollout-timeline:
+    title: Josh asking when UTI phase 2 lands
+    channel_id: C0AMDBAJMQE
+    thread_ts: "1754312345.678900"   # PARENT ts — quote it, it's not a number
+    with: josh-heller
+    first_seen: 2026-08-04
+    status: open              # open | replied | closed
+```
+
+`thread_ts` must stay a **quoted string**. Unquoted it parses as a float and loses trailing
+zeros, which silently breaks the address.
+
+## `sync` details
+
+For each cached entry, confirm it still resolves and still matches:
+- Channels — `mcp__claude_ai_Slack__slack_search_channels` on the known name; flag renamed, archived, or missing.
+- People — `mcp__claude_ai_Slack__slack_read_user_profile` on the `user_id`; flag deactivated accounts.
+- Threads — skip. They're a working set; use `prune` instead.
+
+Do not silently rewrite ids during `sync`. Report the mismatches and let Andrew confirm,
+since a "renamed channel" and "a different channel with a similar name" look identical from
+search results.
+
+## The generated mirror
+
+`regen` overwrites `~/knowledge/03-Resources/slack-directory.md` with this exact shape:
+
+```markdown
+---
+strata_id: <PRESERVE the existing UUID — never mint a new one on regen>
+type: Note
+tags: [slack, directory, generated, ops]
+created: <preserve>
+modified: <today>
+para: resource
+generated_from: ~/.claude/projects/-Users-andrewmiller-knowledge/slack/registry.yaml
+---
+
+# Slack Directory
+
+> [!warning] Generated file — do not edit by hand.
+> Source of truth is `~/.claude/projects/-Users-andrewmiller-knowledge/slack/registry.yaml`.
+> Edit there and run `/slack-ctx regen`.
+
+## Channels
+
+| Channel | Aliases | Purpose | Projects | Last used |
+|---|---|---|---|---|
+| [#rebel-team](https://<domain>.slack.com/archives/C0AMDBAJMQE) | team, internal | Internal Rebel Ops team | rebel-ops | 2026-08-04 |
+
+## People
+
+| Person | Aliases | Context | Projects | Last used |
+|---|---|---|---|---|
+
+## Open threads
+
+| Thread | Channel | With | Status | First seen |
+|---|---|---|---|---|
+```
+
+Build channel URLs as `https://<workspace.domain>.slack.com/archives/<channel_id>` and
+thread URLs as `.../archives/<channel_id>/p<thread_ts with the dot removed>`. If
+`workspace.domain` is null, emit plain ids and note that `init` hasn't run.
+
+## Notes
+
+- **Read-only against Slack.** This skill never sends or drafts messages — drafting is
+  `/slack-reply`'s job, and even that only drafts.
+- Channel ids are stable across renames; names are not. Cache the id, treat the name as a label.
+- A DM needs no channel lookup — a user's `U…` id works directly as `channel_id`.
+- `prune` is cheap and safe. Run it when `threads` gets noisy.
+- Related: `/notion-ctx` is the same registry+cache pattern for Notion docs; `/slack-reply`
+  is the consumer of this registry.
+
+---
+
+## /slack-reply
+
+
+Draft a reply to a Slack message or thread and stage it as a Slack draft for approval.
+
+Target: $ARGUMENTS
+
+## Hard rule
+
+**This skill never sends.** It writes into Slack's "Drafts & Sent" via
+`mcp__claude_ai_Slack__slack_send_message_draft`. Andrew reviews in Slack and hits enter. Do not call
+`mcp__claude_ai_Slack__slack_send_message` or `mcp__claude_ai_Slack__slack_schedule_message` from this skill under any circumstance —
+not even if asked mid-flow. If Andrew wants it sent, tell him it's drafted and waiting.
+
+## Data
+
+- Registry (source of truth): `~/.claude/projects/-Users-andrewmiller-knowledge/slack/registry.yaml`
+- Reply log (append-only): `~/knowledge/03-Resources/slack-reply-log.md`
+- Managed by `/slack-ctx` — this skill reads the registry and appends to it, but structural
+  edits and the vault mirror are `/slack-ctx`'s job.
+
+## Steps
+
+### 1. Resolve the target — cheapest tier first, stop at the first hit
+
+**Tier 1 — a Slack URL was pasted.** Zero API calls; the URL *is* the address. Parse it:
+
+```bash
+python3 - "$SLACK_URL" <<'PY'
+import sys, re, urllib.parse as up
+p = up.urlparse(sys.argv[1]); q = up.parse_qs(p.query)
+m = re.search(r'/(?:archives|messages)/([A-Z0-9]+)(?:/p(\d{12,}))?', p.path)
+if not m: sys.exit("not a Slack permalink")
+cid, raw = m.group(1), m.group(2)
+ts = f"{raw[:10]}.{raw[10:]}" if raw else None
+print(f"domain={p.netloc.split('.')[0]}")
+print(f"channel_id={cid}")
+print(f"message_ts={ts}")
+# If thread_ts is present the clicked message is a REPLY; the parent is thread_ts.
+print(f"reply_to={q.get('thread_ts', [ts])[0] if ts else ''}")
+PY
+```
+
+`reply_to` is the value to pass as `thread_ts` when drafting. A `C…` channel_id is a
+channel, `D…` is a DM, `U…` is a user (usable directly as channel_id for a DM).
+If `workspace.domain` in the registry is null, write the parsed `domain` into it now.
+
+**Tier 2 — a name, nickname, or channel.** Grep the registry's `aliases`, `name`, and key
+fields (case-insensitive). A hit gives `channel_id` with zero API calls. If the ask names a
+person *and* a topic ("Josh about the UTI timeline"), also check `threads` for an open
+thread matching both.
+
+**Tier 3 — search Slack.** Only on a Tier 1+2 miss.
+- `mcp__claude_ai_Slack__slack_search_public_and_private` — semantic search is enabled on this account, so
+  natural-language queries work ("question about the UTI rollout timeline"). Narrow with
+  modifiers: `from:@josh`, `in:#rebel-team`, `after:2026-07-28`, `is:thread`.
+- `mcp__claude_ai_Slack__slack_search_channels` when the target is a channel, not a message.
+- `mcp__claude_ai_Slack__slack_search_users` when the target is a DM and you need the `U…` id.
+
+Show the top 3 candidates with channel, author, date, and first line, and ask which one —
+unless exactly one plausible hit exists.
+
+**Cache the miss, not the hit.** Only when Tier 3 did real work, write what it found back
+into the registry (a `people` or `channels` entry, plus a `threads` entry). A Tier 1/2
+resolution needs no write beyond bumping `last_used`.
+
+### 2. Read the thread before drafting
+
+Call `mcp__claude_ai_Slack__slack_read_thread` with `channel_id` + `message_ts` (the parent). For a channel with
+no thread, `mcp__claude_ai_Slack__slack_read_channel` with a small `limit` for surrounding context.
+
+Read it properly — the point is to answer **what was actually asked**, and to notice if
+someone already answered it, if the ask changed partway down, or if there are two open
+questions and Andrew only remembered one. Say so if that's the case.
+
+If any participant is unknown, `mcp__claude_ai_Slack__slack_read_user_profile` for name and role.
+
+### 3. Draft in Andrew's voice, tuned for Slack
+
+Voice source: `/Users/andrewmiller/Projects/AI Agent Teams/live/agents/writing.md`. Read it
+if the reply is client-facing or longer than a couple of lines. Skip it for a one-line
+internal ack.
+
+Slack register differs from email — apply these on top of the voice guide:
+- Lead with the answer. No "Hey! Great question —".
+- Short paragraphs, blank line between. No email sign-off, no salutation in a thread.
+- Concrete commitments carry a date: "by Thursday", not "soon".
+- Bullets only for 3+ parallel items. Two items is a sentence.
+- Slack markdown: `*bold*` renders as bold in Slack, `_italic_`, `` `code` ``, `>quote`.
+  The draft tool takes standard markdown and converts — write standard `**bold**`.
+- Match the thread's formality. A client channel is not `#rebel-team`.
+- If the honest answer is "I don't know yet", draft that plus when he'll know. Do not
+  invent a status, a date, or a delivery claim. Pull real state from the vault
+  (`kb context <project>`, `strata/Projects/`) rather than guessing.
+
+Flag rather than paper over: if answering requires a fact you don't have, put
+`[NEEDS: what's the actual Keymark go-live date?]` inline and tell Andrew in your summary.
+
+### 4. Show it, then stage it
+
+Print the draft in the terminal first, with the target ("→ #rebel-team, thread w/ Josh,
+2 replies"). On approval call `mcp__claude_ai_Slack__slack_send_message_draft`:
+
+- `channel_id` — the resolved id (`C…`, `D…`, or `U…` for a DM)
+- `thread_ts` — **always set this** when replying to a thread. Omitting it posts to the
+  channel instead of the thread, which is the most common and most visible failure here.
+- `message` — the approved text
+
+Error handling:
+- `draft_already_exists` — only one attached draft per channel. Report it and offer to
+  (a) open the channel so Andrew clears the old one, or (b) print the text for manual
+  paste. Do not attempt to delete the existing draft.
+- `channel_not_found` — the cached id is stale or access was lost. Re-resolve via Tier 3
+  and correct the registry entry.
+
+### 5. Log it
+
+Append one row to `~/knowledge/03-Resources/slack-reply-log.md` under today's date:
+
+```markdown
+- **2026-08-04** — [#rebel-team / Josh Heller](https://<domain>.slack.com/archives/C.../p...) — UTI phase 2 timeline — *drafted, awaiting send*
+```
+
+Then update the registry: bump `last_used` on the person/channel, and upsert the `threads`
+entry with `status: replied`. Keep `threads` at 30 entries max, dropping least-recently-used.
+
+## Notes
+
+- **Never sends.** See the hard rule above. `/slack-ctx` also never sends.
+- Use `/slack-ctx` to manage the directory: `save`, `find`, `list`, `sync`, `regen`, `prune`.
+- If the registry doesn't exist yet, run `/slack-ctx init` first.
+- The fastest path is pasting the Slack permalink (⌥-click a message → Copy link). It skips
+  all search and is unambiguous about which thread.
+- For a *new* message rather than a reply, this still works — resolve the channel, omit
+  `thread_ts`. But say so explicitly, since replies are the default assumption.
+- Related: `/notion-ctx` is the same registry+cache pattern for Notion docs.
 
 ---
 

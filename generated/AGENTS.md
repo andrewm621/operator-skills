@@ -52,6 +52,7 @@ reads this file.
 - **/env-check** — Compare expected vs actual environment variables and flag mismatches. Never displays secret values.
 - **/db-status** — Database connection check and quick status. For full migration workflows, use `/migrate`.
 - **/migrate** — Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely.
+- **/gleap** — Work with Gleap (in-app feedback, support inbox, surveys, product tours) — install the widget, query the server REST API, or debug an existing integration. Covers the two-key auth model, the inconsistent response envelopes, and the query syntax.
 
 ### Knowledge
 
@@ -101,3 +102,5 @@ that underlying Claude-specific tooling or MCP server is also present.
 
 - **/notion** — Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current.
 - **/notion-ctx** — Manage a per-project registry of relevant Notion documents with cached summaries for fast context loading. Keeps Notion knowledge fresh and token-efficient.
+- **/slack-reply** — Draft a reply to a Slack message or thread in Andrew's voice. Resolves the target from a pasted URL, the local Slack directory, or search; reads the thread for context; stages the reply as a Slack draft for approval. Never sends.
+- **/slack-ctx** — Manage the local Slack directory — the cached map of people, channels, and threads that makes /slack-reply resolve a target without searching. Save, find, list, sync, prune, and regenerate the vault mirror.

@@ -14,7 +14,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  34 custom commands
+ SKILL CATALOG  37 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -75,6 +75,13 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /deps [subcommand]       Audit, update, align versions across all projects
 
 ═══════════════════════════════════════════════════════════════
+ INTEGRATIONS
+═══════════════════════════════════════════════════════════════
+ /gleap [install|api|audit] Gleap feedback SDK + REST API: wire up, query, audit
+ /slack-reply <who|url>   Draft a Slack reply in your voice → staged as a draft
+ /slack-ctx [action]      Slack directory: save, find, list, sync, regen, prune
+
+═══════════════════════════════════════════════════════════════
  @REBEL/UI DESIGN SYSTEM
 ═══════════════════════════════════════════════════════════════
  /rebel-ui                Component reference — props, patterns, themes
@@ -96,6 +103,8 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  Status report      /report <project or topic> → opens in browser
  Design system      /rebel-new-component → /parallel-check all
  Cross-project      /search-all → /deps align → /parallel build-check
+ Wire up feedback   /gleap install → /env-check → /gleap audit
+ Answer in Slack    /slack-ctx find <person> → /slack-reply <url>
 ```
 
 If `$ARGUMENTS` names a specific skill (e.g., `/help migrate`), show its full description by reading `~/.claude/commands/<skill>.md` and presenting a summary.
