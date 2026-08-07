@@ -5,7 +5,7 @@
 
 ---
 
-You have 38 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 39 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -32,6 +32,7 @@ You have 38 operator skills for software projects. Use them when a user's reques
 | `/dark-mode` | Light/Dark/System theme toggle — OS default, persisted, flash-free |
 | `/map` | Architectural diagrams (Mermaid) — folders, data flow, DB |
 | `/report` | Interactive HTML reports and dashboards |
+| `/motion-artifact` | Animated product-demo scenes in HTML → deterministic GIF/MP4/WebM export |
 | `/git-sync` | Full git report — branches, ahead/behind, stashes |
 | `/changelog` | Categorized changelog from git commits |
 | `/env-check` | Compare expected vs actual env vars (no secrets shown) |
@@ -86,12 +87,13 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 | End of day | `/log wrap` or `/session-notes` |
 | Switch threads | `/freeze` → new chat → `/freeze thaw` |
 | Answer in Slack | `/slack-ctx find <person>` → `/slack-reply <url>` → review draft in Slack |
+| Show a feature | `/motion-artifact <feature> gif` → preview → render → paste into Slack or the release note |
 
 ---
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 36, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 39, see the uploaded Knowledge file.
 
 ### /orchestrate
 

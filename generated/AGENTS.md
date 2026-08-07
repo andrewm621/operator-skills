@@ -44,6 +44,7 @@ reads this file.
 
 - **/dark-mode** — Add a Light / Dark / System theme toggle to the current project, defaulting to the OS preference and persisting the user's explicit choice — flash-free, across Next.js, Vite/React, and plain HTML.
 - **/report** — Generate a polished, interactive HTML report for: {the text you type after the command}
+- **/motion-artifact** — Animate a product feature or process as a self-contained HTML scene, then export it deterministically to GIF, MP4, WebM, or PNG frames. For demo clips, release notes, launch posts, and slides — without hand-animating.
 
 ### Git & Infrastructure
 
