@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Feature story</title>
+<!--
+  PRESET story · 540×960 · ~6.8s
+  SHOWS  one idea at 9:16, read at arm's length. Type is deliberately huge —
+         a story frame is seen for two seconds on a phone, so a desktop-density
+         layout scaled to 9:16 reads as nothing at all.
+  FORK   swap the headline, the three points, and the closing card. Keep the
+         headline under ~six words.
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0C1A17; --panel:#12241F; --line:#1E3B33; --text:#EAF6F2;
+    --dim:#7FA79B; --accent:#2DD4A7;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  }
+  html,body{width:540px;height:960px;overflow:hidden;background:var(--bg)}
+  body{font-family:var(--ui);color:var(--text)}
+
+  .frame{position:relative;width:540px;height:960px;padding:64px 44px;
+         display:flex;flex-direction:column}
+
+  .eyebrow{opacity:0;font-family:var(--mono);font-size:13px;letter-spacing:.2em;
+           text-transform:uppercase;color:var(--accent);margin-bottom:22px}
+  h1{opacity:0;font-size:62px;line-height:1.02;letter-spacing:-.038em;font-weight:700;
+     margin-bottom:20px}
+  .lede{opacity:0;font-size:21px;line-height:1.45;color:var(--dim);margin-bottom:52px}
+
+  .points{display:flex;flex-direction:column;gap:18px;flex:1}
+  .pt{opacity:0;display:flex;align-items:flex-start;gap:16px;
+      border-top:1px solid var(--line);padding-top:18px}
+  .pt .k{font-family:var(--mono);font-size:14px;color:var(--accent);padding-top:5px}
+  .pt .v{font-size:24px;line-height:1.3;font-weight:560;letter-spacing:-.015em}
+
+  .end{opacity:0;background:var(--panel);border:1px solid var(--line);border-radius:18px;
+       padding:26px 28px}
+  .end .big{font-size:30px;font-weight:680;letter-spacing:-.024em;margin-bottom:7px}
+  .end .sm{font-size:17px;color:var(--dim)}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="eyebrow" id="eyebrow">Now shipping</div>
+    <h1 id="h1">Publish it as a link.</h1>
+    <p class="lede" id="lede">Not a PDF nobody opens.</p>
+
+    <div class="points">
+      <div class="pt" id="p1"><span class="k">01</span><span class="v">Always current — edit the source, the link updates</span></div>
+      <div class="pt" id="p2"><span class="k">02</span><span class="v">Gated or public, your call, per page</span></div>
+      <div class="pt" id="p3"><span class="k">03</span><span class="v">Reads on a phone without pinching</span></div>
+    </div>
+
+    <div class="end" id="end">
+      <div class="big">presentable.app</div>
+      <div class="sm">One link. Any agent.</div>
+    </div>
+  </div>
+
+<script src="motion.js"></script>
+<script>
+(function () {
+  var S = Motion.scene({ width: 540, height: 960, fps: 30, tail: 1400 });
+
+  S.reveal('#eyebrow', { start: 250, dur: 460, y: 10 });
+  S.reveal('#h1',      { start: 450, dur: 620, y: 22 });
+  S.reveal('#lede',    { start: 800, dur: 520, y: 14 });
+
+  S.reveal('#p1', { start: 1700, dur: 500, y: 16 });
+  S.reveal('#p2', { start: 2050, dur: 500, y: 16 });
+  S.reveal('#p3', { start: 2400, dur: 500, y: 16 });
+
+  S.reveal('#end', { start: 3400, dur: 620, y: 26, ease: 'outBack' });
+
+  S.mount();
+})();
+</script>
+</body>
+</html>

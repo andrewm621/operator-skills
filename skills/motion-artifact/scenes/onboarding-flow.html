@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Onboarding flow</title>
+<!--
+  PRESET desktop · 1200×675 · ~7.4s
+  SHOWS  cursor() + click() + type() + states() — the "someone is using the product" loop.
+  FORK   swap the three step labels, the field text, and the button states.
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0B0F14; --panel:#121821; --line:#1E2833; --text:#E8EDF2;
+    --dim:#8B9AAB; --accent:#38BDF8; --ok:#34D399;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  }
+  html,body{width:1200px;height:675px;overflow:hidden;background:var(--bg)}
+  body{font-family:var(--ui);color:var(--text);display:flex;align-items:center;justify-content:center}
+
+  .app{position:relative;width:1000px;height:470px;background:var(--panel);
+       border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .chrome{display:flex;align-items:center;gap:8px;height:44px;padding:0 16px;
+          border-bottom:1px solid var(--line)}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--line)}
+  .url{margin-left:12px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+
+  .body{padding:38px 56px}
+  /* step rail */
+  .steps{display:flex;align-items:center;gap:0;margin-bottom:34px}
+  .step{display:flex;align-items:center;gap:9px}
+  .step .pip{width:24px;height:24px;border-radius:50%;border:2px solid #46566B;
+             display:flex;align-items:center;justify-content:center;
+             font-family:var(--mono);font-size:10px;color:var(--dim)}
+  .step .nm{font-size:12.5px;color:var(--dim)}
+  .step.on .pip{border-color:var(--accent);color:var(--accent)}
+  .step.on .nm{color:var(--text)}
+  .step.done .pip{border-color:var(--ok);color:var(--ok);background:rgba(52,211,153,.10)}
+  .bar{width:78px;height:2px;background:#2A3644;margin:0 14px}
+
+  h1{font-size:27px;letter-spacing:-.02em;font-weight:640;margin-bottom:8px}
+  .sub{font-size:14px;color:var(--dim);margin-bottom:26px}
+
+  .field{width:420px;height:46px;border:1.5px solid var(--line);border-radius:9px;
+         display:flex;align-items:center;padding:0 14px;font-size:14.5px;color:var(--text)}
+  .field.focus{border-color:var(--accent)}
+  .field[data-caret="1"]::after{content:"";width:1.5px;height:19px;background:var(--accent);margin-left:1px}
+  .hint{font-size:12px;color:var(--dim);margin-top:9px}
+
+  .cta{margin-top:30px;width:168px;height:44px;border-radius:9px;background:var(--accent);
+       color:#05121C;font-size:14px;font-weight:620;
+       display:flex;align-items:center;justify-content:center}
+  .cta.busy{background:var(--line);color:var(--dim)}
+  .cta.done{background:rgba(52,211,153,.14);color:var(--ok)}
+
+  .cursor{position:absolute;top:0;left:0;width:20px;height:20px;pointer-events:none;z-index:20}
+  .ripple{position:absolute;top:0;left:0;width:26px;height:26px;margin:-13px 0 0 -13px;
+          border-radius:50%;border:2px solid var(--accent);opacity:0;z-index:19}
+</style>
+</head>
+<body>
+  <div class="app">
+    <div class="chrome">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="url">app.example.com/setup</span>
+    </div>
+
+    <div class="body">
+      <div class="steps">
+        <div class="step" id="s1"><span class="pip">1</span><span class="nm">Account</span></div>
+        <span class="bar"></span>
+        <div class="step" id="s2"><span class="pip">2</span><span class="nm">Workspace</span></div>
+        <span class="bar"></span>
+        <div class="step" id="s3"><span class="pip">3</span><span class="nm">Invite</span></div>
+      </div>
+
+      <h1 id="title">Name your workspace</h1>
+      <p class="sub" id="sub">This is what your team will see.</p>
+
+      <div class="field" id="field" data-caret="0"></div>
+      <p class="hint">Letters, numbers and dashes.</p>
+
+      <div class="cta" id="cta">Continue</div>
+    </div>
+
+    <div class="ripple" id="ripple"></div>
+    <svg class="cursor" id="cursor" viewBox="0 0 20 20" fill="none">
+      <path d="M4 2l11 8.5-5 .6-2.6 4.9L4 2z" fill="#fff" stroke="#0B0F14"
+            stroke-width="1.2" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+<script src="motion.js"></script>
+<script>
+(function () {
+  var S = Motion.scene({ width: 1200, height: 675, fps: 30, tail: 1000 });
+
+  // beat 1 — pointer lands in the field and types
+  S.cursor('#cursor', { start: 250, dur: 850, path: [[840, 430], [200, 250]] });
+  S.click('#ripple', { at: 1150, x: 200, y: 256 });
+  S.classFor('#field', 'focus', { start: 1150, end: 4600 });
+  S.type('#field', 'northwind-design', { start: 1400, dur: 1500 });
+
+  // beat 2 — pointer moves to the button and commits
+  S.cursor('#cursor', { start: 3300, dur: 700, path: [[200, 250], [175, 345]] });
+  S.click('#ripple', { at: 4100, x: 175, y: 351 });
+
+  // beat 3 — the button reports what happened; step rail advances with it
+  S.states('#cta', [
+    { at: 0, text: 'Continue' },
+    { at: 4200, text: 'Creating…', cls: 'busy' },
+    { at: 5500, text: 'Workspace ready', cls: 'done' }
+  ]);
+  S.states('#s1', [{ at: 0, cls: 'done' }]);
+  S.states('#s2', [{ at: 0, cls: 'on' }, { at: 5500, cls: 'done' }]);
+  S.states('#s3', [{ at: 5500, cls: 'on' }]);
+  S.states('#title', [
+    { at: 0, text: 'Name your workspace' },
+    { at: 5500, text: 'Invite your team' }
+  ]);
+  S.states('#sub', [
+    { at: 0, text: 'This is what your team will see.' },
+    { at: 5500, text: 'You can always do this later.' }
+  ]);
+
+  S.mount();
+})();
+</script>
+</body>
+</html>
