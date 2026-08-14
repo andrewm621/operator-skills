@@ -58,8 +58,13 @@ Break purity and the export silently smears. The [Hard rules](#hard-rules) exist
    | `pipeline-run.html` | desktop | stages advancing through `states()` |
    | `dashboard-fill.html` | desktop | counters, progress bars, a chart drawing in |
    | `phone-concierge.html` | phone | mobile screen, typed question, result cards |
+   | `phone-wide-release.html` | phone-wide | device beside a caption, release-note shape |
    | `checklist-complete.html` | square | `sequence()` ticking a list, for social |
    | `feature-story.html` | story | 9:16 vertical, big type, one idea |
+
+   Scenes carry their own checks — `node scenes/check.mjs --all` enforces the
+   hard rules below statically, proves each scene is a pure function of `t`, and
+   renders every one. Run it after editing a scene.
 
    If nothing fits, write one: a self-contained `.html` file with the runtime from
    [Scene runtime](#scene-runtime) inlined verbatim in a `<script>` tag; no CDN, no
@@ -100,6 +105,13 @@ Break purity and the export silently smears. The [Hard rules](#hard-rules) exist
    # at 30fps, --from 3000 means fc frame N is fa frame N+90
    cmp fa/f_00092.png fc/f_00002.png && echo "COLD SEEK OK"
    ```
+
+   For a scene in `scenes/`, `node scenes/purity.mjs <scene>` does check 2 more
+   thoroughly and much faster: it compares the *DOM* after a cold seek against
+   the DOM after playing forward, at samples across the whole timeline, and
+   prints what differs. Prefer it when the scene is available to it — comparing
+   rendered frames across two `--from` offsets can differ by a subpixel purely
+   from float drift in `from + f*1000/fps`, which is a false alarm.
 
    Output from check 1 means something is running on wall-clock time — convert the frame number to a timestamp (`frame / fps * 1000`) to find the offending cue. A mismatch in check 2 means a cue depends on *how you got to `t`* rather than on `t`: it will look right when you play from the start and wrong whenever you scrub or render a sub-range. **Check 1 cannot catch that** — both full renders walk forward identically and agree with each other.
 

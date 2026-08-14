@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Phone wide release</title>
+<!--
+  PRESET phone-wide · 900×560 · ~6.4s
+  SHOWS  a device beside a caption — the release-note shape. The phone carries
+         the proof, the right column carries the words, and they land in turn so
+         the eye is never asked to read both at once.
+  FORK   swap the notification rows, the headline, and the three bullets.
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0F1013; --panel:#FFFFFF; --line:#E6E4E0; --ink:#15161A;
+    --dim:#8B8A86; --accent:#F2603C; --ok:#2FA36B;
+    --paper:#F7F5F2;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  }
+  html,body{width:900px;height:560px;overflow:hidden;background:var(--bg)}
+  body{font-family:var(--ui);color:#EDEDEA;display:flex;align-items:center;
+       justify-content:center;gap:52px;padding:0 56px}
+
+  /* --- left: the device --- */
+  .phone{position:relative;width:252px;height:452px;background:var(--panel);
+         border:8px solid #0A0A0C;border-radius:32px;overflow:hidden;flex:none;
+         box-shadow:0 18px 48px rgba(0,0,0,.45)}
+  .status{display:flex;align-items:center;justify-content:space-between;
+          height:30px;padding:0 14px;font-family:var(--mono);font-size:9px;color:var(--dim)}
+  .head{padding:4px 14px 12px;border-bottom:1px solid var(--line)}
+  .head .t{font-size:15px;font-weight:680;color:var(--ink);letter-spacing:-.015em}
+  .head .s{font-size:10.5px;color:var(--dim);margin-top:2px}
+  .list{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+  .item{opacity:0;background:var(--paper);border:1px solid var(--line);
+        border-radius:11px;padding:9px 11px}
+  .item .a{font-size:11.5px;font-weight:620;color:var(--ink)}
+  .item .b{font-size:10px;color:var(--dim);margin-top:2px}
+  .tick{display:inline-block;width:14px;height:14px;border-radius:50%;
+        background:rgba(47,163,107,.14);color:var(--ok);font-size:9px;
+        text-align:center;line-height:14px;margin-right:5px}
+  .pill{position:absolute;left:14px;right:14px;bottom:14px;height:36px;border-radius:11px;
+        background:var(--ink);color:#fff;font-size:11.5px;font-weight:620;
+        display:flex;align-items:center;justify-content:center}
+  .pill.done{background:rgba(47,163,107,.16);color:var(--ok)}
+
+  /* --- right: the words --- */
+  .copy{flex:1;min-width:0}
+  .eyebrow{opacity:0;font-family:var(--mono);font-size:11px;letter-spacing:.18em;
+           text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+  h1{opacity:0;font-size:38px;line-height:1.08;letter-spacing:-.032em;font-weight:700;
+     margin-bottom:14px}
+  .lede{opacity:0;font-size:15.5px;line-height:1.5;color:#A5A49F;margin-bottom:26px}
+  .pt{opacity:0;display:flex;gap:12px;align-items:baseline;padding:11px 0;
+      border-top:1px solid #24252A}
+  .pt .k{font-family:var(--mono);font-size:11px;color:var(--accent)}
+  .pt .v{font-size:14.5px;line-height:1.4}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>▮▮▮</span></div>
+    <div class="head">
+      <div class="t">Approvals</div>
+      <div class="s">3 waiting on you</div>
+    </div>
+    <div class="list">
+      <div class="item" id="i1"><div class="a"><span class="tick">✓</span>Q3 budget</div><div class="b">Finance · 2m ago</div></div>
+      <div class="item" id="i2"><div class="a"><span class="tick">✓</span>Vendor contract</div><div class="b">Legal · 14m ago</div></div>
+      <div class="item" id="i3"><div class="a"><span class="tick">✓</span>New hire offer</div><div class="b">People · 1h ago</div></div>
+    </div>
+    <div class="pill" id="pill">Approve all</div>
+  </div>
+
+  <div class="copy">
+    <div class="eyebrow" id="eyebrow">Release 4.2</div>
+    <h1 id="h1">Clear the queue from your phone.</h1>
+    <p class="lede" id="lede">Approvals used to mean opening a laptop. Now they're three taps on the train.</p>
+    <div class="pt" id="p1"><span class="k">01</span><span class="v">Batch-approve everything waiting</span></div>
+    <div class="pt" id="p2"><span class="k">02</span><span class="v">Full audit trail, same as the desktop app</span></div>
+    <div class="pt" id="p3"><span class="k">03</span><span class="v">Works offline — syncs when you surface</span></div>
+  </div>
+
+<script src="motion.js"></script>
+<script>
+(function () {
+  var S = Motion.scene({ width: 900, height: 560, fps: 30, tail: 1100 });
+
+  // beat 1 — the words set up the claim
+  S.reveal('#eyebrow', { start: 200, dur: 440, y: 8 });
+  S.reveal('#h1', { start: 380, dur: 600, y: 18 });
+  S.reveal('#lede', { start: 700, dur: 500, y: 12 });
+
+  // beat 2 — the device proves it
+  S.reveal('#i1', { start: 1500, dur: 420, y: 12 });
+  S.reveal('#i2', { start: 1680, dur: 420, y: 12 });
+  S.reveal('#i3', { start: 1860, dur: 420, y: 12 });
+  S.states('#pill', [
+    { at: 0, text: 'Approve all' },
+    { at: 2600, text: 'Approving…' },
+    { at: 3400, text: 'All clear', cls: 'done' }
+  ]);
+
+  // beat 3 — the detail, once the claim has landed
+  S.reveal('#p1', { start: 3500, dur: 460, y: 12 });
+  S.reveal('#p2', { start: 3720, dur: 460, y: 12 });
+  S.reveal('#p3', { start: 3940, dur: 460, y: 12 });
+
+  S.mount();
+})();
+</script>
+</body>
+</html>

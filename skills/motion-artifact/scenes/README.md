@@ -18,6 +18,7 @@ node render.mjs my-clip.html --format gif --scale 900
 | `pipeline-run.html` | desktop 1200×675 | one `states()` machine per stage, `progress()`, `sequence()` streaming log lines | `--scale 900` |
 | `dashboard-fill.html` | desktop 1200×675 | `counter()`, `progress()`, `tween({height})` bars growing from a baseline | `--scale 900` |
 | `phone-concierge.html` | phone 420×660 | the mobile device frame — phone fills the canvas instead of being letterboxed | `--scale 420` |
+| `phone-wide-release.html` | phone-wide 900×560 | a device beside a caption; the release-note shape | `--scale 720` |
 | `checklist-complete.html` | square 800×800 | `sequence()` ticking pre-built rows; square crops for LinkedIn/IG | `--scale 640` |
 | `feature-story.html` | story 540×960 | 9:16, one idea, type sized to be read in two seconds | `--scale 540` |
 
@@ -30,10 +31,47 @@ failure: `onboarding-flow` at `--scale 700` loses the step-rail rings entirely, 
 2px border on a dark ground does not survive GIF quantisation. If a scene must go out
 small, thicken its hairlines first.
 
+## Checks
+
+```bash
+node check.mjs           # static rules — fast, no browser
+node check.mjs --purity  # + prove each scene is a pure function of t (Chrome)
+node check.mjs --render  # + render each scene end to end (Chrome + ffmpeg)
+node check.mjs --all     # everything
+node check.mjs foo.html  # one scene
+```
+
+Every static rule exists because the bug shipped at least once — that's the bar
+for adding one, not "seemed like good practice". They enforce the skill's own
+hard rules: no CSS `transition`/`animation`, an exact `html,body` canvas that
+*matches* `Motion.scene({width,height})`, no external refs, `scroll()` with an
+explicit `from`, `type()` never targeting an element with child markup, and one
+cue owning each property per element.
+
+`purity.mjs` is the interesting one. It loads the scene in Chrome and compares
+the **DOM** after a cold seek to `t` against the DOM after playing forward to
+`t`, at samples across the timeline — then prints exactly what differs:
+
+```
+✗ coldseek.html — IMPURE at t=3200, 3467, 3733ms
+    warm (played forward): <div id="s" class="done">Connecting...</div>
+    cold (seeked direct):  <div id="s" class="done">Connect</div>
+```
+
+It compares DOM rather than pixels on purpose. The renderer computes `t` as
+`from + f*1000/fps`, which in IEEE754 is not bit-identical to
+`(f+shift)*1000/fps` — so diffing frames across two `--from` offsets can report
+a subpixel difference that is float drift, not a real purity break. DOM
+comparison has no such failure mode, needs no ffmpeg, and says what broke.
+
+CI runs the static rules and the purity check on every PR
+(`.github/workflows/checks.yml`); `--render` stays local because it needs ffmpeg.
+
 ## Files
 
 - `motion.js`, `render.mjs` — **generated** from `../SKILL.md`. Don't edit them here.
 - `sync.mjs` — regenerates the two files above.
+- `check.mjs`, `purity.mjs` — the checks above.
 
 ```bash
 node sync.mjs            # after editing SKILL.md
@@ -45,17 +83,7 @@ Markdown. These are extracted copies so a scene can `<script src="motion.js">` i
 carrying 400 inlined lines. A scene you ship somewhere else should inline the runtime —
 that's what makes it self-contained.
 
-## Local checks
-
-```bash
-# every scene still renders
-for f in *.html; do node render.mjs "$f" --format frames --dpr 1 --out /tmp/chk || echo "FAILED $f"; done
-
-# cold-seek purity: a sub-range must match the full render at the same t
-node render.mjs pipeline-run.html --format frames --out fa
-node render.mjs pipeline-run.html --format frames --from 3000 --out fb
-cmp fa/f_00092.png fb/f_00002.png && echo "COLD SEEK OK"   # 30fps: 3000ms = 90 frames
-```
+## Requirements
 
 Needs Node 22+ (built-in `WebSocket`), a Chrome/Chromium binary, and `ffmpeg` on PATH.
 The renderer finds Chromium in the Playwright and Puppeteer caches as well as the usual
