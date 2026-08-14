@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Search results</title>
+<!--
+  PRESET desktop · 1200×675 · ~6.6s
+  SHOWS  type() → a busy state → reveal() with stagger → counter(). The
+         "query returns results" clip, which is most of what search demos need.
+  FORK   swap the five result rows and the query string.
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0B0F14; --panel:#121821; --line:#1E2833; --text:#E8EDF2;
+    --dim:#8B9AAB; --accent:#38BDF8; --ok:#34D399;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  }
+  html,body{width:1200px;height:675px;overflow:hidden;background:var(--bg)}
+  body{font-family:var(--ui);color:var(--text);display:flex;align-items:center;justify-content:center}
+
+  .app{position:relative;width:1020px;height:570px;background:var(--panel);
+       border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex}
+
+  .side{width:200px;border-right:1px solid var(--line);padding:20px 0;flex:none}
+  .side .brand{font-size:13.5px;font-weight:640;padding:0 20px 18px;color:var(--text)}
+  .nav{padding:0 12px;display:flex;flex-direction:column;gap:2px}
+  .nav div{font-size:12.5px;color:var(--dim);padding:7px 8px;border-radius:6px}
+  .nav div.sel{background:rgba(56,189,248,.10);color:var(--accent)}
+
+  .main{flex:1;padding:22px 26px;min-width:0}
+  .searchbar{height:44px;border:1.5px solid var(--line);border-radius:10px;
+             display:flex;align-items:center;gap:10px;padding:0 14px}
+  .searchbar.focus{border-color:var(--accent)}
+  .mag{width:15px;height:15px;border:1.5px solid var(--dim);border-radius:50%;flex:none}
+  .q{font-size:14.5px}
+  .q[data-caret="1"]::after{content:"";display:inline-block;width:1.5px;height:17px;
+                            background:var(--accent);margin-left:2px;vertical-align:-3px}
+
+  .statusline{display:flex;align-items:baseline;gap:7px;margin:18px 2px 12px;
+              font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--dim)}
+  /* the count is hidden by class, not by a second cue writing its text —
+     one owner per property (hard rule 4): counter() owns the digits. */
+  .statusline .n{color:var(--text);font-size:12px;opacity:0}
+  .statusline .n.show{opacity:1}
+
+  .rows{display:flex;flex-direction:column;gap:9px}
+  .row{opacity:0;border:1px solid var(--line);border-radius:10px;padding:12px 15px}
+  .row .t{font-size:14px;font-weight:600;margin-bottom:3px}
+  .row .m{font-size:12px;color:var(--dim)}
+  .row .m b{color:var(--accent);font-weight:500}
+</style>
+</head>
+<body>
+  <div class="app">
+    <div class="side">
+      <div class="brand">Northwind</div>
+      <div class="nav">
+        <div>Overview</div>
+        <div class="sel">Search</div>
+        <div>Reports</div>
+        <div>Settings</div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="searchbar" id="bar">
+        <span class="mag"></span><span class="q" id="q" data-caret="0"></span>
+      </div>
+
+      <div class="statusline">
+        <span class="n" id="count">0</span><span id="status">results</span>
+      </div>
+
+      <div class="rows" id="rows">
+        <div class="row"><div class="t">Q3 pipeline review</div><div class="m">Deck · updated 2d ago · <b>refund policy</b> mentioned 4×</div></div>
+        <div class="row"><div class="t">Support macros — billing</div><div class="m">Doc · updated 6d ago · <b>refund policy</b> mentioned 11×</div></div>
+        <div class="row"><div class="t">Terms of service v4</div><div class="m">Contract · updated 3w ago · <b>refund policy</b> mentioned 2×</div></div>
+        <div class="row"><div class="t">Onboarding FAQ</div><div class="m">Doc · updated 1mo ago · <b>refund policy</b> mentioned 7×</div></div>
+        <div class="row"><div class="t">Churn interview notes</div><div class="m">Notes · updated 2mo ago · <b>refund policy</b> mentioned 1×</div></div>
+      </div>
+    </div>
+  </div>
+
+<script src="motion.js"></script>
+<script>
+(function () {
+  var S = Motion.scene({ width: 1200, height: 675, fps: 30, tail: 1100 });
+
+  S.classFor('#bar', 'focus', { start: 200, end: 3000 });
+  S.type('#q', 'refund policy', { start: 400, dur: 1300 });
+
+  // the search "runs": status text carries the whole state machine
+  S.states('#status', [
+    { at: 0, text: 'start typing to search' },
+    { at: 1800, text: 'searching…' },
+    { at: 2600, text: 'results · 0.21s' }
+  ]);
+  S.classFor('#count', 'show', { start: 2600 });
+  S.counter('#count', { start: 2600, dur: 700, from: 0, to: 25 });
+
+  S.reveal('#rows .row', { start: 2700, dur: 420, stagger: 170, y: 10 });
+
+  S.mount();
+})();
+</script>
+</body>
+</html>

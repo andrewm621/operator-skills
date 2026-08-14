@@ -25,13 +25,45 @@ Break purity and the export silently smears. The [Hard rules](#hard-rules) exist
    | | Default |
    |---|---|
    | The beats, in order | derive from the request |
-   | Canvas size | 1200×675 (16:9) |
+   | Canvas | `desktop` — see the preset table below |
    | Duration | 5–8s — long enough to read, short enough to loop |
    | Output | GIF for chat/docs, MP4 for slides/social |
 
    Keep it to **3–5 beats**. A clip that tries to show a whole product shows nothing.
 
-2. **Write the scene** — One self-contained `.html` file. Inline the runtime from [Scene runtime](#scene-runtime) verbatim in a `<script>` tag; no CDN, no build step, no network. Follow the [Scene skeleton](#scene-skeleton).
+   **Pick the canvas from the subject, not the default.** A phone scene on a 16:9
+   canvas wastes ~70% of the frame and lands with type at the edge of legible:
+
+   | Preset | Canvas | Use |
+   |---|---|---|
+   | `desktop` | 1200×675 | app window, dashboard, browser flow |
+   | `phone` | 420×660 | a single mobile screen |
+   | `phone-wide` | 900×560 | phone beside a caption or callout |
+   | `square` | 800×800 | LinkedIn / IG feed |
+   | `story` | 540×960 | IG / TikTok story, 9:16 |
+
+2. **Start from a scene, not a blank page** — Check `scenes/` next to this skill first.
+   Each one is a complete, rendered, self-contained clip; copying the closest and
+   editing its copy is faster and more reliable than writing cues from nothing.
+
+   | Scene | Canvas | Shows |
+   |---|---|---|
+   | `onboarding-flow.html` | desktop | cursor → type → click → step advance |
+   | `search-results.html` | desktop | query typed, results stagger in |
+   | `pipeline-run.html` | desktop | stages advancing through `states()` |
+   | `dashboard-fill.html` | desktop | counters, progress bars, a chart drawing in |
+   | `phone-concierge.html` | phone | mobile screen, typed question, result cards |
+   | `phone-wide-release.html` | phone-wide | device beside a caption, release-note shape |
+   | `checklist-complete.html` | square | `sequence()` ticking a list, for social |
+   | `feature-story.html` | story | 9:16 vertical, big type, one idea |
+
+   Scenes carry their own checks — `node scenes/check.mjs --all` enforces the
+   hard rules below statically, proves each scene is a pure function of `t`, and
+   renders every one. Run it after editing a scene.
+
+   If nothing fits, write one: a self-contained `.html` file with the runtime from
+   [Scene runtime](#scene-runtime) inlined verbatim in a `<script>` tag; no CDN, no
+   build step, no network. Follow the [Scene skeleton](#scene-skeleton).
 
    Build **all** DOM up front and let cues reveal it. Fake the product's chrome (browser bar, sidebar, panel) rather than screenshotting the real app — it stays legible when scaled down to a GIF, and it never leaks real customer data.
 
@@ -55,15 +87,28 @@ Break purity and the export silently smears. The [Hard rules](#hard-rules) exist
    ffmpeg -v error -y -i out.gif -vf "select='eq(n\,20)+eq(n\,110)+eq(n\,200)'" -vsync 0 chk_%d.png
    ```
 
-   Check the frames mid-transition, not just the last one — most bugs are states stomping each other partway through. If you suspect a purity break, prove it:
+   Check the frames mid-transition, not just the last one — most bugs are states stomping each other partway through. If you suspect a purity break, prove it — **two checks, and they catch different bugs**:
 
    ```bash
+   # 1. wall-clock leak: the same render twice must be byte-identical
    node render.mjs scene.html --format frames --out fa
    node render.mjs scene.html --format frames --out fb
    for f in fa/*.png; do cmp -s "$f" "fb/$(basename $f)" || echo "NONDETERMINISTIC $(basename $f)"; done
+
+   # 2. cold-seek leak: a sub-range must match the full render at the same t
+   node render.mjs scene.html --format frames --from 3000 --out fc
+   # at 30fps, --from 3000 means fc frame N is fa frame N+90
+   cmp fa/f_00092.png fc/f_00002.png && echo "COLD SEEK OK"
    ```
 
-   Any output from that loop means something in the scene is running on wall-clock time. Convert the frame number to a timestamp (`frame / fps * 1000`) to find the offending cue.
+   For a scene in `scenes/`, `node scenes/purity.mjs <scene>` does check 2 more
+   thoroughly and much faster: it compares the *DOM* after a cold seek against
+   the DOM after playing forward, at samples across the whole timeline, and
+   prints what differs. Prefer it when the scene is available to it — comparing
+   rendered frames across two `--from` offsets can differ by a subpixel purely
+   from float drift in `from + f*1000/fps`, which is a false alarm.
+
+   Output from check 1 means something is running on wall-clock time — convert the frame number to a timestamp (`frame / fps * 1000`) to find the offending cue. A mismatch in check 2 means a cue depends on *how you got to `t`* rather than on `t`: it will look right when you play from the start and wrong whenever you scrub or render a sub-range. **Check 1 cannot catch that** — both full renders walk forward identically and agree with each other.
 
 7. **Report** — Give the output path, dimensions, duration, and **file size**. Size is the thing that decides whether it can be pasted into Slack or a README. If a GIF lands over ~2MB, cut `--scale`, drop `--fps` to 20, or shorten the clip — in that order.
 
@@ -74,7 +119,7 @@ These are the failure modes that actually bite. Each one has cost a debugging se
 1. **Never put `transition:` or `animation:` on anything a cue touches.** This is the big one. CSS transitions run on wall-clock time and desync from `seek()`, so exported frames smear unpredictably — and it does not reproduce in the browser, where it looks fine. Tween through `reveal()`/`tween()` instead.
 2. **Build all DOM up front.** A cue that creates nodes cannot be scrubbed backward. Pre-render every state and toggle classes.
 3. **Every `apply()` must define state at `p=0` *and* `p=1`.** Anything that only paints on the way up breaks reverse scrubbing.
-4. **Use `states()` for anything that changes more than once.** Two `set()` cues on one element stomp each other — each re-asserts its own "before" value at `p=0`, so a later cue wins at `t=0` and the element shows a future state early.
+4. **Two cues that write the same CSS property on the same element fight — the later one wins, at every `t`.** So use `states()` for anything that changes more than once: two `set()` cues on one element each re-assert their own "before" value at `p=0`, and the later cue wins at `t=0`, showing a future state early. The one exception is `transform`, which `tween()` composes per element — `reveal()` then a later `tween({x})` keeps both channels. Everything else (`opacity`, `filter`, `width`, text) still needs one owner per element.
 5. **System fonts, or base64 the font.** A webfont that loads over the network races the first frames.
 6. **`html, body` must be exactly the scene size with `overflow:hidden`.** The renderer captures the viewport.
 7. **`scroll()` needs an explicit `from`.** Reading `scrollTop` at seek time makes the cue depend on history.
@@ -177,6 +222,33 @@ Write this verbatim into the scene's `<script>` tag (or alongside as `motion.js`
   /* Tween any combination of opacity / translate / scale / rotate / blur / size.
      Values are [from, to] pairs. This is the workhorse - reveal() and progress()
      are thin wrappers over it. */
+  /* Transform channels are composed per NODE, not per cue. Two tweens on one
+     element each own the channels they were given; the element's transform is
+     rebuilt from the union every seek. Without this, the later cue's transform
+     string overwrites the earlier one's whole-cloth - including at p=0 - so an
+     earlier reveal()'s rise silently disappears and the clip just looks flatter
+     than you wrote it. Channel order is fixed (not authoring order) so the
+     composed string stays a pure function of t. */
+  var TR_ORDER = ['x', 'y', 'scale', 'rotate'];
+  var TR_FMT = {
+    x: function (v) { return 'translateX(' + v + 'px)'; },
+    y: function (v) { return 'translateY(' + v + 'px)'; },
+    scale: function (v) { return 'scale(' + v + ')'; },
+    rotate: function (v) { return 'rotate(' + v + 'deg)'; }
+  };
+  function trState(node) {
+    if (!node.__motionTr) node.__motionTr = {};
+    return node.__motionTr;
+  }
+  function writeTr(node) {
+    var st = trState(node), out = [];
+    for (var i = 0; i < TR_ORDER.length; i++) {
+      var k = TR_ORDER[i];
+      if (st[k] !== undefined) out.push(TR_FMT[k](st[k]));
+    }
+    if (out.length) node.style.transform = out.join(' ');
+  }
+
   Scene.prototype.tween = function (target, o) {
     o = o || {};
     var nodes = els(target);
@@ -185,12 +257,12 @@ Write this verbatim into the scene's `<script>` tag (or alongside as `motion.js`
     nodes.forEach(function (node, i) {
       self.cue((o.start || 0) + i * stagger, o.dur === undefined ? 500 : o.dur, function (p) {
         if (o.opacity) node.style.opacity = lerp(o.opacity[0], o.opacity[1], p);
-        var tr = '';
-        if (o.x) tr += ' translateX(' + lerp(o.x[0], o.x[1], p) + 'px)';
-        if (o.y) tr += ' translateY(' + lerp(o.y[0], o.y[1], p) + 'px)';
-        if (o.scale) tr += ' scale(' + lerp(o.scale[0], o.scale[1], p) + ')';
-        if (o.rotate) tr += ' rotate(' + lerp(o.rotate[0], o.rotate[1], p) + 'deg)';
-        if (tr) node.style.transform = tr.trim();
+        var st = trState(node), touched = false;
+        for (var j = 0; j < TR_ORDER.length; j++) {
+          var k = TR_ORDER[j];
+          if (o[k]) { st[k] = lerp(o[k][0], o[k][1], p); touched = true; }
+        }
+        if (touched) writeTr(node);
         if (o.blur) node.style.filter = 'blur(' + lerp(o.blur[0], o.blur[1], p) + 'px)';
         if (o.width) node.style.width = lerp(o.width[0], o.width[1], p) + (o.unit || '%');
         if (o.height) node.style.height = lerp(o.height[0], o.height[1], p) + (o.unit || '%');
@@ -304,18 +376,39 @@ Write this verbatim into the scene's `<script>` tag (or alongside as `motion.js`
          { at: 5200, text: 'Connected',     cls: 'done' }
        ]);
 
-     The first entry should sit at 0 so there is a defined state at t=0. */
+     Each key resolves independently, so an entry may set only `cls` and leave
+     the previous entry's text in place. Before the first entry that defines
+     `text`, the element's markup text stands. */
   Scene.prototype.states = function (target, list, o) {
     o = o || {};
     var nodes = els(target);
     if (!nodes.length || !list || !list.length) return this;
+    /* The markup-authored text is the implicit value for any t before the first
+       entry that defines `text`. Captured once at build time so it is a
+       constant, not a read of live DOM at seek time. */
+    var initialText = nodes.map(function (n) { return n.textContent; });
+    /* Only manage textContent if the list actually sets text somewhere. A
+       class-only list (status pills, focus rings) must not touch textContent at
+       all - writing it would flatten the element's child markup into a string. */
+    var usesText = false;
+    for (var u = 0; u < list.length; u++) if (list[u].text !== undefined) usesText = true;
     return this.cue(0, 0, function (p, t) {
-      var active = null;
-      for (var i = 0; i < list.length; i++) if (t >= (list[i].at || 0)) active = list[i];
+      /* Resolve each key INDEPENDENTLY from the last entry at-or-before t that
+         defines it. Reading only the active entry's keys meant an entry that
+         omitted `text` left whatever text was written last - making the frame a
+         function of scrub history rather than of t, which corrupts --from/--to
+         sub-range renders because those seek cold into the middle. */
+      var active = null, text, attrK, attrV;
+      for (var i = 0; i < list.length; i++) {
+        if (t < (list[i].at || 0)) break;
+        active = list[i];
+        if (list[i].text !== undefined) text = list[i].text;
+        if (list[i].attr) { attrK = list[i].attr; attrV = list[i].value; }
+      }
       for (var n = 0; n < nodes.length; n++) {
         var node = nodes[n];
-        if (active && active.text !== undefined) node.textContent = active.text;
-        if (active && active.attr) node.setAttribute(active.attr, active.value);
+        if (usesText) node.textContent = text !== undefined ? text : initialText[n];
+        if (attrK) node.setAttribute(attrK, attrV);
         for (var j = 0; j < list.length; j++) {
           if (list[j].cls) node.classList.toggle(list[j].cls, active === list[j]);
         }
@@ -436,6 +529,10 @@ Write this verbatim into the scene's `<script>` tag (or alongside as `motion.js`
   };
 
   global.Motion = {
+    /* Bump when a change to this runtime would alter an existing scene's frames.
+       Scenes are committed as source and re-rendered later, so a silent runtime
+       change is a silent asset change. */
+    version: '2.0.0',
     scene: function (opts) { return new Scene(opts); },
     ease: EASE,
     lerp: lerp,
@@ -542,6 +639,24 @@ async function resolveBrowser() {
       }
     }
   }
+  // Playwright's cache is where a lot of dev boxes and CI images keep Chromium.
+  // Same versioned-build-dir shape as the puppeteer cache above.
+  const pw = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  if (pw && existsSync(pw)) {
+    const builds = (await readdir(pw)).filter((b) => b.startsWith('chromium')).sort().reverse();
+    for (const b of builds) {
+      for (const leaf of [
+        'chrome-linux/chrome',
+        'chrome-linux/headless_shell',
+        'chrome-mac/Chromium.app/Contents/MacOS/Chromium',
+        'chrome-win/chrome.exe'
+      ]) {
+        const p = path.join(pw, b, leaf);
+        if (existsSync(p)) return p;
+      }
+    }
+  }
+
   for (const p of [
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     '/Applications/Chromium.app/Contents/MacOS/Chromium',
@@ -589,8 +704,18 @@ class CDP {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function connect(port) {
+async function connect(port, why) {
   for (let i = 0; i < 100; i++) {
+    // Chrome exiting immediately (bad flags, missing libs, sandbox refusal) is
+    // the common failure. Bail out with what Chrome actually said rather than
+    // spending 10s retrying a socket that is never going to open.
+    if (why.exited) {
+      throw new Error(
+        'Chrome exited immediately (code ' + why.code + ').\n' +
+        (why.stderr.trim() || '(no stderr)') +
+        '\nHint: on a bare container also check for missing shared libraries.'
+      );
+    }
     try {
       const list = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
       const page = list.find((t) => t.type === 'page');
@@ -628,6 +753,7 @@ const proc = spawn(browser, [
   `--remote-debugging-port=${port}`,
   `--user-data-dir=${profile}`,
   '--headless=new',
+  '--no-sandbox',
   '--hide-scrollbars',
   '--mute-audio',
   '--no-first-run',
@@ -637,13 +763,19 @@ const proc = spawn(browser, [
   '--disable-lcd-text',
   '--allow-file-access-from-files',
   'about:blank'
-], { stdio: ['ignore', 'ignore', 'ignore'] });
+], { stdio: ['ignore', 'ignore', 'pipe'] });
+
+// Keep Chrome's stderr and exit status so a launch failure can be reported as
+// what it actually was, not as a generic "could not attach".
+const why = { exited: false, code: null, stderr: '' };
+proc.stderr.on('data', (d) => { why.stderr += d; });
+proc.on('exit', (code) => { why.exited = true; why.code = code; });
 
 let cdp;
 const framesDir = await mkdtemp(path.join(tmpdir(), 'motion-frames-'));
 
 try {
-  cdp = await connect(port);
+  cdp = await connect(port, why);
   await cdp.send('Page.enable');
   await cdp.send('Runtime.enable');
   // Set the export flag before the document runs so the rAF player stays parked.
@@ -825,9 +957,11 @@ Start here. Sized canvas, pre-built DOM, runtime inlined, cues declared, `mount(
 ## Notes
 
 - **Fake the UI, don't screenshot it.** Hand-built chrome stays readable at GIF scale, renders crisply at any size, and never leaks real data. Match the product's palette and type, not its pixels.
-- **Iterate with `--from`/`--to`.** Re-rendering the whole clip to check one transition is the slowest possible loop.
-- **Output sizing.** GIF at `--scale 900` suits Slack and READMEs; MP4 at full width suits slides and social. MP4 is typically 3–5× smaller than the same clip as GIF — prefer it wherever autoplay video is allowed.
+- **Iterate with `--from`/`--to`, and at `--dpr 1`.** Re-rendering the whole clip to check one transition is the slowest possible loop, and dpr 1 halves capture time (measured: 13.9s vs 27.1s for 151 frames). Render the final pass at the default dpr 2 — it is not just sharper, it also produces a *smaller* GIF, because supersampled text dithers more cleanly.
+- **Output sizing.** GIF at `--scale 900` suits Slack and READMEs; MP4 at full width suits slides and social. MP4 is typically 2–5× smaller than the same clip as GIF — prefer it wherever autoplay video is allowed.
+- **Render cost is capture, not encode.** ~180ms/frame at dpr 2, dominated by CDP screenshot round-trips. A 6s clip is a ~35s job, so anything automated around this is a queue, not a request/response.
 - **`--format frames`** hands a PNG sequence to Descript, Premiere, or Resolve when the clip needs voiceover or to sit in a longer edit.
-- **Determinism is a feature, not trivia.** Because renders are byte-identical, you can commit a scene and regenerate the exact asset later, and a diff on the output means the *scene* changed.
+- **Determinism is a feature, not trivia.** Because renders are byte-identical, you can commit a scene and regenerate the exact asset later, and a diff on the output means the *scene* changed. The corollary: the runtime is versioned (`Motion.version`) because a change to it is a change to every committed scene's output.
+- **The renderer runs headless anywhere.** It passes `--no-sandbox` (Chrome refuses to start as root otherwise) and finds Chromium in the Playwright and Puppeteer caches as well as the usual system paths. If Chrome dies on launch it reports Chrome's own stderr rather than a generic attach timeout.
 - **Reduced motion is handled.** With `prefers-reduced-motion: reduce`, `mount()` jumps to the end state instead of animating. Keep the end state legible on its own.
 - **Related:** `/verify-app` for checking a real running app in a browser; `/scaffold` for new projects. This skill deliberately renders a *fabricated* UI — if you need footage of the real product, record it instead.

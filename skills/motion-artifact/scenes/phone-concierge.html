@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Phone concierge</title>
+<!--
+  PRESET phone · 420×660 · ~6.5s
+  SHOWS  the mobile device frame. The phone fills the canvas instead of sitting
+         in a 16:9 letterbox — same scene on a desktop canvas loses ~70% of the
+         pixels and lands with type at the edge of legible.
+  FORK   swap the brand row, the question, and the three result cards.
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#F1EFEA; --panel:#FFFFFF; --line:#E3DED6; --text:#1B1B1B;
+    --dim:#8A8377; --accent:#12B39A;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  }
+  html,body{width:420px;height:660px;overflow:hidden;background:var(--bg)}
+  body{font-family:var(--ui);color:var(--text);display:flex;align-items:center;justify-content:center}
+
+  .phone{position:relative;width:344px;height:612px;background:var(--panel);
+         border:9px solid #171614;border-radius:40px;overflow:hidden}
+  .notch{position:absolute;top:9px;left:50%;margin-left:-38px;width:76px;height:20px;
+         background:#171614;border-radius:0 0 12px 12px;z-index:5}
+
+  /* padding-top clears the notch — the notch is absolutely positioned over the
+     top of the same box, so a centred row would sit underneath it. */
+  .brand{display:flex;align-items:center;justify-content:center;gap:9px;height:68px;
+         padding-top:18px;border-bottom:1px solid var(--line);font-weight:640;font-size:15.5px}
+  .dot{width:17px;height:17px;border-radius:50%;background:var(--accent)}
+
+  .body{padding:18px 16px}
+  .greet{font-size:21px;font-weight:660;letter-spacing:-.015em;margin-bottom:15px}
+  .askwrap{position:relative}
+  .ask{border:1.5px solid var(--line);border-radius:13px;
+       padding:11px 44px 11px 13px;font-size:13.5px;color:var(--dim);min-height:44px}
+  .ask.focus{border-color:var(--accent)}
+  .ask[data-caret="1"]::after{content:"";display:inline-block;width:1.5px;height:15px;
+                              background:var(--accent);margin-left:2px;vertical-align:-2px}
+  .send{position:absolute;right:8px;top:8px;width:28px;height:28px;border-radius:9px;
+        background:var(--accent)}
+
+  .card{opacity:0;margin-top:10px;border:1px solid var(--line);border-radius:13px;padding:11px 13px}
+  .card b{display:block;font-size:13.5px;margin-bottom:3px}
+  .card span{font-size:12px;color:var(--dim)}
+  .pill{display:inline-block;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
+        color:var(--dim);border:1px solid var(--line);border-radius:99px;padding:2px 8px;margin-left:6px}
+  .pill.on{color:#0B6B5C;border-color:rgba(18,179,154,.45);background:rgba(18,179,154,.10)}
+
+  .cursor{position:absolute;top:0;left:0;width:19px;height:19px;pointer-events:none;z-index:20}
+  .ripple{position:absolute;top:0;left:0;width:26px;height:26px;margin:-13px 0 0 -13px;
+          border-radius:50%;border:2px solid var(--accent);opacity:0;z-index:19}
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="brand"><span class="dot"></span><span>Zesty Concierge</span></div>
+
+    <div class="body">
+      <div class="greet">Good morning, Rita.</div>
+      <!-- .send sits OUTSIDE #ask: type() writes textContent, which would
+           destroy any child element inside the node it types into. -->
+      <div class="askwrap">
+        <div class="ask" id="ask" data-caret="0"></div>
+        <span class="send"></span>
+      </div>
+
+      <div class="card" id="c1"><b>Founders Breakfast</b><span>Thu 8:00am · Main Hall</span><span class="pill" id="p1">registered</span></div>
+      <div class="card" id="c2"><b>AI Track: Agents</b><span>Thu 1:30pm · Room 204</span></div>
+      <div class="card" id="c3"><b>Closing Social</b><span>Fri 6:00pm · Rooftop</span></div>
+    </div>
+
+    <div class="ripple" id="ripple"></div>
+    <svg class="cursor" id="cursor" viewBox="0 0 20 20" fill="none">
+      <path d="M4 2l11 8.5-5 .6-2.6 4.9L4 2z" fill="#fff" stroke="#171614"
+            stroke-width="1.3" stroke-linejoin="round"/>
+    </svg>
+  </div>
+
+<script src="motion.js"></script>
+<script>
+(function () {
+  var S = Motion.scene({ width: 420, height: 660, fps: 30, tail: 1000 });
+
+  S.cursor('#cursor', { start: 200, dur: 800, path: [[300, 520], [150, 200]] });
+  S.click('#ripple', { at: 1050, x: 150, y: 206 });
+  S.classFor('#ask', 'focus', { start: 1050, end: 3400 });
+
+  S.type('#ask', 'What am I registered for this week?', { start: 1250, dur: 1900 });
+
+  S.reveal('#c1', { start: 3500, dur: 420, y: 10 });
+  S.reveal('#c2', { start: 3680, dur: 420, y: 10 });
+  S.reveal('#c3', { start: 3860, dur: 420, y: 10 });
+  S.classFor('#p1', 'on', { start: 4500 });
+
+  S.mount();
+})();
+</script>
+</body>
+</html>

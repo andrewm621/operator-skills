@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Pipeline run</title>
+<!--
+  PRESET desktop · 1200×675 · ~8.2s
+  SHOWS  states() as a per-stage state machine, progress(), and sequence()
+         streaming log lines. The CI / build / agent-run clip.
+  FORK   rename the four stages and the log lines; keep the timings staggered.
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0B0F14; --panel:#121821; --line:#1E2833; --text:#E8EDF2;
+    --dim:#8B9AAB; --accent:#38BDF8; --ok:#34D399;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  }
+  html,body{width:1200px;height:675px;overflow:hidden;background:var(--bg)}
+  body{font-family:var(--ui);color:var(--text);display:flex;align-items:center;justify-content:center}
+
+  .app{position:relative;width:1020px;height:570px;background:var(--panel);
+       border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .chrome{display:flex;align-items:center;justify-content:space-between;
+          height:48px;padding:0 20px;border-bottom:1px solid var(--line)}
+  .ttl{font-size:13.5px;font-weight:620}
+  .ttl span{color:var(--dim);font-weight:400;font-family:var(--mono);font-size:11.5px;margin-left:8px}
+  .badge{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+         color:var(--dim);border:1px solid var(--line);border-radius:99px;padding:4px 11px}
+  .badge.run{color:var(--accent);border-color:rgba(56,189,248,.42);background:rgba(56,189,248,.08)}
+  .badge.done{color:var(--ok);border-color:rgba(52,211,153,.42);background:rgba(52,211,153,.08)}
+
+  .body{padding:24px 20px}
+  .stages{display:flex;gap:10px;margin-bottom:20px}
+  .stage{flex:1;border:1px solid var(--line);border-radius:10px;padding:13px 14px}
+  .stage .nm{font-size:13px;font-weight:600;margin-bottom:9px}
+  .stage .st{font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;
+             text-transform:uppercase;color:var(--dim)}
+  .stage.run{border-color:rgba(56,189,248,.45)}
+  .stage.run .st{color:var(--accent)}
+  .stage.done{border-color:rgba(52,211,153,.35)}
+  .stage.done .st{color:var(--ok)}
+
+  .track{height:4px;border-radius:99px;background:var(--line);overflow:hidden;margin-bottom:20px}
+  .fill{height:100%;width:0%;background:var(--accent);border-radius:99px}
+
+  .log{height:270px;border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+       font-family:var(--mono);font-size:11.5px;line-height:1.95;color:var(--dim);overflow:hidden}
+  .log div{opacity:0}
+  .log div.on{opacity:1}
+  .log b{color:var(--text);font-weight:400}
+  .log i{color:var(--ok);font-style:normal}
+</style>
+</head>
+<body>
+  <div class="app">
+    <div class="chrome">
+      <div class="ttl">deploy<span>#1482 · main · 3f9a1c2</span></div>
+      <div class="badge" id="badge">queued</div>
+    </div>
+
+    <div class="body">
+      <div class="stages">
+        <div class="stage" id="st1"><div class="nm">Install</div><div class="st">waiting</div></div>
+        <div class="stage" id="st2"><div class="nm">Build</div><div class="st">waiting</div></div>
+        <div class="stage" id="st3"><div class="nm">Test</div><div class="st">waiting</div></div>
+        <div class="stage" id="st4"><div class="nm">Deploy</div><div class="st">waiting</div></div>
+      </div>
+
+      <div class="track"><div class="fill" id="fill"></div></div>
+
+      <div class="log" id="log">
+        <div>$ npm ci <b>— 412 packages in 8.1s</b></div>
+        <div>$ npm run build</div>
+        <div>&nbsp;&nbsp;bundled 214 modules <b>— 1.2 MB</b></div>
+        <div>$ npm test</div>
+        <div>&nbsp;&nbsp;<i>✓</i> 186 passing <b>(4.7s)</b></div>
+        <div>$ wrangler deploy</div>
+        <div>&nbsp;&nbsp;uploaded <b>— 2 routes</b></div>
+        <div>&nbsp;&nbsp;<i>✓</i> live at northwind.workers.dev</div>
+      </div>
+    </div>
+  </div>
+
+<script src="motion.js"></script>
+<script>
+(function () {
+  var S = Motion.scene({ width: 1200, height: 675, fps: 30, tail: 1200 });
+
+  // Each stage is its own little state machine. Only `cls` changes per entry,
+  // so the stage name in markup stays put — states() resolves keys independently.
+  function stage(sel, startAt, endAt, statusEl) {
+    S.states(sel, [
+      { at: startAt, cls: 'run' },
+      { at: endAt, cls: 'done' }
+    ]);
+    S.states(statusEl, [
+      { at: 0, text: 'waiting' },
+      { at: startAt, text: 'running' },
+      { at: endAt, text: 'passed' }
+    ]);
+  }
+
+  stage('#st1', 600, 2000, '#st1 .st');
+  stage('#st2', 2000, 3700, '#st2 .st');
+  stage('#st3', 3700, 5400, '#st3 .st');
+  stage('#st4', 5400, 7000, '#st4 .st');
+
+  S.progress('#fill', { start: 600, dur: 6400, from: 0, to: 100, ease: 'linear' });
+
+  S.states('#badge', [
+    { at: 0, text: 'queued' },
+    { at: 600, text: 'running', cls: 'run' },
+    { at: 7000, text: 'deployed', cls: 'done' }
+  ]);
+
+  S.sequence('#log div', { start: 700, dur: 6300 });
+
+  S.mount();
+})();
+</script>
+</body>
+</html>

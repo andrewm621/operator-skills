@@ -1,0 +1,52 @@
+name: checks
+
+# The two things CONTRIBUTING says drift silently — the generated/ adapters and
+# the scenes copied out of SKILL.md — plus the motion scenes themselves. All of
+# it is `node <script>` with no dependencies, matching the repo's no-build rule.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  adapters:
+    name: generated/ matches skills/
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node verify-adapters.mjs
+
+  scenes:
+    name: motion scenes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Static rules need nothing but Node, so they run even if the browser
+      # step below is unavailable.
+      - name: Static rules
+        run: node skills/motion-artifact/scenes/check.mjs
+
+      - name: Locate Chrome
+        run: |
+          CHROME=$(command -v google-chrome || command -v chromium-browser || command -v chromium || true)
+          if [ -z "$CHROME" ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq chromium-browser
+            CHROME=$(command -v chromium-browser || command -v chromium)
+          fi
+          echo "Using $CHROME"
+          echo "CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
+
+      # Proves every scene is a pure function of t by comparing a cold seek
+      # against playing forward. Needs Chrome but not ffmpeg, so it is cheap
+      # enough to gate every PR.
+      - name: Purity
+        run: node skills/motion-artifact/scenes/check.mjs --purity
