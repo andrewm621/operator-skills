@@ -2,7 +2,7 @@
 
 **Claude slash commands for people who build things.**
 
-39 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
+40 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
 
 They started as one-off prompts, became reusable slash commands, then became a system where skills call other skills — roadmaps feed into phases, phases feed into todos, todos feed into parallel agents, and everything gets logged. This is that system, open-sourced.
 
@@ -23,7 +23,7 @@ Open Cowork and send this message:
 
 > Clone https://github.com/andrewm621/operator-skills.git to ~/operator-skills and symlink the skills directory to ~/.claude/skills/operator
 
-Claude runs the commands for you. Type `/` to see all 39 skills in autocomplete.
+Claude runs the commands for you. Type `/` to see all 40 skills in autocomplete.
 
 See [`docs/cowork-setup-guide.md`](docs/cowork-setup-guide.md) for manual install and optional Global Instructions.
 
@@ -34,7 +34,7 @@ git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
 ln -s ~/operator-skills/skills ~/.claude/skills/operator
 ```
 
-Type `/` in a new session to see all 39 skills.
+Type `/` in a new session to see all 40 skills.
 
 ## Skill Catalog
 
@@ -101,6 +101,7 @@ Type `/` in a new session to see all 39 skills.
 | `/session-notes` | End-of-session snapshot — what was done, decisions, next steps | `/session-notes` |
 | `/document` | Write to dev-notes, Notion, inline docs, or README | `/document decision: why we chose Drizzle` |
 | `/search-all` | Cross-project search for code, files, or packages | `/search-all pkg:stripe` |
+| `/email-triage` | Triage Gmail into a two-axis urgency × context report — read-only, never labels/archives/sends | `/email-triage 30d` |
 | `/help` | Cheat sheet of all skills with quick combos | `/help` |
 | `/notion` | Sync notes and decisions to a Notion workspace | `/notion note "Shipped auth flow"` |
 | `/notion-ctx` | Per-project Notion doc registry with cached summaries | `/notion-ctx sync` |
@@ -184,7 +185,7 @@ Adding or editing a skill? See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short v
 
 | Feature | Code (CLI) | Cowork (Desktop) | Claude.ai (Web) |
 |---------|-----------|-----------------|-----------------|
-| All 39 skills | Full | Full | Full |
+| All 40 skills | Full | Full | Full |
 | `/` autocomplete | Native | Native | Manual invoke |
 | Subagent spawning | Full | Full | Simulated |
 | File system access | Full | Full | Via Knowledge files |

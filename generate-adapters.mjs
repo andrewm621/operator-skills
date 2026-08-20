@@ -66,6 +66,7 @@ const CLAUDE_ONLY = new Set([
   "notion-ctx",
   "slack-reply",
   "slack-ctx",
+  "email-triage",
 ]);
 
 /**

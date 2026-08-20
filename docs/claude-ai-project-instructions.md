@@ -5,7 +5,7 @@
 
 ---
 
-You have 39 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 40 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -45,6 +45,7 @@ You have 39 operator skills for software projects. Use them when a user's reques
 | `/session-notes` | End-of-session snapshot: what was done, decisions, next |
 | `/document` | Write to dev-notes, Notion, inline docs, or README |
 | `/search-all` | Cross-project search for code, files, or packages |
+| `/email-triage` | Triage Gmail into a two-axis urgency × context report — read-only |
 | `/help` | Cheat sheet of all skills with quick combos |
 | `/notion` | Sync notes and decisions to a Notion workspace |
 | `/notion-ctx` | Per-project Notion doc registry with cached summaries |
@@ -93,7 +94,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 39, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 40, see the uploaded Knowledge file.
 
 ### /orchestrate
 

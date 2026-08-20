@@ -101,6 +101,7 @@ that underlying Claude-specific tooling or MCP server is also present.
 
 ### Knowledge
 
+- **/email-triage** — Triage Andrew's Gmail inbox into a two-axis urgency × context report — read-only, never touches labels, archive state, drafts, or sends.
 - **/notion** — Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current.
 - **/notion-ctx** — Manage a per-project registry of relevant Notion documents with cached summaries for fast context loading. Keeps Notion knowledge fresh and token-efficient.
 - **/slack-reply** — Draft a reply to a Slack message or thread in Andrew's voice. Resolves the target from a pasted URL, the local Slack directory, or search; reads the thread for context; stages the reply as a Slack draft for approval. Never sends.

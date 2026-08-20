@@ -9,7 +9,7 @@ Arguments: {the text you type after the command} (optional: category name to fil
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `{the text you type after the command}` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  38 custom commands
+ SKILL CATALOG  39 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -40,6 +40,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /search-all <query>      Search code/files/packages across all projects
  /document <subject>      Write docs to dev-notes, Notion, inline, or README
  /motion-artifact [fmt]   Animated demo scene → deterministic GIF/MP4/WebM
+ /email-triage [scope]    Triage Gmail into NEEDS YOU/WAITING/FYI/NOISE — report only
 
 ═══════════════════════════════════════════════════════════════
  CODE QUALITY
