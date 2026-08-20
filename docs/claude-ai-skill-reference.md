@@ -4216,19 +4216,20 @@ Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `
    | Drafting/editing/repurposing content, docs, copy | `writer` | Read-only — return text, then land it |
    | Writing/changing/debugging code | `coder` | Reads conventions first, verifies build/tests |
    | Auditing a diff/PR/change before merge | `reviewer` | Read-only; reports, doesn't fix |
+   | Auditing how a rendered UI actually looks (hierarchy, spacing, contrast, responsive) | `designer` | Read-only; drives a browser, judges real pixels |
    | Designing an implementation strategy before code | `planner` | Returns a plan, not code |
    | Broad read-only search across many files/dirs | `Explore` | Returns the conclusion, not file dumps |
    | No clean specialist, or mixes read + write + bash | `general-purpose` | Full tool access — the fallback |
 
-   If a read-only specialist (`researcher`, `writer`, `reviewer`, `Explore`) must *write files*, use `general-purpose` or split it (specialist produces, general-purpose lands).
+   If a read-only specialist (`researcher`, `writer`, `reviewer`, `designer`, `Explore`) must *write files*, use `general-purpose` or split it (specialist produces, general-purpose lands).
 
-4. **Apply isolation & structured output automatically** — Use **worktree isolation** (`isolation: "worktree"`) for any set of parallel agents that *write to the same repo* (parallel writers without it race the git index). Use **schema'd returns** when you'll aggregate results programmatically.
+4. **Apply isolation & structured output automatically** — Use **worktree isolation** (`isolation: "worktree"`) for parallel agents that *write to the same repo* — but check `git status` first. Isolation is correct only when HEAD is the source of truth; if the repo's real state lives in **uncommitted/untracked WIP**, worktrees branch from a commit missing that WIP and build a broken base. Then use shared tree + **disjoint file sets** + **`tsc --noEmit`-only agent verification** (no `npm run build` inside agents) + **one orchestrator-run build after**. Use **schema'd returns** when you'll aggregate results programmatically.
 
 5. **Mandate context pointers** — Every spawned prompt MUST tell the agent where to look first: the working dir / repo ("read `CLAUDE.md` or the README first"), the specific file/dir that bears on the task, and the exact output format expected.
 
 6. **Spawn** — Launch all independent tasks in a **single message with multiple `Agent` calls** for true parallelism; default long/independent tasks to background. For a pipeline, spawn stage 1, then stage 2 with its output. Show a one-line launch summary first.
 
-7. **Gate quality & retry** — Review results before presenting; re-delegate weak results with specific feedback (max 2 retries). Do sequencing-sensitive tail steps (git commit/push, deploy) yourself after agents finish.
+7. **Gate quality & retry** — Review results before presenting; re-delegate weak results with specific feedback (max 2 retries). Do sequencing-sensitive tail steps (git commit/push, deploy) yourself after agents finish. **A subagent's "verified, no issues" is not a visual QA gate** — agents check mechanical properties (overflow, clipping, tests pass), not semantic ones (does the final frame say what it should? is this element legible against what's behind it?). For any *rendered-pixel* output (UI, motion, a report), extract the frames/screenshots and look yourself before reporting done — prioritizing the final/resting frame.
 
 8. **Report** — Present a unified rollup in original task order, leading with the answer (numbered list, agentType + status per task, then "Result: …" and any open decisions).
 
