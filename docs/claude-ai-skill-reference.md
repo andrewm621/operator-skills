@@ -108,6 +108,7 @@ Storage convention used everywhere: key `theme`, values `"light"` | `"dark"`, an
    - `next` present without `next-themes` → install `next-themes`, use **Path A** (it's the right tool for SSR).
    - `vite` + `react`, no `next` → **Path B**.
    - Bundler-less static site (root `index.html`, no framework) → **Path C**.
+   - No-build CMS (Webflow, Squarespace, WordPress — theme injected via a "custom code" embed, no `index.html` to edit directly) → **Path C**, and consider its **TTL-persisted / body-class alternate** below if the client wants a plain 2-way switch rather than a 3-way System option.
    - Anything else (Vue, Svelte, Astro, CRA) → adapt the principles above; reuse the no-flash script + storage convention, and ask if the framework idiom is unclear.
    - Also locate the **theme CSS**: confirm a `.dark` selector (or `[data-theme="dark"]`) defines dark tokens. Tailwind v4 uses `@custom-variant dark (&:is(.dark *))` + a `.dark { ... }` block. If no dark styles exist at all, scaffold a minimal token set (Path C's CSS) and tell the user it's a starter palette to refine.
    - State which path you detected before proceeding.
@@ -375,11 +376,111 @@ Hand-roll a small provider. next-themes is Next-specific — don't pull it in he
    </script>
    ```
 
+#### Path C alternate — TTL-persisted, body-class toggle (Webflow / CMS reference pattern)
+
+Reverse-engineered from a production Webflow site (wellscollins.com) with a well-regarded
+toggle. Reach for this **instead of** the 3-way `radiogroup` above when:
+
+- The site lives in a no-build CMS (Webflow, Squarespace, WordPress) where you're
+  injecting a script via a "custom code" embed rather than authoring `index.html`
+  directly — a single self-contained snippet is easier to paste into an embed block
+  than a multi-file setup.
+- The client wants a simple **2-way** Light/Dark switch, not a 3-way System option.
+  "Follow the OS" is still the default behavior, just not a selectable third state.
+- It's fine for an explicit override to **expire** rather than stick forever (see the
+  tradeoff below) — true for most marketing/content sites, not for gated apps.
+
+This is **not** a strict upgrade over the 3-way pattern above — it's a narrower, simpler
+mechanism suited to sites where dark mode is a light UI touch, not a persistent setting
+tied to an account. Don't reach for it on an authenticated app with a settings page;
+sticky-forever (Path A/B/C's default) is correct there.
+
+1. **Toggle mechanism** — a single class on `<body>` (the reference site used
+   `black-theme`; `dark` reads more consistently with the rest of this skill) added or
+   removed, not a `data-theme` attribute. All dark rules key off `body.dark { ... }` (or
+   CSS variable overrides scoped under it) — same idea as `.dark` on `<html>` elsewhere
+   in this skill, just one level lower in the DOM. Put it on `<html>` instead if the
+   project's existing dark CSS already keys off `documentElement`; the toggle mechanic
+   below is identical either way.
+
+2. **TTL-wrapped `localStorage`** in place of a plain `getItem`/`setItem`:
+
+   ```js
+   function setItemWithExpiry(key, value, ttlMs) {
+     const item = { value, expiry: Date.now() + ttlMs }
+     localStorage.setItem(key, JSON.stringify(item))
+   }
+
+   function getItemWithExpiry(key) {
+     const raw = localStorage.getItem(key)
+     if (!raw) return null
+     const item = JSON.parse(raw)
+     if (Date.now() > item.expiry) {
+       localStorage.removeItem(key)
+       return null
+     }
+     return item.value
+   }
+   ```
+
+   The reference site uses a 24-hour TTL. **This is a deliberate tradeoff, not a bug.**
+   Once the TTL lapses, an explicit choice is forgotten and the toggle silently re-syncs
+   to `prefers-color-scheme`. That's the right call when a visitor's theme intent can
+   drift — they flipped to dark mode once, months later their OS preference has changed,
+   and a stale override would otherwise fight it forever. It's the wrong call when "the
+   user explicitly picked dark" should persist indefinitely regardless of later OS
+   changes — pick the indefinite `setItem`/`getItem` (Path A/B/C's default) for apps with
+   accounts or settings pages, and this TTL variant for marketing/content sites.
+
+3. **Initial-state resolution order** — a TTL-valid stored preference wins; otherwise
+   fall back to `window.matchMedia("(prefers-color-scheme: dark)").matches`. Still wire
+   this as the **first thing in `<head>`** (Path C step 1's no-flash script, adapted to
+   read the TTL-wrapped value and toggle `body` instead of `documentElement`) — the
+   reference implementation's own snippet runs after the page starts rendering, which
+   the contract's no-flash requirement (point 4 above) doesn't allow; don't drop that
+   guard just because the source site did.
+
+4. **Live OS-preference listener** — not just an initial read. Keep listening for OS
+   theme changes for as long as the page is open, and only defer to them when there's no
+   active (unexpired) override:
+
+   ```js
+   window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", (e) => {
+     if (getItemWithExpiry("theme")) return // explicit user choice takes precedence
+     document.body.classList.toggle("dark", !e.matches)
+   })
+   ```
+
+   This is the same live-update requirement as contract point 3 above; the only
+   difference is scope — because there's no separate "System" state to enter, *no
+   active override* is what stands in for System mode.
+
+5. **Toggle wiring** — a plain click handler, framework-agnostic (the reference site
+   used jQuery since it's Webflow, but a vanilla listener works identically):
+
+   ```js
+   toggleEl.addEventListener("click", () => {
+     document.body.classList.toggle("dark")
+     const next = document.body.classList.contains("dark") ? "dark" : "light"
+     setItemWithExpiry("theme", next, 24 * 60 * 60 * 1000)
+   })
+   ```
+
+   Still give the toggle `role="radio"`/`aria-checked` (or at minimum a toggle-button
+   `aria-pressed`) and a keyboard-reachable element — the reference site's raw
+   click-only jQuery handler doesn't satisfy contract point 6 on its own.
+
+   **UI reference (optional)**: the source toggle was a sliding pill with two SVG icons
+   (sun/moon) in adjacent cells, position animated purely in CSS (`transform` +
+   `transition`, no JS animation library) — worth reusing as a visual pattern if the ask
+   includes "make it look like a nice sliding switch," independent of the JS above.
+
 ## Notes
 - **System = key absent** is the linchpin. The no-flash `<script>` and the provider are two independent code paths that both decide the theme; pinning one rule (`theme` present → explicit, absent → follow OS) is what keeps them from disagreeing.
 - The `mounted` guard is **Next-only** (Path A). The server can't know the user's stored theme, so rendering the active state on the server would mismatch hydration. Vite (Path B) is client-only — adding the guard there just causes a pointless flicker.
 - Setting `color-scheme` (not just the `.dark` class) is what themes native scrollbars, form controls, and `<input>` widgets. A class-only toggle leaves those light.
 - On a project with no dark styles at all, this wires the *mechanism* but can't invent your palette — it scaffolds starter tokens and flags them to refine.
+- **TTL-persisted overrides (Path C alternate) are opt-in, not the default.** Default to the indefinite 3-way pattern (Path A/B/C) unless the site is a no-build CMS embed and the client explicitly wants a 2-way switch that forgets stale choices — see Path C's alternate section for the tradeoff.
 - Related: `/setup-rebel-ui` already wires a `next-themes` provider for design-system projects (run it first, then this adds the toggle); `/scaffold` for new projects; `/verify-app` to confirm no-flash behavior in a browser.
 
 ---
