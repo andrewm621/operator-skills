@@ -1,1 +1,4 @@
 .DS_Store
+
+# Generated reports (build artifacts, not source)
+reports/
