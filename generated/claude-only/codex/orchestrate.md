@@ -30,14 +30,15 @@ Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `
    | Drafting/editing/repurposing content, docs, copy | `writer` | Read-only — can't write files; have it return text and you (or a writer-capable agent) land it |
    | Writing/changing/debugging code | `coder` | Reads conventions first, verifies build/tests |
    | Auditing a diff/PR/change before merge | `reviewer` | Read-only; reports, doesn't fix |
+   | Auditing how a rendered UI actually looks (hierarchy, spacing, contrast, responsive) | `designer` | Read-only; drives a browser, judges real pixels. Reports, doesn't fix |
    | Designing an implementation strategy before code | `planner` | Returns a plan, not code |
    | Broad read-only search across many files/dirs | `Explore` | Returns the conclusion, not file dumps. Specify breadth: "medium" or "very thorough" |
    | Anything with no clean specialist, or that mixes read + write + bash | `general-purpose` | Full tool access — the fallback |
 
-   When in doubt between a specialist and `general-purpose`: if the specialist is read-only (`researcher`, `writer`, `reviewer`, `Explore`) and the task must *write files*, either use `general-purpose` or split it (specialist produces, general-purpose lands).
+   When in doubt between a specialist and `general-purpose`: if the specialist is read-only (`researcher`, `writer`, `reviewer`, `designer`, `Explore`) and the task must *write files*, either use `general-purpose` or split it (specialist produces, general-purpose lands).
 
 4. **Apply isolation & structured output automatically** — Don't make the user ask for these:
-   - **Worktree isolation** (`isolation: "worktree"`) for any set of parallel agents that *write to the same repo*. Parallel writers without isolation race the git index and clobber each other's files. Read-only agents never need it.
+   - **Worktree isolation** (`isolation: "worktree"`) for parallel agents that *write to the same repo* — but check `git status` first. Isolation is correct only when HEAD is actually the source of truth. If the repo's real state lives in **uncommitted or untracked WIP**, do NOT use worktrees: `git worktree add` branches from a commit, so the agents compile against a base missing that WIP and either fail to build or "succeed" against a fiction. In that case run them in the shared tree with **disjoint file sets**, **`tsc --noEmit`-only agent verification** (never `npm run build` inside agents — two concurrent builds clobber each other's output), agents told **not to touch git**, and **one orchestrator-run build after** as the real gate. Read-only agents never need isolation either way.
    - **Schema'd returns** when you'll aggregate results programmatically. Give each agent a small JSON schema — e.g. `{status: "ok"|"fail"|"warn", summary, details, action_needed}` — so the rollup is reliable instead of prose-parsed. For a single narrative result, skip the schema.
 
 5. **Mandate context pointers** — Every spawned prompt MUST tell the agent where to look first. A cold agent rediscovers what we already know. Include:
@@ -50,6 +51,8 @@ Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `
    Before spawning, show a one-line launch summary: "Running these N in parallel/as a pipeline: [list with agentType each]."
 
 7. **Gate quality & retry** — When results come back, review before presenting. If a result is weak, wrong, or thin, re-delegate to the same agent with *specific* feedback (max 2 retries). Flag anything still uncertain or failed plainly. For write tasks, confirm the agent verified its work (build/type-check/tests) before accepting.
+
+   **A subagent's "verified, no issues" is not a visual QA gate.** Agents reliably check *mechanical* properties (overflow, clipping, cursor lands, tests pass) but not *semantic* ones — does the final frame say what it's supposed to say? is this element legible against what's actually behind it? For any delegated work whose output is *rendered pixels* — UI, design, motion, a generated report — the orchestrator extracts the frames/screenshots and looks at them personally before reporting done. It's a different check, not a redundant one; budget for it. Prioritize the **final/resting frame** — that's where "stuck state" bugs hide, because agents verify transitions more carefully than resting states. (This is also when to route the rendered result to a `designer` pass.)
 
    Sequencing-sensitive tail steps (git commit/push, deploy) are NOT parallel work — do them yourself *after* the relevant agents finish, so the commit stays clean. Never fan out a git commit alongside the file edits it's meant to capture.
 
