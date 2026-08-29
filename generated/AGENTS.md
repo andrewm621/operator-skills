@@ -25,6 +25,7 @@ reads this file.
 
 ### Orchestration
 
+- **/maestro** — Standing cross-provider command deck for the Maestro task board — create, claim, work, and route tasks to Claude, Codex, Cursor, or Grok Build, persisting across sessions and terminals via markdown + git so any agent can pick up where another left off.
 - **/switch** — Fast context switch into any project with full orientation. Fuzzy matches project names against ~/Projects/*.
 
 ### Planning

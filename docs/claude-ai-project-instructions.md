@@ -5,13 +5,14 @@
 
 ---
 
-You have 40 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 41 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
 | Skill | What it does |
 |-------|-------------|
 | `/orchestrate` | Decompose a goal, route each piece to the best specialist, run parallel/pipeline, gate, report |
+| `/maestro` | Cross-provider command deck — durable task board any terminal or provider can pick up |
 | `/parallel` | Run tasks simultaneously via subagents, aggregate results |
 | `/subagent` | Dispatch a background agent to explore + implement |
 | `/research` | Background research — structured findings |
@@ -94,7 +95,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 40, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 41, see the uploaded Knowledge file.
 
 ### /orchestrate
 
@@ -110,12 +111,14 @@ Orchestrate a goal end-to-end: decompose it, route each piece to the best specia
 5. **Context pointers** — Every prompt tells the agent where to look first (repo, CLAUDE.md/README, the specific file/dir) and the exact output format.
 6. **Spawn** — All independent tasks in a single message (true parallelism); background the long ones. Pipelines: stage 1, then stage 2 with its output. Show a one-line launch summary first.
 7. **Gate & retry** — Review before presenting; re-delegate weak results with specific feedback (max 2 retries). Do git commit/push and deploys yourself after agents finish.
-8. **Report** — Unified rollup in task order, leading with the answer.
+8. **Persist standing work** — One-shot job → unchanged, inline, done. Standing effort (spans sessions, or hands pieces to another provider) → persist each task to the Maestro board with `/maestro new "<title>" --repo <R> --provider <hint>`, then print the board (`/maestro`).
+9. **Report** — Unified rollup in task order, leading with the answer.
 
 **Key rules:**
 - `/parallel` = quick flat fan-out you've already scoped; `/subagent` = one fire-and-forget change; `Workflow` = control flow beyond prose orchestration.
 - Specialist routing is the quality lever — don't spawn blank `general-purpose` agents for work with a better-fit owner.
 - Max ~5 agents per visible fan-out; more than that is a `Workflow`.
+- `/orchestrate` is the planning front door to `/maestro`, the standing cross-provider board — step 8 must stay a no-op for quick jobs.
 
 ---
 

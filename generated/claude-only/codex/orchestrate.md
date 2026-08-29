@@ -4,6 +4,8 @@ Goal: $ARGUMENTS
 
 Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `/orchestrate` decides the *shape* of the work, picks the *right specialist* per task, applies *isolation and structured output* automatically, and *graduates to the `Workflow` tool* when the work outgrows simple fan-out.
 
+`/orchestrate` is the planning front door to **Maestro** — the standing, cross-provider, cross-session command deck at `/maestro` (`docs/maestro-spec.md`). One-shot, quick jobs still run exactly as before, entirely inline; only *standing* work — spanning sessions, or handed to another provider — gets persisted to the board (step 8).
+
 ## Steps
 
 1. **Understand & decompose** — From `$ARGUMENTS`, determine the true goal (not just the surface ask). Break it into the smallest set of tasks that each have one clear owner and one clear output. For each task note: (a) is it read-only or does it write files? (b) does it depend on another task's output? (c) roughly how long / how much context does it need?
@@ -53,7 +55,9 @@ Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `
 
    Sequencing-sensitive tail steps (git commit/push, deploy) are NOT parallel work — do them yourself *after* the relevant agents finish, so the commit stays clean. Never fan out a git commit alongside the file edits it's meant to capture.
 
-8. **Report** — Present a unified rollup in original task order, leading with the answer:
+8. **Persist standing work to the Maestro board** — If the goal is a one-shot quick job, behave exactly as before (inline fan-out, done) — this step is a no-op for it. But if it's a *standing effort* — spans sessions, or you'll hand pieces to other providers (Codex/Cursor/Grok) — instead of (or in addition to) spawning inline, persist each decomposed task to the Maestro board with `/maestro new "<title>" --repo <R> --provider <hint>`, carrying the `provider_hint` from step 3's routing decision. Then print the board (`/maestro`). This is what makes the decomposition outlive the session.
+
+9. **Report** — Present a unified rollup in original task order, leading with the answer:
 
    ```
    ORCHESTRATE  N/N complete
@@ -74,3 +78,5 @@ Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `
 - Respect autonomy boundaries: research/read is autonomous; anything that sends, publishes, spends, deploys, or is hard to reverse needs the user's approval — even when a subagent could technically do it.
 - Max ~5 agents per *visible* fan-out (rollup legibility, not a system limit). Need more concurrent units than that? That's a `Workflow` (its real cap is ~14 concurrent, 1000 lifetime).
 - Hand every agent context pointers (step 5). This is non-negotiable and is the most common reason a delegation comes back shallow.
+- Step 8 is the only regression risk in this evolution — it must stay a no-op for quick jobs. Don't persist a task to the board just because `/orchestrate` ran; persist only when the work is explicitly standing/cross-session or explicitly headed to another provider. When in doubt, ask rather than silently seeding the board.
+- Once persisted, `/maestro work`/`/maestro route` are what actually turn a board row into active work (worktree, `PROMPT.md`, provider launch string) — `/orchestrate` only seeds the row.
