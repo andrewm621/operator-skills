@@ -3,7 +3,7 @@
 > Upload this file as a **Knowledge** document in your Claude.ai project.
 > Pair with the Project Instructions from `claude-ai-project-instructions.md`.
 
-This file contains the full prompt text for all 40 operator skills.
+This file contains the full prompt text for all 41 operator skills.
 When a user invokes a skill (e.g., `/parallel`, `/invert`), follow the
 instructions for that skill exactly.
 
@@ -1612,7 +1612,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  39 custom commands
+ SKILL CATALOG  40 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -1628,6 +1628,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  AGENT ORCHESTRATION
 ═══════════════════════════════════════════════════════════════
  /orchestrate <goal>      Decompose → route to specialists → gate → report
+ /maestro [subcommand]    Cross-provider task board: new/claim/sync/work/route (4 providers)
  /subagent <task>         Background agent: explore → implement → verify
  /parallel <a> | <b>      Run tasks simultaneously, aggregate results
  /research <topic>        Background research → structured findings
@@ -2286,6 +2287,65 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
 - If you forget to log during the day, `/log` with no arguments will reconstruct recent activity from conversation context — but real-time entries are always more accurate.
 - The daily log is append-only during the day. Only `/log wrap` adds the summary section.
 - This skill complements the roadmap pipeline: as you work through `/todo` tasks, `/log` captures the narrative of HOW you did them — context that task checkboxes don't preserve.
+
+---
+
+## /maestro
+
+
+Maestro is the standing command deck for cross-provider, cross-session orchestration — tasks, claims, worktrees, and a derived board that live in the filesystem (not a chat session), so any terminal or provider (Claude Code, Codex, Cursor, Grok Build) can pick up a task where another left off. Where `/orchestrate` decomposes and runs a goal inline in one session, `/maestro` is the durable substrate underneath it — and once a goal is a standing effort, `/orchestrate` seeds tasks onto this board instead of (or alongside) spawning inline.
+
+Arguments: $ARGUMENTS
+
+**Current scope: `board` (default), `new`, `claim`, `heartbeat`, `sync`, `work`, `route` — all four providers (`claude`, `codex`, `cursor`, `grok`) are wired in `route`.** `done`, `block`, and `release` aren't built yet; if `$ARGUMENTS` asks for one of those, say so plainly and point at `board`/`work`/`route` instead of improvising.
+
+All state lives under `~/Projects/.maestro/` (global, derived — never hand-edited, includes `worktrees/`) and `<repo>/.maestro/` (per-repo, authoritative). Full schema in this repo's `docs/maestro-spec.md`. Every subcommand below is a thin wrapper over `node maestro.mjs <subcommand> ...`, which lives right next to this file — resolve its path from where this SKILL.md was loaded (e.g. `~/.claude/skills/operator/maestro/maestro.mjs` under the standard symlink install).
+
+## Steps
+
+1. **Parse the subcommand** from `$ARGUMENTS` — the first token is the subcommand, everything after it is passed through verbatim (quoted title, `--flag value` pairs).
+
+   | Input | Runs |
+   |---|---|
+   | (empty) or `board` | `node maestro.mjs board` |
+   | `new "<title>" [--repo R] [--provider P] [--after T-x] [--priority N]` | `node maestro.mjs new "<title>" ...` |
+   | `claim T-<id> [--repo R] [--owner O] [--steal]` | `node maestro.mjs claim T-<id> ...` |
+   | `heartbeat T-<id> [--repo R]` | `node maestro.mjs heartbeat T-<id> ...` |
+   | `sync` | `node maestro.mjs sync` |
+   | `work [T-<id>]` | `node maestro.mjs work T-<id> ...`, then read + act on what it prints (step 6) |
+   | `route T-<id> claude \| codex \| cursor \| grok` | `node maestro.mjs route T-<id> <provider> ...`, then act per step 7 |
+   | `set T-<id> [--issue X] [--status S] ...` | Internal helper — `node maestro.mjs set T-<id> ...` (used by step 7, not usually invoked directly) |
+
+2. **`board` (default)** — Run `node maestro.mjs board` (it syncs first, then prints `board.md`). Don't just paste the raw markdown back — read it and present it like a status report: lead with what's actionable (oldest open high-priority task, any `STALE` claim), then the grouped table. If a registered repo has zero tasks, don't belabor it.
+
+3. **`new`** — Before running, sanity-check the title captures the true intent (same instinct as `/orchestrate` step 1 — the surface ask isn't always the real goal), and infer `--repo` from the current working directory if the user didn't name one and it's obvious. Run the command, then report the new `T-<id>` and where the task file landed.
+
+4. **`claim`** — Run the command as given. If it fails with "owned by ... live", report that plainly and stop — don't retry with `--steal` on your own initiative; a live claim means another session or provider is actively on it. If it instead fails because the claim is **stale**, that's the one case where suggesting `--steal` is appropriate: say who the stale owner was and how long ago the heartbeat lapsed, then confirm (or, if the user's instruction already implied "take it regardless," proceed straight to `--steal`).
+
+5. **`heartbeat` / `sync`** — Run directly, report the one-line result. `sync` is a full rebuild of the global board from per-repo task files — safe to run anytime; it never mutates task files themselves, only the derived `index.jsonl` and `board.md`.
+
+6. **`work T-<id>`** — the load-bearing worker loop, and the one subcommand where "run it and report" isn't enough:
+   1. Run `node maestro.mjs work T-<id> [--repo R]`. It claims the task, spins a sibling git worktree on branch `maestro/T-<id>-<slug>`, seeds `PROMPT.md` + `AGENTS.md` into it, seeds the todos file from the task's Acceptance boxes if empty, and flips status to `in-progress`. If it fails (not a git repo, branch/worktree already exists, or the claim is live elsewhere), it rolls the claim back to `open` before failing — report the error as-is, don't retry blind.
+   2. **Read the printed `PROMPT.md`**, then the repo's own `CLAUDE.md` (or README), then the task's context pointers — in that order, before touching any code. A cold read of the brief without the repo's conventions is how you reinvent a pattern that already exists.
+   3. Work the todos file (`<repo>/.maestro/todos/T-<id>.todos.md`) item by item — check boxes as you finish them, and run `node maestro.mjs heartbeat T-<id> --repo R` on each update so a `sync` elsewhere doesn't see this claim as stale mid-task.
+   4. When every Acceptance box is checked and the build/type-check passes, flip status with `node maestro.mjs set T-<id> --repo R --status review` and say so — don't leave it silently `in-progress` once the work is actually done.
+
+7. **`route T-<id> <provider>`** — hand a task to another provider instead of working it yourself. All four providers seed the same worktree + `PROMPT.md` + `AGENTS.md`; only the printed launch string differs (spec §7):
+   1. Run `node maestro.mjs route T-<id> <provider> --repo R`. If the launch string's binary (`cursor-agent` for `cursor`, `grok` for `grok`) isn't on PATH, the CLI still prints the launch string — it prepends a `note:` advisory instead of blocking. Relay that note plainly if it appears; don't strip it.
+   2. **`claude`**: present the printed launch string — Andrew opens the terminal and runs it himself (`/maestro work T-<id>` in the new session). v1 dispatch is human-in-the-loop by design (spec §7) — never spawn the other provider's process yourself.
+   3. **`codex`**: after the CLI prints its two-step instructions, actually invoke `/handoff T-<id>` yourself to create the GitHub issue, then record the result with `node maestro.mjs set T-<id> --repo R --issue gh#<n>` so the task file and board reflect it. Only then present the final launch string — don't hand Andrew a string that references an issue that doesn't exist yet.
+   4. **`cursor`**: the printed string pipes `PROMPT.md` via stdin into `cursor-agent -p "Execute the attached task brief" --force --output-format json` (headless print mode; brief piped rather than passed as an arg to avoid CLI length limits). Note the binary is `cursor-agent`, **not** bare `agent` — on a machine with Grok Build also installed, plain `agent` on PATH can resolve to Grok's own CLI instead. Just present the string; don't "fix" the binary name back to `agent`.
+   5. **`grok`**: the printed string pipes `PROMPT.md` via stdin into `grok -p "Execute the attached task brief" --cwd . --always-approve`. `--cwd .` points grok at the worktree already seeded for it — never suggest grok's own `-w`/`--worktree` flag, which would create a second, nested worktree.
+
+8. **Report** — Always surface the actual command output, or a faithful summary of it — never a paraphrase that hides an error. A non-zero exit is usually load-bearing here (e.g. "owned by X" is proof the atomic claim did its job, not a bug to smooth over).
+
+## Notes
+- `work` and `route` spin real git worktrees as siblings of the repo (`~/Projects/.maestro/worktrees/<repo>/T-<id>/`, never nested inside it) and seed the vendor-neutral `PROMPT.md`/`AGENTS.md` brief (spec §6). `done`/`block`/`release` — merge-and-teardown, blocking, and un-claiming — are still not built; don't hand-roll them.
+- `/orchestrate` is the planning front door; once a goal is a standing, cross-session effort — or you want to hand pieces to another provider — persist the decomposition here via `maestro new "<title>" --repo R --provider <hint>` for each task, carrying the `provider_hint` you'd route to, then print the board.
+- The registry (`~/Projects/.maestro/registry.yaml`) is hand-maintained — add a repo to it by appending a `- name` / `path` pair. Everything else under `~/Projects/.maestro/` (including `worktrees/`) is derived and safe to delete and regenerate — except don't delete a worktree by hand while it's in `git worktree list`; use `git worktree remove`.
+- Never hand-edit `board.md` or `index.jsonl` — `sync` rebuilds both wholesale, so a manual edit is silently discarded on the next run. Per-repo `.maestro/tasks/*.md` and `.maestro/todos/*.md` are the real, editable source of truth.
+- The `/handoff` skill referenced in step 7 is not part of this repo — it's assumed to already exist in the runtime environment (spec §7 calls the Codex adapter "already owned"). If it isn't available, say so rather than faking an issue number.
+- `cursor`/`grok` launch strings are printed, never run automatically — v1 dispatch is entirely human-in-the-loop (spec §7). Some of their flags (Grok's non-interactive/approval flag in particular) are best-effort corrections from a real `--help` read, not a verified live run — flag that if Andrew hits a flag error running one himself, and update `maestro.mjs`'s `ADAPTERS` table rather than guessing again.
 
 ---
 
@@ -4190,11 +4250,13 @@ Goal: $ARGUMENTS
 
 Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `/orchestrate` decides the *shape* of the work, picks the *right specialist* per task, applies *isolation and structured output* automatically, and *graduates to the `Workflow` tool* when the work outgrows simple fan-out.
 
+`/orchestrate` is the planning front door to **Maestro** — the standing, cross-provider, cross-session command deck at `/maestro` (`docs/maestro-spec.md`). One-shot, quick jobs still run exactly as before, entirely inline; only *standing* work — spanning sessions, or handed to another provider — gets persisted to the board (step 8).
+
 ## Steps
 
 1. **Understand & decompose** — From `$ARGUMENTS`, determine the true goal (not just the surface ask). Break it into the smallest set of tasks that each have one clear owner and one clear output. For each task note: (a) is it read-only or does it write files? (b) does it depend on another task's output? (c) roughly how long / how much context does it need?
 
-   If two readings of the goal are both plausible, ask one clarifying question before spawning anything. A wrong fan-out wastes more than a question does.
+   If two readings of the goal are both plausible, ask one clarifying question (AskUserQuestion) before spawning anything. A wrong fan-out wastes more than a question does.
 
 2. **Decide the shape** — Pick the execution model from this table. This is the most important step — it's the signpost that keeps simple work simple and routes heavy work to the right primitive.
 
@@ -4203,40 +4265,70 @@ Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `
    | One task, right-sized (1–10 files, clear scope) | `/subagent` (or a single `Agent` call) | No orchestration overhead needed |
    | 2–5 **independent** tasks, no handoff between them | `/orchestrate` flat fan-out (this skill) | True parallelism, clean rollup |
    | Multi-stage where stage N needs stage N-1's output (research → write → review) | `/orchestrate` pipeline (this skill) | Sequenced handoff, still parallel within a stage |
-   | A loop until a condition, a conditional branch, >5–8 items to pipeline, or you need resume / a token budget / schema-validated fan-out at scale | **`Workflow` tool** | Deterministic control flow, concurrency cap, resume, budget — beyond what prose orchestration can hold |
+   | A loop until a condition (find-until-dry, accumulate-to-N), a conditional branch, >5–8 items to pipeline, or you need resume / a token budget / schema-validated fan-out at scale | **`Workflow` tool** | Deterministic control flow, concurrency cap, resume, budget — beyond what prose orchestration can hold |
    | Tasks depend on each other but can't be expressed as clean stages | Sequential `Agent` calls | Correctness over speed |
 
-   **If the row says `Workflow`, stop and author a Workflow script instead.** The Workflow tool requires explicit opt-in — if the user hasn't opted in, briefly describe the workflow you'd run and ask. Do not silently downgrade a Workflow-grade job into a fragile flat fan-out.
+   **If the row says `Workflow`, stop and author a Workflow script instead** (see the Workflow tool). Note that the Workflow tool requires explicit opt-in — if the user hasn't opted in, briefly describe the workflow you'd run and ask. Do not silently downgrade a Workflow-grade job into a fragile flat fan-out.
 
-3. **Route each task to a specialist** — Match the task to the richest-fit named agent, not a generic one.
+3. **Route each task to a specialist** — Match the task to the richest-fit named agent, not a generic one. Named specialists carry their own system prompts and conventions — they beat `general-purpose` on quality.
 
    | Task is about… | `agentType` | Notes |
    |---|---|---|
-   | Research, fact-check, comparison, market/tech scan | `researcher` | Returns cited findings |
-   | Drafting/editing/repurposing content, docs, copy | `writer` | Read-only — return text, then land it |
+   | Research, fact-check, comparison, market/tech scan | `researcher` | Returns cited findings; checks any existing notes first |
+   | Drafting/editing/repurposing content, docs, copy | `writer` | Read-only — can't write files; have it return text and you (or a writer-capable agent) land it |
    | Writing/changing/debugging code | `coder` | Reads conventions first, verifies build/tests |
    | Auditing a diff/PR/change before merge | `reviewer` | Read-only; reports, doesn't fix |
-   | Auditing how a rendered UI actually looks (hierarchy, spacing, contrast, responsive) | `designer` | Read-only; drives a browser, judges real pixels |
+   | Auditing how a rendered UI actually looks (hierarchy, spacing, contrast, responsive) | `designer` | Read-only; drives a browser, judges real pixels. Reports, doesn't fix |
    | Designing an implementation strategy before code | `planner` | Returns a plan, not code |
-   | Broad read-only search across many files/dirs | `Explore` | Returns the conclusion, not file dumps |
-   | No clean specialist, or mixes read + write + bash | `general-purpose` | Full tool access — the fallback |
+   | Broad read-only search across many files/dirs | `Explore` | Returns the conclusion, not file dumps. Specify breadth: "medium" or "very thorough" |
+   | Anything with no clean specialist, or that mixes read + write + bash | `general-purpose` | Full tool access — the fallback |
 
-   If a read-only specialist (`researcher`, `writer`, `reviewer`, `designer`, `Explore`) must *write files*, use `general-purpose` or split it (specialist produces, general-purpose lands).
+   When in doubt between a specialist and `general-purpose`: if the specialist is read-only (`researcher`, `writer`, `reviewer`, `designer`, `Explore`) and the task must *write files*, either use `general-purpose` or split it (specialist produces, general-purpose lands).
 
-4. **Apply isolation & structured output automatically** — Use **worktree isolation** (`isolation: "worktree"`) for parallel agents that *write to the same repo* — but check `git status` first. Isolation is correct only when HEAD is the source of truth; if the repo's real state lives in **uncommitted/untracked WIP**, worktrees branch from a commit missing that WIP and build a broken base. Then use shared tree + **disjoint file sets** + **`tsc --noEmit`-only agent verification** (no `npm run build` inside agents) + **one orchestrator-run build after**. Use **schema'd returns** when you'll aggregate results programmatically.
+4. **Apply isolation & structured output automatically** — Don't make the user ask for these:
+   - **Worktree isolation** (`isolation: "worktree"`) for parallel agents that *write to the same repo* — but check `git status` first. Isolation is correct only when HEAD is actually the source of truth. If the repo's real state lives in **uncommitted or untracked WIP**, do NOT use worktrees: `git worktree add` branches from a commit, so the agents compile against a base missing that WIP and either fail to build or "succeed" against a fiction. In that case run them in the shared tree with **disjoint file sets**, **`tsc --noEmit`-only agent verification** (never `npm run build` inside agents — two concurrent builds clobber each other's output), agents told **not to touch git**, and **one orchestrator-run build after** as the real gate. Read-only agents never need isolation either way.
+   - **Schema'd returns** when you'll aggregate results programmatically. Give each agent a small JSON schema — e.g. `{status: "ok"|"fail"|"warn", summary, details, action_needed}` — so the rollup is reliable instead of prose-parsed. For a single narrative result, skip the schema.
 
-5. **Mandate context pointers** — Every spawned prompt MUST tell the agent where to look first: the working dir / repo ("read `CLAUDE.md` or the README first"), the specific file/dir that bears on the task, and the exact output format expected.
+5. **Mandate context pointers** — Every spawned prompt MUST tell the agent where to look first. A cold agent rediscovers what we already know. Include:
+   - The working directory / repo, and "read `CLAUDE.md` (or the README) first if it exists"
+   - The specific index/file/dir that bears on the task (a named source file, the relevant module, an architecture doc)
+   - The goal and the exact output format expected — not the full conversation history
 
-6. **Spawn** — Launch all independent tasks in a **single message with multiple `Agent` calls** for true parallelism; default long/independent tasks to background. For a pipeline, spawn stage 1, then stage 2 with its output. Show a one-line launch summary first.
+6. **Spawn** — Launch all independent tasks in a **single message with multiple `Agent` calls** for true parallelism. Default long or independent tasks to `run_in_background: true` so the user isn't blocked (you're notified on completion). For a pipeline, spawn stage 1, then spawn stage 2 with stage 1's output once it lands.
 
-7. **Gate quality & retry** — Review results before presenting; re-delegate weak results with specific feedback (max 2 retries). Do sequencing-sensitive tail steps (git commit/push, deploy) yourself after agents finish. **A subagent's "verified, no issues" is not a visual QA gate** — agents check mechanical properties (overflow, clipping, tests pass), not semantic ones (does the final frame say what it should? is this element legible against what's behind it?). For any *rendered-pixel* output (UI, motion, a report), extract the frames/screenshots and look yourself before reporting done — prioritizing the final/resting frame.
+   Before spawning, show a one-line launch summary: "Running these N in parallel/as a pipeline: [list with agentType each]."
 
-8. **Report** — Present a unified rollup in original task order, leading with the answer (numbered list, agentType + status per task, then "Result: …" and any open decisions).
+7. **Gate quality & retry** — When results come back, review before presenting. If a result is weak, wrong, or thin, re-delegate to the same agent with *specific* feedback (max 2 retries). Flag anything still uncertain or failed plainly. For write tasks, confirm the agent verified its work (build/type-check/tests) before accepting.
+
+   **A subagent's "verified, no issues" is not a visual QA gate.** Agents reliably check *mechanical* properties (overflow, clipping, cursor lands, tests pass) but not *semantic* ones — does the final frame say what it's supposed to say? is this element legible against what's actually behind it? For any delegated work whose output is *rendered pixels* — UI, design, motion, a generated report — the orchestrator extracts the frames/screenshots and looks at them personally before reporting done. It's a different check, not a redundant one; budget for it. Prioritize the **final/resting frame** — that's where "stuck state" bugs hide, because agents verify transitions more carefully than resting states. (This is also when to route the rendered result to a `designer` pass.)
+
+   Sequencing-sensitive tail steps (git commit/push, deploy) are NOT parallel work — do them yourself *after* the relevant agents finish, so the commit stays clean. Never fan out a git commit alongside the file edits it's meant to capture.
+
+8. **Persist standing work to the Maestro board** — If the goal is a one-shot quick job, behave exactly as before (inline fan-out, done) — this step is a no-op for it. But if it's a *standing effort* — spans sessions, or you'll hand pieces to other providers (Codex/Cursor/Grok) — instead of (or in addition to) spawning inline, persist each decomposed task to the Maestro board with `/maestro new "<title>" --repo <R> --provider <hint>`, carrying the `provider_hint` from step 3's routing decision. Then print the board (`/maestro`). This is what makes the decomposition outlive the session.
+
+9. **Report** — Present a unified rollup in original task order, leading with the answer:
+
+   ```
+   ORCHESTRATE  N/N complete
+
+   [1] researcher · Neon branching API scan     OK
+       Synthesized 8 sources → recommended copy-on-write per PR preview.
+   [2] coder · add webhook handler              OK
+       New route + Zod schema + test. Build + types pass.
+   [3] reviewer · audit the diff                OK (returned report; no blockers)
+
+   Result: <the one thing that matters> · Open decisions: <if any>
+   ```
 
 ## Notes
-- Use `/parallel` for a quick flat fan-out you've already scoped, `/subagent` for a single fire-and-forget change, and the `Workflow` tool for loops/conditionals/large pipelines/resume/budget.
-- Specialist routing is the quality lever — stop spawning blank `general-purpose` agents for work that has a better-fit owner.
-- Hand every agent context pointers. This is the most common reason a delegation comes back shallow.
+- This skill is orchestration made explicit. Reach for it whenever the work is substantive and multi-step; use `/parallel` for a quick flat fan-out you've already scoped, and `/subagent` for a single fire-and-forget change.
+- The graduation rule (step 2) is the point of this skill: don't force loops, conditionals, large pipelines, or resume/budget needs through prose orchestration — that's what the `Workflow` tool exists for. And don't reach for `Workflow` on a 3-task fan-out — that's over-engineering.
+- Specialist routing (step 3) is the quality lever. The named agents exist precisely so we stop spawning blank `general-purpose` agents for work that has a better-fit owner.
+- Respect autonomy boundaries: research/read is autonomous; anything that sends, publishes, spends, deploys, or is hard to reverse needs the user's approval — even when a subagent could technically do it.
+- Max ~5 agents per *visible* fan-out (rollup legibility, not a system limit). Need more concurrent units than that? That's a `Workflow` (its real cap is ~14 concurrent, 1000 lifetime).
+- Hand every agent context pointers (step 5). This is non-negotiable and is the most common reason a delegation comes back shallow.
+- Step 8 is the only regression risk in this evolution — it must stay a no-op for quick jobs. Don't persist a task to the board just because `/orchestrate` ran; persist only when the work is explicitly standing/cross-session or explicitly headed to another provider. When in doubt, ask rather than silently seeding the board.
+- Once persisted, `/maestro work`/`/maestro route` are what actually turn a board row into active work (worktree, `PROMPT.md`, provider launch string) — `/orchestrate` only seeds the row.
 
 ---
 

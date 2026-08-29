@@ -14,7 +14,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  39 custom commands
+ SKILL CATALOG  40 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -30,6 +30,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  AGENT ORCHESTRATION
 ═══════════════════════════════════════════════════════════════
  /orchestrate <goal>      Decompose → route to specialists → gate → report
+ /maestro [subcommand]    Cross-provider task board: new/claim/sync/work/route (4 providers)
  /subagent <task>         Background agent: explore → implement → verify
  /parallel <a> | <b>      Run tasks simultaneously, aggregate results
  /research <topic>        Background research → structured findings

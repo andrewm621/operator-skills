@@ -2,7 +2,7 @@
 
 **Claude slash commands for people who build things.**
 
-40 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
+41 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
 
 They started as one-off prompts, became reusable slash commands, then became a system where skills call other skills — roadmaps feed into phases, phases feed into todos, todos feed into parallel agents, and everything gets logged. This is that system, open-sourced.
 
@@ -23,7 +23,7 @@ Open Cowork and send this message:
 
 > Clone https://github.com/andrewm621/operator-skills.git to ~/operator-skills and symlink the skills directory to ~/.claude/skills/operator
 
-Claude runs the commands for you. Type `/` to see all 40 skills in autocomplete.
+Claude runs the commands for you. Type `/` to see all 41 skills in autocomplete.
 
 See [`docs/cowork-setup-guide.md`](docs/cowork-setup-guide.md) for manual install and optional Global Instructions.
 
@@ -34,7 +34,7 @@ git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
 ln -s ~/operator-skills/skills ~/.claude/skills/operator
 ```
 
-Type `/` in a new session to see all 40 skills.
+Type `/` in a new session to see all 41 skills.
 
 ## Skill Catalog
 
@@ -43,6 +43,7 @@ Type `/` in a new session to see all 40 skills.
 | Skill | What it does | Example |
 |-------|-------------|---------|
 | `/orchestrate` | Decompose a goal, route each piece to the best specialist, run parallel/pipeline, gate, report | `/orchestrate ship the billing page: research, build, review` |
+| `/maestro` | Cross-provider command deck — durable task board (create, claim, sync) any terminal or provider can pick up | `/maestro new "Refactor auth" --repo liberty-networking` |
 | `/parallel` | Run tasks simultaneously, aggregate results | `/parallel research Stripe billing \| check build \| verify localhost:3000` |
 | `/subagent` | Dispatch a background agent to explore + implement | `/subagent add email notifications to the API` |
 | `/research` | Background research — structured findings while you keep working | `/research Drizzle ORM migration API` |
@@ -185,7 +186,7 @@ Adding or editing a skill? See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short v
 
 | Feature | Code (CLI) | Cowork (Desktop) | Claude.ai (Web) |
 |---------|-----------|-----------------|-----------------|
-| All 40 skills | Full | Full | Full |
+| All 41 skills | Full | Full | Full |
 | `/` autocomplete | Native | Native | Manual invoke |
 | Subagent spawning | Full | Full | Simulated |
 | File system access | Full | Full | Via Knowledge files |
