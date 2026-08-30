@@ -17,17 +17,31 @@
      set         small idempotent frontmatter field-setter (e.g. recording `issue: gh#N`
                  after a human runs /handoff — this CLI never invokes Claude skills itself)
 
+   L2 comms subcommands (see docs/maestro-comms-spec.md §3-§5, §7-§8) — agent<->agent
+   and agent<->human messaging over the same filesystem+git bus, no daemon/socket:
+     say         append a broadcast line to a task or `fleet` channel
+     ask         append a `#open` question, prints its stable M-id
+     answer      append an answer re: an ask AND flip that ask's `#open`->`#resolved`
+                 (the one sanctioned in-place edit — everything else is append-only)
+     read        print a channel's thread (optionally only messages `--since` a ts)
+     inbox       list every `#open` ask addressed to someone (default `andrew`) —
+                 the "needs human" queue, across every registered repo + fleet
+     handoff     like `say` but kind=handoff, explicitly targeted at `--to <who>`
+
    `done` / `block` / `release` are not built yet — they fail loudly with a pointer.
 
    v1 dispatch is human-in-the-loop (spec §7): `route` prepares the worktree/seed and
    prints the launch string; it never spawns another provider process itself.
 
-   Data layout (docs/maestro-spec.md §4):
+   Data layout (docs/maestro-spec.md §4, docs/maestro-comms-spec.md §2):
      ~/Projects/.maestro/{registry.yaml, index.jsonl, board.md, worktrees/}  — global, derived
-     <repo>/.maestro/{tasks,todos,locks}/                                    — per-repo, authoritative
+     ~/Projects/.maestro/channels/fleet.md                                   — global, authoritative
+     ~/Projects/.maestro/inbox.jsonl                                         — global, DERIVED
+     <repo>/.maestro/{tasks,todos,locks,channels}/                          — per-repo, authoritative
 */
 
 import {
+  appendFileSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -47,9 +61,12 @@ const REGISTRY_PATH = path.join(GLOBAL_DIR, 'registry.yaml');
 const INDEX_PATH = path.join(GLOBAL_DIR, 'index.jsonl');
 const BOARD_PATH = path.join(GLOBAL_DIR, 'board.md');
 const WORKTREES_ROOT = path.join(GLOBAL_DIR, 'worktrees');
+const FLEET_CHANNEL_PATH = path.join(GLOBAL_DIR, 'channels', 'fleet.md');
+const INBOX_PATH = path.join(GLOBAL_DIR, 'inbox.jsonl');
 
 const DEFAULT_TTL_SECONDS = 1800;
 const STATUS_ORDER = ['open', 'claimed', 'in-progress', 'review', 'blocked', 'done'];
+const CHANNEL_LOCK_TIMEOUT_MS = 5000;
 
 /* Provider adapter table (spec §7). All four are wired as of Phase 2 — see
    spec §11 for which flags below are `--help`-confirmed vs. researched-only.
@@ -102,6 +119,13 @@ function nowISOMinute() {
 
 function isoSeconds(d) {
   return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+/* Synchronous sleep, Node built-ins only — no worker thread required; Node
+   (unlike a browser) allows a blocking Atomics.wait on the main thread. Used
+   only for the channel append-lock's small jittered retry backoff below. */
+function sleepMs(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function parseArgs(argv) {
@@ -484,6 +508,238 @@ function refreshHeartbeat(repo, taskId) {
   writeFileSync(claimFile, `${JSON.stringify(data, null, 2)}\n`);
 }
 
+/* ---- L2 comms: channels + messages (maestro-comms-spec.md §2-§5) ----------- */
+
+function isFleet(target) {
+  return target === 'fleet';
+}
+
+/* `M-<taskid>-<seq>` uses the bare id (T-1 -> "1"), fleet uses "fleet"
+   (comms spec §3). */
+function messageBaseFor(target) {
+  return isFleet(target) ? 'fleet' : target.replace(/^T-/, '');
+}
+
+function channelPathFor(repo, target) {
+  const dir = isFleet(target) ? path.dirname(FLEET_CHANNEL_PATH) : path.join(repo.path, '.maestro', 'channels');
+  mkdirSync(dir, { recursive: true });
+  return isFleet(target) ? FLEET_CHANNEL_PATH : path.join(dir, `${target}.md`);
+}
+
+function channelLockDirFor(channelPath) {
+  const base = path.basename(channelPath, '.md');
+  return path.join(path.dirname(channelPath), `.${base}.lock`);
+}
+
+/* Short-lived mkdir lock, comms spec §5 — same atomic primitive as claims,
+   but retries-with-backoff instead of failing loudly: two agents `say`-ing at
+   once should serialize, not race each other out. A stale lock (crashed
+   process) is stolen after CHANNEL_LOCK_TIMEOUT_MS so the CLI can't hang
+   forever on a lock nobody will ever release. */
+function acquireChannelLock(lockDir) {
+  const start = Date.now();
+  for (;;) {
+    try {
+      mkdirSync(lockDir);
+      return;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      if (Date.now() - start > CHANNEL_LOCK_TIMEOUT_MS) {
+        try {
+          rmSync(lockDir, { recursive: true, force: true });
+        } catch {
+          /* another process may have released it between our check and rmSync — fine */
+        }
+        continue;
+      }
+      sleepMs(15 + Math.floor(Math.random() * 25));
+    }
+  }
+}
+
+function releaseChannelLock(lockDir) {
+  try {
+    rmSync(lockDir, { recursive: true, force: true });
+  } catch {
+    /* best-effort */
+  }
+}
+
+/* `- [ts] (M-id) author · kind[→target][ re:M-id]: text [#tag]` — comms spec §3. */
+function formatMessageLine({ ts, mid, author, kind, target, reId, text, tag }) {
+  let line = `- [${ts}] (${mid}) ${author} · ${kind}`;
+  if (target) line += `→${target}`;
+  if (reId) line += ` re:${reId}`;
+  line += `: ${text}`;
+  if (tag) line += ` #${tag}`;
+  return line;
+}
+
+const MESSAGE_LINE_RE = /^-\s*\[([^\]]+)\]\s*\(([^)]+)\)\s*(\S+)\s*·\s*(\w+)(?:→(\S+))?(?:\s+re:(\S+))?:\s(.*)$/;
+
+/* Tolerant parse — throws on anything that isn't this exact shape, so callers
+   can skip-with-warning per comms spec §3 ("never crash a read/sync"). */
+function parseMessageLine(rawLine) {
+  const line = rawLine.replace(/\r$/, '');
+  const m = line.match(MESSAGE_LINE_RE);
+  if (!m) throw new Error('unparseable message line');
+  const [, ts, mid, author, kind, target, reId, rest] = m;
+  let text = rest;
+  let tag = null;
+  const tagMatch = text.match(/\s#(open|resolved)\s*$/);
+  if (tagMatch) {
+    tag = tagMatch[1];
+    text = text.slice(0, tagMatch.index).trimEnd();
+  }
+  return { ts, mid, author, kind, target: target || null, reId: reId || null, text, tag };
+}
+
+/* Reads a channel file into parsed message objects (each carrying its `raw`
+   original line too, so `read`'s human mode can print verbatim). Missing
+   file = empty thread, not an error. Malformed lines are skipped with a
+   warning, never thrown — same rule as task frontmatter (spec §3). */
+function readChannelMessages(channelPath) {
+  if (!existsSync(channelPath)) return [];
+  const text = readFileSync(channelPath, 'utf8');
+  const messages = [];
+  for (const rawLine of text.split(/\r?\n/)) {
+    if (!rawLine.trim()) continue;
+    try {
+      messages.push({ ...parseMessageLine(rawLine), raw: rawLine });
+    } catch {
+      warn(`skipping malformed message line in ${channelPath}: ${rawLine.slice(0, 80)}`);
+    }
+  }
+  return messages;
+}
+
+function nextMessageSeq(channelPath, base) {
+  if (!existsSync(channelPath)) return 1;
+  const text = readFileSync(channelPath, 'utf8');
+  const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`\\(M-${escaped}-(\\d+)\\)`, 'g');
+  let max = 0;
+  let m;
+  while ((m = re.exec(text))) max = Math.max(max, Number(m[1]));
+  return max + 1;
+}
+
+/* Author = the live claim owner if the target task is claimed, else a
+   session-identity fallback (comms spec §3). Fleet posts and unclaimed tasks
+   always fall back — there's no claim to borrow an identity from. `answer`
+   overrides this with the literal 'andrew' (spec §3/§4) since it's always
+   the human replying. */
+function resolveAuthor(repo, target) {
+  if (!repo || isFleet(target)) return `${os.userInfo().username}@cli`;
+  const claimPath = path.join(repo.path, '.maestro', 'locks', `${target}.claim.json`);
+  if (existsSync(claimPath)) {
+    try {
+      const claim = JSON.parse(readFileSync(claimPath, 'utf8'));
+      if (claim?.owner) return claim.owner;
+    } catch {
+      /* corrupt claim file — fall through to the session-identity fallback */
+    }
+  }
+  return `${os.userInfo().username}@cli`;
+}
+
+/* `@andrew` and bare `andrew` must match for --for/--to filtering (spec §3
+   uses `@andrew` for the human in the line format, but the CLI's default
+   `--for`/`--to` value is documented as the bare name) — compare with the
+   leading `@` stripped from both sides. */
+function normalizeWho(who) {
+  return String(who || '').replace(/^@/, '');
+}
+
+/* Shared append path for say/ask/answer/handoff: acquire the channel lock,
+   compute the next M-id fresh (inside the lock, so two concurrent posts
+   can't compute the same seq), append one line, release. */
+function postMessage(repo, target, { kind, text, targetAddr, reId, tag, author }) {
+  const channelPath = channelPathFor(repo, target);
+  const lockDir = channelLockDirFor(channelPath);
+  const base = messageBaseFor(target);
+
+  acquireChannelLock(lockDir);
+  let mid, line;
+  try {
+    const seq = nextMessageSeq(channelPath, base);
+    mid = `M-${base}-${seq}`;
+    const ts = isoSeconds(new Date());
+    const resolvedAuthor = author ?? resolveAuthor(repo, target);
+    line = formatMessageLine({ ts, mid, author: resolvedAuthor, kind, target: targetAddr, reId, text, tag });
+    appendFileSync(channelPath, `${line}\n`);
+  } finally {
+    releaseChannelLock(lockDir);
+  }
+  return { mid, line, channelPath };
+}
+
+/* `answer <M-id>` doesn't require --repo — resolve which channel/repo an
+   M-id belongs to by its base id, searching every registered repo (and
+   fleet) for a channel file containing that exact M-id. Ambiguous only if
+   two repos happen to both have a same-numbered task AND a collision on the
+   literal message id, which --repo disambiguates. */
+function resolveChannelForMessageId(registry, mid, repoNameHint) {
+  const m = String(mid).match(/^M-(.+)-(\d+)$/);
+  if (!m) fail(`invalid message id '${mid}' — expected M-<taskid>-<seq> or M-fleet-<seq>`);
+  const base = m[1];
+  const target = base === 'fleet' ? 'fleet' : `T-${base}`;
+
+  if (base === 'fleet') {
+    return { repo: null, target, channelPath: FLEET_CHANNEL_PATH };
+  }
+
+  if (repoNameHint) {
+    const repo = resolveRepo(registry, repoNameHint);
+    const channelPath = path.join(repo.path, '.maestro', 'channels', `${target}.md`);
+    if (!existsSync(channelPath)) fail(`no channel ${target} in ${repo.name}`);
+    return { repo, target, channelPath };
+  }
+
+  const matches = [];
+  for (const repo of registry.repos) {
+    const channelPath = path.join(repo.path, '.maestro', 'channels', `${target}.md`);
+    if (existsSync(channelPath) && readFileSync(channelPath, 'utf8').includes(`(${mid})`)) {
+      matches.push({ repo, target, channelPath });
+    }
+  }
+  if (matches.length === 0) fail(`message ${mid} not found in any registered repo's channel — pass --repo to disambiguate`);
+  if (matches.length > 1) {
+    fail(`message id ${mid} exists in multiple repos (${matches.map((x) => x.repo.name).join(', ')}) — pass --repo to disambiguate`);
+  }
+  return matches[0];
+}
+
+/* Every #open ask across fleet + every registered repo's channels/. Backs
+   both `inbox` (live, filtered by --for) and `sync`'s derived inbox.jsonl /
+   board ⚑ block (unfiltered, then filtered to `andrew` for the board). */
+function collectOpenAsks(registry) {
+  const rows = [];
+  const scan = (channelPath, channelLabel) => {
+    for (const m of readChannelMessages(channelPath)) {
+      if (m.kind === 'ask' && m.tag === 'open') {
+        rows.push({ mid: m.mid, channel: channelLabel, author: m.author, target: m.target, text: m.text, ts: m.ts });
+      }
+    }
+  };
+  scan(FLEET_CHANNEL_PATH, 'fleet');
+  for (const repo of registry.repos) {
+    const channelsDir = path.join(repo.path, '.maestro', 'channels');
+    if (!existsSync(channelsDir)) continue;
+    let files;
+    try {
+      files = readdirSync(channelsDir).filter((f) => f.endsWith('.md'));
+    } catch (e) {
+      warn(`cannot read channels dir for ${repo.name}: ${e.message}`);
+      continue;
+    }
+    for (const f of files) {
+      scan(path.join(channelsDir, f), `${repo.name}/${f.replace(/\.md$/, '')}`);
+    }
+  }
+  return rows;
+}
+
 /* ---- worktree + seed helpers (spec §2, §6) --------------------------------- */
 
 function isGitRepo(repoPath) {
@@ -806,6 +1062,176 @@ function cmdSet(positional, flags) {
   console.log(`Updated ${taskId} (${repo.name}): ${summary}`);
 }
 
+/* ---- L2 comms commands (maestro-comms-spec.md §4) --------------------------- */
+
+/* Resolves a `<T-id|fleet>` target: `fleet` needs no repo; anything else
+   requires a real, existing task in the resolved repo. Shared by
+   say/ask/read/handoff — the four verbs that take a channel target directly
+   (`answer` instead resolves its channel from an M-id, see
+   resolveChannelForMessageId). */
+function resolveChannelTarget(registry, target, repoFlag, { requireTask } = { requireTask: true }) {
+  if (isFleet(target)) return { repo: null, target };
+  const repo = resolveRepo(registry, repoFlag);
+  if (requireTask && !findTaskFile(repo.path, target)) fail(`no task ${target} found in ${repo.name}`);
+  return { repo, target };
+}
+
+function channelLabelFor(repo, target) {
+  return isFleet(target) ? 'fleet' : `${target} (${repo.name})`;
+}
+
+function cmdSay(positional, flags) {
+  const targetArg = positional[0];
+  const text = positional[1];
+  if (!targetArg || !text) fail('usage: maestro say <T-id|fleet> "text" [--repo R]');
+
+  const registry = loadRegistry();
+  const { repo, target } = resolveChannelTarget(registry, targetArg, flags.repo);
+
+  const { mid } = postMessage(repo, target, { kind: 'say', text });
+  if (repo) refreshHeartbeat(repo, target);
+  console.log(`Posted ${mid} to ${channelLabelFor(repo, target)}`);
+}
+
+function cmdRead(positional, flags) {
+  const targetArg = positional[0];
+  if (!targetArg) fail('usage: maestro read <T-id|fleet> [--since <ts>] [--repo R]');
+
+  const registry = loadRegistry();
+  // `read` doesn't need the task to exist (a channel can outlive/precede
+  // strict task bookkeeping in edge cases) — just resolve the repo/path.
+  const { repo, target } = resolveChannelTarget(registry, targetArg, flags.repo, { requireTask: false });
+  const channelPath = isFleet(target) ? FLEET_CHANNEL_PATH : path.join(repo.path, '.maestro', 'channels', `${target}.md`);
+
+  const messages = readChannelMessages(channelPath);
+  const sinceMs = typeof flags.since === 'string' ? Date.parse(flags.since) : null;
+  const filtered = sinceMs && !Number.isNaN(sinceMs) ? messages.filter((m) => Date.parse(m.ts) > sinceMs) : messages;
+
+  if (flags.json) {
+    console.log(JSON.stringify(filtered.map(({ raw: _raw, ...rest }) => rest), null, 2));
+    return;
+  }
+
+  if (!filtered.length) {
+    console.log(`(no messages${sinceMs ? ` since ${flags.since}` : ''} in ${channelLabelFor(repo, target)})`);
+    return;
+  }
+  for (const m of filtered) console.log(m.raw);
+}
+
+function cmdAsk(positional, flags) {
+  const targetArg = positional[0];
+  const text = positional[1];
+  if (!targetArg || !text) fail('usage: maestro ask <T-id|fleet> "question" [--to who] [--repo R]');
+
+  const registry = loadRegistry();
+  const { repo, target } = resolveChannelTarget(registry, targetArg, flags.repo);
+
+  const targetAddr = typeof flags.to === 'string' ? flags.to : '@andrew';
+  const { mid } = postMessage(repo, target, { kind: 'ask', text, targetAddr, tag: 'open' });
+  if (repo) refreshHeartbeat(repo, target);
+  console.log(mid);
+}
+
+function cmdAnswer(positional, flags) {
+  const mid = positional[0];
+  const text = positional[1];
+  if (!mid || !text) fail('usage: maestro answer <M-id> "text" [--repo R]');
+
+  const registry = loadRegistry();
+  const { repo, target, channelPath } = resolveChannelForMessageId(registry, mid, flags.repo);
+  const lockDir = channelLockDirFor(channelPath);
+
+  // NOTE: process.exit() (what fail() calls) does NOT run pending `finally`
+  // blocks — verified empirically. So this can't be a try/finally with
+  // fail() inside; any failure must throw, get caught, release the lock
+  // explicitly, THEN fail() — otherwise a bad answer call would leave an
+  // orphaned lock directory that hangs every future post to this channel
+  // until CHANNEL_LOCK_TIMEOUT_MS steals it.
+  acquireChannelLock(lockDir);
+  let answerMid, askAuthor;
+  try {
+    const original = existsSync(channelPath) ? readFileSync(channelPath, 'utf8') : '';
+    const lines = original.length ? original.replace(/\n$/, '').split('\n') : [];
+
+    let askIdx = -1;
+    let ask = null;
+    for (let i = 0; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      try {
+        const parsed = parseMessageLine(lines[i]);
+        if (parsed.mid === mid) {
+          askIdx = i;
+          ask = parsed;
+          break;
+        }
+      } catch {
+        /* malformed line — tolerated, just not a match */
+      }
+    }
+    if (!ask) throw new Error(`message ${mid} not found in ${channelPath}`);
+    if (ask.kind !== 'ask') throw new Error(`${mid} is a '${ask.kind}' message, not an 'ask' — nothing to answer`);
+    if (ask.tag !== 'open') warn(`${mid} was already '${ask.tag ?? 'untagged'}' — appending another answer anyway`);
+
+    askAuthor = ask.author;
+    const base = messageBaseFor(target);
+    const seq = nextMessageSeq(channelPath, base);
+    answerMid = `M-${base}-${seq}`;
+    const ts = isoSeconds(new Date());
+    const answerLine = formatMessageLine({ ts, mid: answerMid, author: 'andrew', kind: 'answer', target: askAuthor, reId: mid, text });
+
+    // The one sanctioned in-place edit (comms spec §5): flip this ask's
+    // #open -> #resolved, under the same lock as the append below.
+    lines[askIdx] = lines[askIdx].replace(/#open\s*$/, '#resolved');
+    lines.push(answerLine);
+
+    writeFileSync(channelPath, `${lines.join('\n')}\n`);
+  } catch (err) {
+    releaseChannelLock(lockDir);
+    fail(err.message);
+    throw err; // unreachable — fail() exits — but keeps control-flow analysis happy
+  }
+  releaseChannelLock(lockDir);
+
+  console.log(`Posted ${answerMid} (answer→${askAuthor} re:${mid}) to ${channelLabelFor(repo, target)} — ${mid} now #resolved`);
+}
+
+function cmdInbox(positional, flags) {
+  const registry = loadRegistry();
+  const forWho = normalizeWho(typeof flags.for === 'string' ? flags.for : 'andrew');
+
+  const rows = collectOpenAsks(registry).filter((r) => normalizeWho(r.target) === forWho);
+
+  if (flags.json) {
+    console.log(JSON.stringify(rows, null, 2));
+    return;
+  }
+
+  if (!rows.length) {
+    console.log(`inbox: no open asks for ${forWho}`);
+    return;
+  }
+  console.log(`⚑ ${rows.length} open ask(s) for ${forWho}:`);
+  for (const r of rows) {
+    console.log(`  ${r.mid}  [${r.channel}]  ${r.author} asked (${r.ts}): ${r.text}`);
+  }
+}
+
+function cmdHandoff(positional, flags) {
+  const targetArg = positional[0];
+  const text = positional[1];
+  if (!targetArg || !text || typeof flags.to !== 'string' || !flags.to) {
+    fail('usage: maestro handoff <T-id|fleet> --to <who> "text" [--repo R]');
+  }
+
+  const registry = loadRegistry();
+  const { repo, target } = resolveChannelTarget(registry, targetArg, flags.repo);
+
+  const { mid } = postMessage(repo, target, { kind: 'handoff', text, targetAddr: flags.to });
+  if (repo) refreshHeartbeat(repo, target);
+  console.log(`Posted ${mid} (handoff→${flags.to}) to ${channelLabelFor(repo, target)}`);
+}
+
 function worktreeBranchesFor(repoPath) {
   const branches = new Set();
   try {
@@ -879,6 +1305,8 @@ function cmdSync() {
         }
       }
 
+      const needsHuman = countNeedsHuman(path.join(repo.path, '.maestro', 'channels', `${id}.md`));
+
       rows.push({
         repoName: repo.name,
         globalId: `${repo.name}/${id}`,
@@ -890,6 +1318,7 @@ function cmdSync() {
         priority: data.priority ?? 3,
         updated: data.updated ?? '',
         hasWorktree: Boolean(data.branch && worktreeBranches.has(data.branch)),
+        needsHuman,
       });
     }
   }
@@ -904,16 +1333,35 @@ function cmdSync() {
       progress: r.progress,
       priority: r.priority,
       updated: r.updated,
+      needs_human: r.needsHuman,
     })
   );
   mkdirSync(GLOBAL_DIR, { recursive: true });
   writeFileSync(INDEX_PATH, indexLines.length ? `${indexLines.join('\n')}\n` : '');
-  writeFileSync(BOARD_PATH, renderBoard(rows));
+
+  // Derived comms projections (comms spec §2, §7) — inbox.jsonl (every open
+  // ask, any target) and the board's ⚑ block (just the ones for @andrew).
+  const openAsks = collectOpenAsks(registry);
+  writeFileSync(INBOX_PATH, openAsks.length ? `${openAsks.map((a) => JSON.stringify(a)).join('\n')}\n` : '');
+  const needsYou = openAsks.filter((a) => normalizeWho(a.target) === 'andrew');
+
+  writeFileSync(BOARD_PATH, renderBoard(rows, needsYou));
 
   console.log(`sync: ${rows.length} task(s) across ${registry.repos.length} repo(s) → ${INDEX_PATH}`);
+  return rows;
 }
 
-function renderBoard(rows) {
+/* #open asks in a task's channel addressed to the human — this is the count
+   that lands in index.jsonl's `needs_human` field (comms spec §7). */
+function countNeedsHuman(channelPath) {
+  let n = 0;
+  for (const m of readChannelMessages(channelPath)) {
+    if (m.kind === 'ask' && m.tag === 'open' && normalizeWho(m.target) === 'andrew') n++;
+  }
+  return n;
+}
+
+function renderBoard(rows, needsYou = []) {
   const groups = new Map(STATUS_ORDER.map((s) => [s, []]));
   for (const r of rows) {
     if (!groups.has(r.status)) groups.set(r.status, []);
@@ -926,9 +1374,20 @@ function renderBoard(rows) {
     '',
     `_Generated ${isoSeconds(new Date())} by \`maestro sync\`_`,
     '',
-    `${rows.length} task(s) tracked${staleCount ? ` · ${staleCount} STALE claim(s)` : ''}`,
-    '',
   ];
+
+  // Derived header block (comms spec §7) — kept out of the status tables
+  // below on purpose; it's a cross-cutting "blocked on you" view, not a
+  // task status.
+  if (needsYou.length) {
+    lines.push(`⚑ NEEDS YOU (${needsYou.length})`, '');
+    for (const a of needsYou) {
+      lines.push(`- [${a.channel}] ${a.author} asked (${a.mid}): ${a.text}`);
+    }
+    lines.push('');
+  }
+
+  lines.push(`${rows.length} task(s) tracked${staleCount ? ` · ${staleCount} STALE claim(s)` : ''}`, '');
 
   for (const [status, list] of groups) {
     lines.push(`## ${status} (${list.length})`);
@@ -941,7 +1400,8 @@ function renderBoard(rows) {
     lines.push('|---|---|---|---|---|---|');
     for (const r of [...list].sort((a, b) => a.priority - b.priority)) {
       const ownerCell = r.owner ? (r.stale ? `${r.owner} ⚠ STALE` : r.owner) : '—';
-      lines.push(`| ${r.globalId} | ${r.title} | ${ownerCell} | ${r.progress} | ${r.priority} | ${r.updated} |`);
+      const idCell = r.needsHuman ? `${r.globalId} ⚑` : r.globalId;
+      lines.push(`| ${idCell} | ${r.title} | ${ownerCell} | ${r.progress} | ${r.priority} | ${r.updated} |`);
     }
     lines.push('');
   }
@@ -949,8 +1409,12 @@ function renderBoard(rows) {
   return `${lines.join('\n')}\n`;
 }
 
-function cmdBoard() {
-  cmdSync();
+function cmdBoard(flags) {
+  const rows = cmdSync();
+  if (flags?.json) {
+    console.log(JSON.stringify(rows, null, 2));
+    return;
+  }
   console.log(readFileSync(BOARD_PATH, 'utf8'));
 }
 
@@ -977,7 +1441,7 @@ switch (sub) {
     break;
   case undefined:
   case 'board':
-    cmdBoard();
+    cmdBoard(flags);
     break;
   case 'work':
     cmdWork(positional, flags);
@@ -988,13 +1452,33 @@ switch (sub) {
   case 'set':
     cmdSet(positional, flags);
     break;
+  case 'say':
+    cmdSay(positional, flags);
+    break;
+  case 'read':
+    cmdRead(positional, flags);
+    break;
+  case 'ask':
+    cmdAsk(positional, flags);
+    break;
+  case 'answer':
+    cmdAnswer(positional, flags);
+    break;
+  case 'inbox':
+    cmdInbox(positional, flags);
+    break;
+  case 'handoff':
+    cmdHandoff(positional, flags);
+    break;
   case 'done':
   case 'block':
   case 'release':
     fail(
-      `'${sub}' isn't built yet. Supported: init, new, claim, heartbeat, sync, board, work, route, set.`
+      `'${sub}' isn't built yet. Supported: init, new, claim, heartbeat, sync, board, work, route, set, say, read, ask, answer, inbox, handoff.`
     );
     break;
   default:
-    fail(`unknown subcommand '${sub}'. Supported: init, new, claim, heartbeat, sync, board, work, route, set.`);
+    fail(
+      `unknown subcommand '${sub}'. Supported: init, new, claim, heartbeat, sync, board, work, route, set, say, read, ask, answer, inbox, handoff.`
+    );
 }
