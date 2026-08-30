@@ -1347,7 +1347,10 @@ function cmdSync() {
 
   writeFileSync(BOARD_PATH, renderBoard(rows, needsYou));
 
-  console.log(`sync: ${rows.length} task(s) across ${registry.repos.length} repo(s) → ${INDEX_PATH}`);
+  // Diagnostic progress line, not payload — stderr unconditionally so stdout
+  // stays pure for `--json` consumers (board/inbox/read) that trigger a sync
+  // first. Humans still see it in the terminal either way.
+  console.error(`sync: ${rows.length} task(s) across ${registry.repos.length} repo(s) → ${INDEX_PATH}`);
   return rows;
 }
 
