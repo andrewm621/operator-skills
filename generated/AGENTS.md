@@ -84,6 +84,7 @@ that underlying Claude-specific tooling or MCP server is also present.
 
 - **/roadmap** — Enter a multi-round Socratic brainstorming session to deeply explore a project idea, then generate a phased roadmap with tasks, dependencies, and unknowns.
 - **/invert** — Apply the inversion principle to stress-test a feature, process, or system. Instead of asking "how do we make this succeed?", spawns independent subagents that each ask "how would this fail?" from a different lens. Aggregates weaknesses into a prioritized risk report.
+- **/pre-mortem** — Run a council-style pre-mortem on a decision, plan, or commitment before you make it. Spawns parallel devil's-advocate subagents — each a named advisor arguing ONLY the failure case from their own domain lens — and rolls up into a ranked "Causes of Death" report with kill-conditions, severity/likelihood, and concrete avoidance mitigations.
 
 ### Code Quality
 
@@ -93,6 +94,7 @@ that underlying Claude-specific tooling or MCP server is also present.
 ### Scaffolding & Architecture
 
 - **/scaffold** — Create a new project from templates tuned to your stack conventions. Scaffolds full project structure with framework, database, auth, and design system pre-wired.
+- **/foundation-loop** — Drive a fresh or near-fresh app from generated skeleton to a working foundation — auth wired, one core data flow proven end-to-end, clean build — through bounded implement/verify/critique rounds with a real stop condition and a hard round ceiling, cutting the back-and-forth of babysitting early build-out.
 - **/map** — Generate or update an architectural map of a project — folder structure, dependencies, data flow, and component relationships — with Mermaid diagrams.
 
 ### Git & Infrastructure

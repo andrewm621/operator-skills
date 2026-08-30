@@ -5,7 +5,7 @@
 
 ---
 
-You have 41 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 43 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -22,6 +22,7 @@ You have 41 operator skills for software projects. Use them when a user's reques
 | `/phases` | Visual roadmap progress with phase indicators |
 | `/todo` | Task management: add, complete, skip, reprioritize |
 | `/invert` | Red-team via parallel failure-lens agents (Munger's inversion) |
+| `/pre-mortem` | Devil's-advocate council pre-mortem on a decision — ranked causes of death |
 | `/log` | Daily work log — timestamped entries + wrap-up |
 | `/test` | Auto-detect framework, run tests, parse failures |
 | `/pr-review` | Structured review: security, logic, patterns, breaking changes |
@@ -30,6 +31,7 @@ You have 41 operator skills for software projects. Use them when a user's reques
 | `/project-health` | One-shot audit: security + deps + build + lint + types |
 | `/parallel-check` | Verify shared dependency changes don't break consumers |
 | `/scaffold` | New project from templates (Next.js, Vite, API, monorepo) |
+| `/foundation-loop` | Bounded harness: drive a fresh app from skeleton to a working foundation (auth + one core flow, clean build) |
 | `/dark-mode` | Light/Dark/System theme toggle — OS default, persisted, flash-free |
 | `/map` | Architectural diagrams (Mermaid) — folders, data flow, DB |
 | `/report` | Interactive HTML reports and dashboards |
@@ -80,12 +82,14 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 |----------|--------|
 | Orchestrate a goal | `/orchestrate <goal>` → auto-routes `/research` → build → `/pr-review`, gated |
 | New project | `/scaffold` → `/switch` → `/map` |
+| Stand up foundation | `/scaffold` → `/foundation-loop` → `/switch` |
 | Add dark mode | `/dark-mode` → `/verify-app` |
 | Ship feature | `/todo` → code → `/test` → `/pr-review` → `/changelog` |
 | Debug issue | `/project-health` → `/env-check` → `/db-status` |
 | Wire up feedback | `/gleap install` → `/env-check` → `/gleap audit` |
 | Plan work | `/roadmap` → `/phases` → `/todo` |
 | Pre-merge | `/invert <feature>` → `/test` → `/pr-review` |
+| Big decision | `/pre-mortem <decision>` → resolve Tier 1 findings → decide |
 | End of day | `/log wrap` or `/session-notes` |
 | Switch threads | `/freeze` → new chat → `/freeze thaw` |
 | Answer in Slack | `/slack-ctx find <person>` → `/slack-reply <url>` → review draft in Slack |
@@ -95,7 +99,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 41, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 43, see the uploaded Knowledge file.
 
 ### /orchestrate
 

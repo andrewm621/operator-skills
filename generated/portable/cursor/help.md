@@ -9,7 +9,7 @@ Arguments: {the text you type after the command} (optional: category name to fil
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `{the text you type after the command}` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  40 custom commands
+ SKILL CATALOG  42 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -20,6 +20,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /log [text|view|wrap]    Daily work log — incremental entries, wrap-up
  /session-notes [topic]   End-of-session snapshot (when /log wasn't used)
  /freeze [topic|list|thaw|all] Context snapshot for cross-thread resumption
+ /pre-mortem <decision>   Devil's-advocate council pre-mortem → ranked causes of death
 
 ═══════════════════════════════════════════════════════════════
  AGENT ORCHESTRATION
@@ -36,6 +37,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
 ═══════════════════════════════════════════════════════════════
  /switch <project>        Context-switch into any ~/Projects/* project
  /scaffold <name> [tmpl]  New project from templates (next/vite/api/monorepo)
+ /foundation-loop <dir>   Bounded harness: skeleton → working foundation (auth + 1 core flow)
  /dark-mode [where]       Light/Dark/System toggle — OS default, no-flash
  /map [project]           Architectural diagrams (Mermaid) → ARCHITECTURE.md
  /search-all <query>      Search code/files/packages across all projects
@@ -92,12 +94,14 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  QUICK COMBOS
 ═══════════════════════════════════════════════════════════════
  New project        /scaffold → /switch → /map
+ Stand up foundation /scaffold → /foundation-loop → /switch
  Ship feature       /todo → code → /test → /pr-review → /changelog
  Debug issue        /project-health → /env-check → /db-status → /verify-app
  Plan work          /roadmap → /phases → /todo
  End of day         /log wrap  (or /session-notes if no log entries)
  Switch threads     /freeze → new terminal → /freeze thaw
  Pre-merge          /invert <feature> → /test → /pr-review
+ Big decision        /pre-mortem <decision> → resolve Tier 1 → decide
  Status report      /report <project or topic> → opens in browser
  Design system      /rebel-new-component → /parallel-check all
  Cross-project      /search-all → /deps align → /parallel build-check

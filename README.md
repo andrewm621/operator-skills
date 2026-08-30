@@ -2,7 +2,7 @@
 
 **Claude slash commands for people who build things.**
 
-41 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
+43 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
 
 They started as one-off prompts, became reusable slash commands, then became a system where skills call other skills — roadmaps feed into phases, phases feed into todos, todos feed into parallel agents, and everything gets logged. This is that system, open-sourced.
 
@@ -23,7 +23,7 @@ Open Cowork and send this message:
 
 > Clone https://github.com/andrewm621/operator-skills.git to ~/operator-skills and symlink the skills directory to ~/.claude/skills/operator
 
-Claude runs the commands for you. Type `/` to see all 41 skills in autocomplete.
+Claude runs the commands for you. Type `/` to see all 43 skills in autocomplete.
 
 See [`docs/cowork-setup-guide.md`](docs/cowork-setup-guide.md) for manual install and optional Global Instructions.
 
@@ -34,7 +34,7 @@ git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
 ln -s ~/operator-skills/skills ~/.claude/skills/operator
 ```
 
-Type `/` in a new session to see all 41 skills.
+Type `/` in a new session to see all 43 skills.
 
 ## Skill Catalog
 
@@ -58,6 +58,7 @@ Type `/` in a new session to see all 41 skills.
 | `/phases` | Visual roadmap progress with phase indicators | `/phases` |
 | `/todo` | Task management — add, complete, skip, reprioritize | `/todo done 2.3` |
 | `/invert` | Red-team via 5 parallel failure-lens agents (Munger's inversion) | `/invert the checkout flow` |
+| `/pre-mortem` | Devil's-advocate council pre-mortem on a decision — ranked causes of death | `/pre-mortem should I sign this client` |
 | `/log` | Daily work log — timestamped entries + end-of-day wrap-up | `/log` or `/log wrap` |
 
 ### Code Quality
@@ -76,6 +77,7 @@ Type `/` in a new session to see all 41 skills.
 | Skill | What it does | Example |
 |-------|-------------|---------|
 | `/scaffold` | New project from templates — DB, auth, UI pre-wired | `/scaffold my-app next` |
+| `/foundation-loop` | Bounded harness that drives a fresh app from skeleton to a working foundation (auth + one core flow, clean build) with minimal check-ins | `/foundation-loop my-app "todos crud"` |
 | `/dark-mode` | Light/Dark/System theme toggle — OS default, persisted, flash-free | `/dark-mode` |
 | `/map` | Architectural diagrams (Mermaid) — folders, data flow, DB schema | `/map` |
 | `/report` | Interactive HTML reports and dashboards | `/report sprint 3 review` |
@@ -186,7 +188,7 @@ Adding or editing a skill? See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short v
 
 | Feature | Code (CLI) | Cowork (Desktop) | Claude.ai (Web) |
 |---------|-----------|-----------------|-----------------|
-| All 41 skills | Full | Full | Full |
+| All 43 skills | Full | Full | Full |
 | `/` autocomplete | Native | Native | Manual invoke |
 | Subagent spawning | Full | Full | Simulated |
 | File system access | Full | Full | Via Knowledge files |

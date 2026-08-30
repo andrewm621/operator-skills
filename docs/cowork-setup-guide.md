@@ -6,7 +6,7 @@ Open Cowork and send this message:
 
 > Clone https://github.com/andrewm621/operator-skills.git to ~/operator-skills and symlink the skills directory to ~/.claude/skills/operator. Then confirm it worked by listing what's in ~/.claude/skills/operator.
 
-Claude runs the commands and confirms the install. Type `/` — you should see all 41 skills in autocomplete.
+Claude runs the commands and confirms the install. Type `/` — you should see all 43 skills in autocomplete.
 
 ## Manual Install (No Claude)
 
