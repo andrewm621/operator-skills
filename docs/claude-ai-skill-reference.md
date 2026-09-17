@@ -1702,7 +1702,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  AGENT ORCHESTRATION
 ═══════════════════════════════════════════════════════════════
  /orchestrate <goal>      Decompose → route to specialists → gate → report
- /maestro [subcommand]    Cross-provider task board + comms: new/work/route/ask/answer/inbox
+ /maestro [subcommand]    Cross-provider task board + comms: new/work/route/ask/answer/inbox/mirror
  /subagent <task>         Background agent: explore → implement → verify
  /parallel <a> | <b>      Run tasks simultaneously, aggregate results
  /research <topic>        Background research → structured findings
@@ -2374,7 +2374,7 @@ Maestro is the standing command deck for cross-provider, cross-session orchestra
 
 Arguments: $ARGUMENTS
 
-**Current scope: `board` (default), `new`, `claim`, `heartbeat`, `sync`, `work`, `route` — all four providers (`claude`, `codex`, `cursor`, `grok`) are wired in `route` — plus the L2 comms verbs `say`, `read`, `ask`, `answer`, `inbox`, `handoff`.** `done`, `block`, and `release` aren't built yet; if `$ARGUMENTS` asks for one of those, say so plainly and point at `board`/`work`/`route` instead of improvising.
+**Current scope: `board` (default), `new`, `claim`, `heartbeat`, `sync`, `work`, `route` — all four providers (`claude`, `codex`, `cursor`, `grok`) are wired in `route` — plus the L2 comms verbs `say`, `read`, `ask`, `answer`, `inbox`, `handoff` — plus `mirror`, the GitHub-issue mirror.** `done`, `block`, and `release` aren't built yet; if `$ARGUMENTS` asks for one of those, say so plainly and point at `board`/`work`/`route` instead of improvising.
 
 All state lives under `~/Projects/.maestro/` (global, derived — never hand-edited, includes `worktrees/`, `channels/fleet.md`, `inbox.jsonl`) and `<repo>/.maestro/` (per-repo, authoritative, includes `channels/`). Full schema in this repo's `docs/maestro-spec.md` (board/tasks) and `docs/maestro-comms-spec.md` (messaging). Every subcommand below is a thin wrapper over `node maestro.mjs <subcommand> ...`, which lives right next to this file — resolve its path from where this SKILL.md was loaded (e.g. `~/.claude/skills/operator/maestro/maestro.mjs` under the standard symlink install).
 
@@ -2398,6 +2398,7 @@ All state lives under `~/Projects/.maestro/` (global, derived — never hand-edi
    | `answer <M-id> "text" [--repo R]` | `node maestro.mjs answer ...`, then act per step 9 |
    | `inbox [--for who] [--json]` | `node maestro.mjs inbox ...`, then act per step 9 |
    | `handoff <T-id\|fleet> --to who "text" [--repo R]` | `node maestro.mjs handoff ...`, then act per step 9 |
+   | `mirror [--repo R] [--dry-run]` | `node maestro.mjs mirror ...`, then act per step 11 |
 
 2. **`board` (default)** — Run `node maestro.mjs board` (it syncs first, then prints `board.md`). Don't just paste the raw markdown back — read it and present it like a status report: lead with what's actionable — the **⚑ NEEDS YOU** block first if it's non-empty (an open question is blocking someone), then the oldest open high-priority task, then any `STALE` claim, then the grouped table. `--json` emits the same rows the human render is built from (array of task objects, `needs_human` included) — use it when you need to reason about the board programmatically instead of re-parsing markdown.
 
@@ -2431,13 +2432,22 @@ All state lives under `~/Projects/.maestro/` (global, derived — never hand-edi
    5. **`read <T-id|fleet> [--since ts]`** — print a thread, optionally only what's new since a timestamp (useful right after a heartbeat to check for an answer without re-reading the whole history). `--json` for structured output.
    6. **`handoff <T-id> --to <agent> "text"`** — like `say` but explicitly a context transfer to a named agent, not a broadcast. Use this over `say` when you're specifically handing work/context to a teammate, so it reads clearly in the thread as a handoff rather than a status ping.
 
-10. **Report** — Always surface the actual command output, or a faithful summary of it — never a paraphrase that hides an error. A non-zero exit is usually load-bearing here (e.g. "owned by X" is proof the atomic claim did its job, not a bug to smooth over).
+10. **`mirror`** — the GitHub-issue mirror, and the **only** networked subcommand in the whole CLI; `sync`/`board` never shell out to `gh`. Opt-in per repo via a `mirror: github` key under that repo's entry in `registry.yaml` (absent = off, nothing happens). Run `node maestro.mjs mirror [--repo R] [--dry-run]` — no repo = every opted-in repo in the registry.
+   1. **Status → GitHub state/labels:** `open`/`claimed`/`in-progress`/`review`/`blocked` stay an **open** issue labeled `maestro` + `maestro:<status>`; `done` **closes** the issue (label `maestro:done`). Labels are status-only — there's no assignee; owner lives in the body footer instead.
+   2. **No `issue:` in frontmatter yet** — the CLI first tries to recover a pre-existing `label:maestro` issue whose body contains this task's hidden `<!-- maestro-task: <repo>/T-<id> -->` marker (adopts its number); only if nothing matches does it create a new issue. Either way it immediately writes `issue: gh#<n>` back onto the task file via the existing `set` setter — you don't need to run `set` yourself.
+   3. **`issue:` already present** — it patches title/body/labels/state only on drift (never a no-op `gh issue edit`), diffed against a single batched `gh issue list --label maestro --state all` call per repo (not one call per task).
+   4. **`--dry-run`** prints the exact `gh issue create`/`edit`/`close`/`reopen` commands it would run, with resolved labels/state and the body-file path, without executing anything — always start here on an unfamiliar repo.
+   5. One task's `gh` failure is caught and reported inline; it never aborts the rest of the batch. If `gh` itself isn't installed, the whole run skips with a warning instead of failing.
+   6. `done`/`block`/`release` aren't built yet (step 1's table), so a task that's flipped to `status: done` only closes its mirrored issue on the *next* `mirror` run — that's expected, not a bug to chase.
+
+11. **Report** — Always surface the actual command output, or a faithful summary of it — never a paraphrase that hides an error. A non-zero exit is usually load-bearing here (e.g. "owned by X" is proof the atomic claim did its job, not a bug to smooth over).
 
 ## Notes
 - **Ask when blocked, don't stall silently.** If you're working a task via `work` and hit a decision you can't make or a dependency you don't control, `ask` is the correct move — not guessing, and not going quiet. Check `read` for the answer before resuming that thread. This applies to every provider, not just Claude — the seeded `PROMPT.md`/`AGENTS.md` in each worktree should carry the same instinct forward.
 - `work` and `route` spin real git worktrees as siblings of the repo (`~/Projects/.maestro/worktrees/<repo>/T-<id>/`, never nested inside it) and seed the vendor-neutral `PROMPT.md`/`AGENTS.md` brief (spec §6). `done`/`block`/`release` — merge-and-teardown, blocking, and un-claiming — are still not built; don't hand-roll them.
 - `/orchestrate` is the planning front door; once a goal is a standing, cross-session effort — or you want to hand pieces to another provider — persist the decomposition here via `maestro new "<title>" --repo R --provider <hint>` for each task, carrying the `provider_hint` you'd route to, then print the board.
-- The registry (`~/Projects/.maestro/registry.yaml`) is hand-maintained — add a repo to it by appending a `- name` / `path` pair. Everything else under `~/Projects/.maestro/` (including `worktrees/`, `channels/fleet.md`, `inbox.jsonl`) is derived-or-authoritative-but-safe-to-regenerate-from-source — except don't delete a worktree by hand while it's in `git worktree list` (use `git worktree remove`), and never hand-edit `board.md`/`index.jsonl`/`inbox.jsonl` (all three are rebuilt wholesale by `sync`).
+- The registry (`~/Projects/.maestro/registry.yaml`) is hand-maintained — add a repo to it by appending a `- name` / `path` pair, and opt that repo into `mirror` by adding a `mirror: github` line under it (absent = mirror off for that repo). Everything else under `~/Projects/.maestro/` (including `worktrees/`, `channels/fleet.md`, `inbox.jsonl`) is derived-or-authoritative-but-safe-to-regenerate-from-source — except don't delete a worktree by hand while it's in `git worktree list` (use `git worktree remove`), and never hand-edit `board.md`/`index.jsonl`/`inbox.jsonl` (all three are rebuilt wholesale by `sync`).
+- `mirror` is the one place this CLI shells out to a network command (`gh`) — it is never invoked implicitly by `sync`/`board`/`work`/`route`, only when you (or the human) explicitly runs `maestro mirror`. Local `.maestro/tasks/*.md` frontmatter stays authoritative either way; the GitHub issue is a read-mostly mirror of it, not the other direction.
 - Per-repo `.maestro/tasks/*.md`, `.maestro/todos/*.md`, and `.maestro/channels/*.md` are the real, editable/appendable source of truth. `board.md`, `index.jsonl`, and `inbox.jsonl` are derived projections of them — a manual edit to any of the three is silently discarded on the next `sync`.
 - The `/handoff` **skill** referenced in step 7.3 (GitHub-issue creation for Codex) is a different thing from the `handoff` **verb** in step 9.6 (a comms message) — same word, two layers. The skill isn't part of this repo; it's assumed to already exist in the runtime environment (spec §7 calls the Codex adapter "already owned"). If it isn't available, say so rather than faking an issue number.
 - `cursor`/`grok` launch strings are printed, never run automatically — v1 dispatch is entirely human-in-the-loop (spec §7). Some of their flags (Grok's non-interactive/approval flag in particular) are best-effort corrections from a real `--help` read, not a verified live run — flag that if Andrew hits a flag error running one himself, and update `maestro.mjs`'s `ADAPTERS` table rather than guessing again.
@@ -2461,7 +2471,16 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
    - If empty, use the current working directory
    - If a subdirectory path is given (e.g., "app/api"), map just that subtree in detail
 
-2. **Explore the project** — Spawn an Explore subagent (or do directly for small projects) to gather:
+2. **Establish the CLAUDE.md/AGENTS.md pairing** — Skip this step for workspace-level maps (`/map workspace`). For a project directory, `AGENTS.md` is canonical and `CLAUDE.md` is a symlink to it (`CLAUDE.md -> AGENTS.md`). Check the project root and reconcile:
+
+   - Both exist and `CLAUDE.md` already symlinks to `AGENTS.md` — no-op.
+   - Only `CLAUDE.md` exists, as a real file — `mv CLAUDE.md AGENTS.md && ln -s AGENTS.md CLAUDE.md` (preserves content, `AGENTS.md` becomes canonical).
+   - Only `AGENTS.md` exists — `ln -s AGENTS.md CLAUDE.md`.
+   - Neither exists — leave it; that's `/init`'s job, not `/map`'s. Don't create empty files.
+   - Both exist as separate real files (diverged) — don't silently merge or overwrite either one. Flag it in the final output ("CLAUDE.md and AGENTS.md both exist as separate real files — reconcile manually, then re-run /map") and skip the symlink step.
+   - `CLAUDE.md` is a symlink pointing somewhere other than `AGENTS.md` (a custom convention) — leave it alone, just note it's using a custom target.
+
+3. **Explore the project** — Spawn an Explore subagent (or do directly for small projects) to gather:
 
    **a) Structure:**
    - Run `find <dir> -type f -name "*.ts" -o -name "*.tsx" -o -name "*.py" -o -name "*.json" | head -200` to understand the file tree
@@ -2482,7 +2501,7 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
    - For monorepos: map inter-package dependencies
    - For `@rebel/ui` consumers: note the design system link
 
-3. **Generate the architectural map** — Produce a comprehensive markdown document with Mermaid diagrams:
+4. **Generate the architectural map** — Produce a comprehensive markdown document with Mermaid diagrams:
 
    **a) Project Overview header:**
    ```markdown
@@ -2628,7 +2647,7 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
 
    **IMPORTANT:** Only include diagram types that are relevant. A simple app doesn't need all 7 diagrams. A CLI tool might only need folder structure + data flow. A monorepo needs the dependency graph. Use judgment.
 
-4. **Save the map** — Write to the appropriate location:
+5. **Save the map** — Write to the appropriate location:
 
    **For individual projects:**
    - Save to `<project-dir>/ARCHITECTURE.md` (lives with the code, git-trackable)
@@ -2642,12 +2661,12 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
    - Update only the sections that have changed
    - Update the "Generated" date
 
-5. **Update the knowledge map** — If this is a new project being mapped for the first time:
+6. **Update the knowledge map** — If this is a new project being mapped for the first time:
    - Check if it exists in `memory/project_knowledge_map.md`
    - If not, add it to the appropriate category
    - If the project has enough complexity, suggest creating a dedicated `memory/project_<name>.md`
 
-6. **Present the results** — Display the complete architecture map. Since Mermaid renders in markdown viewers, also offer:
+7. **Present the results** — Display the complete architecture map. Since Mermaid renders in markdown viewers, also offer:
    - "View in GitHub/VS Code for rendered diagrams"
    - "Run `/document architecture notion` to create a Notion page with these diagrams"
 

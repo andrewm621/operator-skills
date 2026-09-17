@@ -418,3 +418,114 @@ These are implementation trivia, not design blockers, but confirm before hardcod
 The metaphor matures from *orchestrate* ("conduct one performance") to *Maestro* ("the
 conductor who runs the whole ensemble, all night, across every stage"). Same lineage,
 bigger reach.
+
+---
+
+## 13. GitHub mirror (hybrid model)
+
+**Local `.maestro/*.md` stays authoritative.** The mirror is a one-way-authoritative,
+best-effort projection of each task file onto a GitHub issue — the issue exists so a
+human (or a teammate who only lives in GitHub) can see and react to board state without
+learning Maestro's file format, not so GitHub can drive the board. Nothing in `sync` or
+`board` ever shells out to `gh`; they stay pure-filesystem and offline-safe by design.
+Reconciliation lives entirely behind one dedicated verb:
+
+```
+maestro mirror [--repo R] [--dry-run]
+```
+
+### 13.1 Opt-in, per repo
+
+A repo only mirrors if its `registry.yaml` entry carries `mirror: github`:
+
+```yaml
+repos:
+  - name: liberty networking
+    path: /Users/andrewmiller/Projects/liberty networking/liberty-networking-app
+    mirror: github        # opt-in — absent (the default) means mirror never touches this repo
+```
+
+Absent key = off. `mirror` with no `--repo` walks every opted-in repo in the registry;
+`--repo R` scopes to one. A repo with no resolvable GitHub `origin` remote (or a
+non-GitHub host — GHE, GitLab, ...) is skipped with a warning, not a hard failure.
+
+### 13.2 Status → GitHub state/labels
+
+One lookup table, `STATUS_GH_MAP` in `maestro.mjs`, drives both state and labels — no
+assignee; owner stays in the body footer.
+
+| status | issue state | labels |
+|---|---|---|
+| `open` | open | `maestro`, `maestro:open` |
+| `claimed` | open | `maestro`, `maestro:claimed` |
+| `in-progress` | open | `maestro`, `maestro:in-progress` |
+| `review` | open | `maestro`, `maestro:review` |
+| `blocked` | open | `maestro`, `maestro:blocked` |
+| `done` | **closed** | `maestro`, `maestro:done` |
+
+Title is always `T-<id>: <task title>`, regenerated every run.
+
+### 13.3 Issue body — footer + hidden marker, no comment trail
+
+The body is a full re-render each reconcile (never appended to): Goal + Context
+pointers + Acceptance (same three sections `buildPrompt` projects into `PROMPT.md`),
+then a managed footer —
+
+```
+---
+**Owner:** codex@term-2
+**Status:** in-progress
+**Priority:** 2
+**Progress:** 3/12
+**Local path:** /Users/andrewmiller/Projects/liberty networking/liberty-networking-app/.maestro/tasks (T-014)
+
+<!-- maestro-task: liberty networking/T-014 -->
+```
+
+The `<!-- maestro-task: <repo>/T-<id> -->` marker is how the mirror finds "its" issue
+again without a stored issue number (§13.4) and is regenerated identically every run —
+it is never hand-edited. There is deliberately no comment trail; status history lives in
+git (the task file's own commits), not as a growing issue thread.
+
+### 13.4 Create-vs-reconcile
+
+- **No `issue:` in frontmatter** — first tries to *recover* a pre-existing
+  `label:maestro` issue whose body already contains this task's marker (covers a reset
+  or hand-edited frontmatter without the issue itself having been touched); adopts its
+  number. Only if nothing matches does it create a new issue via `gh issue create
+  --body-file <tmp>` (never `--body` inline — long briefs and shell-escaping both argue
+  for a file). Either way, the resulting number is written straight back onto the task
+  file as `issue: gh#<n>` via the existing `set`-style frontmatter setter
+  (`setTaskFields`) — no separate `maestro set` invocation needed.
+- **`issue:` already present** — reconciled against a single batched
+  `gh issue list --label maestro --state all --json number,title,state,labels,body`
+  call per repo (not one call per task, to stay within rate limits on a repo with a
+  large board), and **patched only on drift**: title, body, and labels are diffed
+  field-by-field against the fetched issue and only the fields that actually changed are
+  sent to `gh issue edit`; state changes (open ⇄ closed) go through `gh issue
+  close`/`gh issue reopen` separately. A task whose recorded issue number isn't found in
+  that batch (label manually removed, etc.) is skipped with a warning rather than
+  silently recreated.
+
+### 13.5 Failure model
+
+One task's `gh` failure (network blip, permissions, a malformed body) is caught and
+reported inline — it never aborts the rest of the batch, the same one-writer/no-cascade
+posture as `sync`'s per-task warnings. If `gh` itself isn't on `PATH`, the whole `mirror`
+run skips with a single warning instead of failing loudly, matching `route`'s
+missing-binary posture (§7) rather than `claim`'s hard-fail posture.
+
+### 13.6 `--dry-run`
+
+Prints the exact `gh issue create`/`edit`/`close`/`reopen` invocation(s) it would run —
+resolved title, labels, state, and the body-file path — without executing anything or
+writing back `issue:` frontmatter. Always the first move on a repo that hasn't mirrored
+before.
+
+### 13.7 Known follow-up
+
+`done`/`block`/`release` aren't built yet (§10, §8.2 build plan). Until `done` exists,
+flipping `status: done` by hand (or once `done` ships) only closes the mirrored issue on
+the *next* `mirror` run, not the moment the status changes — expected, not a bug, given
+`mirror` is the only place this CLI talks to the network and nothing else triggers it
+automatically.

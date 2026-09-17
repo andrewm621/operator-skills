@@ -28,6 +28,13 @@
                  the "needs human" queue, across every registered repo + fleet
      handoff     like `say` but kind=handoff, explicitly targeted at `--to <who>`
 
+   GitHub mirror subcommand (see docs/maestro-spec.md §13) — the ONLY networked
+   verb in this whole CLI; `sync`/`board` stay pure-filesystem and offline-safe:
+     mirror      opt-in per repo (`mirror: github` in registry.yaml) reconcile
+                 of each task file to a GitHub issue — create-or-recover when
+                 no `issue:` is recorded yet, else patch-only-on-drift; status
+                 maps to `maestro`/`maestro:<status>` labels, `done` closes it.
+
    `done` / `block` / `release` are not built yet — they fail loudly with a pointer.
 
    v1 dispatch is human-in-the-loop (spec §7): `route` prepares the worktree/seed and
@@ -238,6 +245,7 @@ function renderRegistry(repos) {
   for (const r of repos) {
     lines.push(`  - name: ${r.name}`);
     lines.push(`    path: ${r.path}`);
+    if (r.mirror) lines.push(`    mirror: ${r.mirror}`);
   }
   lines.push('id_prefix_from: name');
   return `${lines.join('\n')}\n`;
@@ -257,10 +265,12 @@ function loadRegistry() {
     if (!trimmed) continue;
     let m;
     if ((m = trimmed.match(/^-\s*name:\s*(.+)$/))) {
-      current = { name: m[1].trim(), path: '' };
+      current = { name: m[1].trim(), path: '', mirror: null };
       repos.push(current);
     } else if (current && (m = trimmed.match(/^path:\s*(.+)$/))) {
       current.path = m[1].trim();
+    } else if (current && (m = trimmed.match(/^mirror:\s*(.+)$/))) {
+      current.mirror = m[1].trim();
     } else if ((m = trimmed.match(/^id_prefix_from:\s*(.+)$/))) {
       idPrefixFrom = m[1].trim();
     }
@@ -1421,6 +1431,364 @@ function cmdBoard(flags) {
   console.log(readFileSync(BOARD_PATH, 'utf8'));
 }
 
+/* ---- github mirror ---------------------------------------------------------- */
+/* The ONLY networked verb in this CLI (spec §13). Opt-in per repo via
+   `mirror: github` in registry.yaml; `sync`/`board` never shell out to `gh` —
+   they only ever read back the `issue: gh#<n>` frontmatter this section writes. */
+
+/* Status→GitHub map (one const) — state + status-only labels per task status.
+   `done` is the only status that closes the mirrored issue. */
+const STATUS_GH_MAP = {
+  open: { state: 'open', labels: ['maestro', 'maestro:open'] },
+  claimed: { state: 'open', labels: ['maestro', 'maestro:claimed'] },
+  'in-progress': { state: 'open', labels: ['maestro', 'maestro:in-progress'] },
+  review: { state: 'open', labels: ['maestro', 'maestro:review'] },
+  blocked: { state: 'open', labels: ['maestro', 'maestro:blocked'] },
+  done: { state: 'closed', labels: ['maestro', 'maestro:done'] },
+};
+
+function ghAvailable() {
+  return commandExists('gh');
+}
+
+/* Parses `owner/repo` out of `origin`'s remote URL (ssh or https form). Returns
+   null for no remote / not a git repo / a non-GitHub host (GHE, GitLab, ...) —
+   callers skip that repo gracefully rather than failing the whole mirror run. */
+function ghRepoSlug(repoPath) {
+  let url;
+  try {
+    url = execFileSync('git', ['-C', repoPath, 'remote', 'get-url', 'origin'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+  const m = url.match(/github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/);
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
+function parseIssueRef(issue) {
+  if (typeof issue !== 'string') return null;
+  const m = issue.match(/^gh#(\d+)$/);
+  return m ? Number(m[1]) : null;
+}
+
+function formatIssueRef(n) {
+  return `gh#${n}`;
+}
+
+function formatIssueTitle(taskId, title) {
+  return `${taskId}: ${title}`;
+}
+
+function statusToState(status) {
+  return (STATUS_GH_MAP[status] ?? STATUS_GH_MAP.open).state;
+}
+
+function statusToLabels(status) {
+  return (STATUS_GH_MAP[status] ?? STATUS_GH_MAP.open).labels;
+}
+
+/* Projects Goal + Context pointers + Acceptance (same sections `buildPrompt`
+   reads) into an issue body, plus a managed footer — owner/status/priority/
+   progress/local-path — and the hidden marker this mirror regenerates and
+   matches on every run. No comment trail: the body itself is the sync target. */
+function buildIssueBody(taskId, repo, data, body) {
+  const goal = extractSection(body, 'Goal') || '(none recorded)';
+  const context = extractSection(body, 'Context pointers') || '(none recorded)';
+  const acceptance = extractSection(body, 'Acceptance') || '(none recorded)';
+  const { done, total } = countTodos(path.join(repo.path, '.maestro', 'todos', `${taskId}.todos.md`));
+  const localPath = path.join(repo.path, '.maestro', 'tasks');
+
+  return [
+    '## Goal',
+    goal,
+    '',
+    '## Context pointers',
+    context,
+    '',
+    '## Acceptance',
+    acceptance,
+    '',
+    '---',
+    `**Owner:** ${data.owner ?? '—'}`,
+    `**Status:** ${data.status ?? 'open'}`,
+    `**Priority:** ${data.priority ?? 3}`,
+    `**Progress:** ${done}/${total}`,
+    `**Local path:** ${localPath} (${taskId})`,
+    '',
+    `<!-- maestro-task: ${repo.name}/${taskId} -->`,
+  ].join('\n');
+}
+
+/* Best-effort label seeding (`gh label create … || true`, spec) — never fatal:
+   the label may already exist, or the token may lack repo-admin scope. */
+function ghEnsureLabels(slug) {
+  const labels = new Set(Object.values(STATUS_GH_MAP).flatMap((v) => v.labels));
+  for (const label of labels) {
+    try {
+      execFileSync('gh', ['label', 'create', label, '--repo', slug], { stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch {
+      /* best-effort — see comment above */
+    }
+  }
+}
+
+function ghCreateIssue(slug, { title, bodyFile, labels }) {
+  const args = ['issue', 'create', '--repo', slug, '--title', title, '--body-file', bodyFile];
+  for (const label of labels) args.push('--label', label);
+  const out = execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  const m = out.match(/\/issues\/(\d+)\s*$/);
+  if (!m) throw new Error(`could not parse issue number from 'gh issue create' output: ${out}`);
+  return Number(m[1]);
+}
+
+/* One `gh issue list` call per repo (spec: minimize API calls / rate-limit) —
+   every maestro-labeled issue, open or closed, so recovery-by-marker and
+   drift-detection both work off a single fetch. */
+function ghListMirroredIssues(slug) {
+  const out = execFileSync(
+    'gh',
+    ['issue', 'list', '--repo', slug, '--label', 'maestro', '--state', 'all', '--json', 'number,title,state,labels,body', '--limit', '500'],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+  );
+  return JSON.parse(out || '[]');
+}
+
+function ghPatchIssue(slug, number, { title, bodyFile, addLabels = [], removeLabels = [], state } = {}) {
+  const editArgs = ['issue', 'edit', String(number), '--repo', slug];
+  let hasEditFields = false;
+  if (title !== undefined) {
+    editArgs.push('--title', title);
+    hasEditFields = true;
+  }
+  if (bodyFile !== undefined) {
+    editArgs.push('--body-file', bodyFile);
+    hasEditFields = true;
+  }
+  for (const label of addLabels) {
+    editArgs.push('--add-label', label);
+    hasEditFields = true;
+  }
+  for (const label of removeLabels) {
+    editArgs.push('--remove-label', label);
+    hasEditFields = true;
+  }
+  if (hasEditFields) {
+    execFileSync('gh', editArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+  }
+  if (state === 'closed') {
+    execFileSync('gh', ['issue', 'close', String(number), '--repo', slug], { stdio: ['ignore', 'pipe', 'pipe'] });
+  } else if (state === 'open') {
+    execFileSync('gh', ['issue', 'reopen', String(number), '--repo', slug], { stdio: ['ignore', 'pipe', 'pipe'] });
+  }
+}
+
+function issueBodyTempFile(repoName, taskId) {
+  return path.join(os.tmpdir(), `maestro-issue-${slugify(repoName)}-${taskId}-${process.pid}-${Date.now()}.md`);
+}
+
+/* Computes desired {title, body, labels, state} vs the batch-fetched current
+   issue and patches only what drifted — never a no-op `gh issue edit` call.
+   Label reconcile only ever touches other `maestro:*` labels, never a label
+   this mirror didn't create. */
+function reconcileIssue(slug, current, desired, { dryRun, taskId, repoName }) {
+  const currentLabelNames = new Set((current.labels ?? []).map((l) => (typeof l === 'string' ? l : l.name)));
+  const desiredLabelSet = new Set(desired.labels);
+  const addLabels = desired.labels.filter((l) => !currentLabelNames.has(l));
+  const removeLabels = [...currentLabelNames].filter((l) => l.startsWith('maestro:') && !desiredLabelSet.has(l));
+
+  const currentState = String(current.state ?? 'OPEN').toLowerCase();
+  const titleChanged = current.title !== desired.title;
+  const bodyChanged = (current.body ?? '').trim() !== desired.body.trim();
+  const stateChanged = currentState !== desired.state;
+  const labelsChanged = addLabels.length > 0 || removeLabels.length > 0;
+
+  if (!titleChanged && !bodyChanged && !stateChanged && !labelsChanged) {
+    console.log(`mirror: ${repoName}/${taskId} — issue #${current.number} already in sync, no drift`);
+    return;
+  }
+
+  if (dryRun) {
+    console.log(`[dry-run] ${repoName}/${taskId} — would patch issue #${current.number} in ${slug}:`);
+    if (titleChanged) console.log(`  gh issue edit ${current.number} --repo ${slug} --title ${JSON.stringify(desired.title)}`);
+    if (bodyChanged) console.log(`  gh issue edit ${current.number} --repo ${slug} --body-file <tmp>`);
+    for (const label of addLabels) console.log(`  gh issue edit ${current.number} --repo ${slug} --add-label ${label}`);
+    for (const label of removeLabels) console.log(`  gh issue edit ${current.number} --repo ${slug} --remove-label ${label}`);
+    if (stateChanged) console.log(`  gh issue ${desired.state === 'closed' ? 'close' : 'reopen'} ${current.number} --repo ${slug}`);
+    return;
+  }
+
+  let bodyFile;
+  try {
+    if (bodyChanged) {
+      bodyFile = issueBodyTempFile(repoName, taskId);
+      writeFileSync(bodyFile, desired.body);
+    }
+    if (titleChanged || bodyChanged || labelsChanged) {
+      ghPatchIssue(slug, current.number, {
+        title: titleChanged ? desired.title : undefined,
+        bodyFile,
+        addLabels,
+        removeLabels,
+      });
+    }
+    if (stateChanged) {
+      ghPatchIssue(slug, current.number, { state: desired.state });
+    }
+  } finally {
+    if (bodyFile) {
+      try {
+        rmSync(bodyFile, { force: true });
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+  }
+
+  const changed = [titleChanged && 'title', bodyChanged && 'body', labelsChanged && 'labels', stateChanged && 'state']
+    .filter(Boolean)
+    .join(', ');
+  console.log(`mirror: ${repoName}/${taskId} — patched issue #${current.number} (${changed})`);
+}
+
+/* Per-task reconcile, wrapped in its own try/catch by the caller (cmdMirror)
+   so one task's `gh` failure never aborts the batch. No `issue:` yet → try to
+   recover an existing maestro-labeled issue by marker (adopt its number)
+   before creating a new one; either way, write `issue: gh#<n>` back onto the
+   task file immediately via the existing `set` setter (setTaskFields). */
+function mirrorTask(repo, slug, taskPath, data, body, { dryRun, issuesByNumber, issuesByMarker }) {
+  const taskId = data.id;
+  const marker = `<!-- maestro-task: ${repo.name}/${taskId} -->`;
+  const desired = {
+    title: formatIssueTitle(taskId, data.title ?? '(untitled)'),
+    body: buildIssueBody(taskId, repo, data, body),
+    state: statusToState(data.status),
+    labels: statusToLabels(data.status),
+  };
+
+  const currentIssueNum = parseIssueRef(data.issue);
+
+  if (currentIssueNum) {
+    const current = issuesByNumber.get(currentIssueNum);
+    if (!current) {
+      warn(
+        `${repo.name}/${taskId} — ${formatIssueRef(currentIssueNum)} not found among maestro-labeled issues in ${slug} (label removed manually?) — skipping this run`
+      );
+      return;
+    }
+    reconcileIssue(slug, current, desired, { dryRun, taskId, repoName: repo.name });
+    return;
+  }
+
+  const recovered = issuesByMarker.get(marker);
+  if (recovered) {
+    console.log(
+      `mirror: ${repo.name}/${taskId} — recovered issue #${recovered.number} via marker, writing back issue: ${formatIssueRef(recovered.number)}`
+    );
+    if (!dryRun) setTaskFields(taskPath, { issue: formatIssueRef(recovered.number) });
+    reconcileIssue(slug, recovered, desired, { dryRun, taskId, repoName: repo.name });
+    return;
+  }
+
+  if (dryRun) {
+    console.log(`[dry-run] ${repo.name}/${taskId} — would create issue in ${slug}:`);
+    console.log(
+      `  gh issue create --repo ${slug} --title ${JSON.stringify(desired.title)} --body-file <tmp> ${desired.labels.map((l) => `--label ${l}`).join(' ')}`
+    );
+    if (desired.state === 'closed') console.log(`  gh issue close <new#> --repo ${slug}`);
+    console.log(`  (then: node maestro.mjs set ${taskId} --repo "${repo.name}" --issue gh#<new#>)`);
+    return;
+  }
+
+  ghEnsureLabels(slug);
+  const bodyFile = issueBodyTempFile(repo.name, taskId);
+  try {
+    writeFileSync(bodyFile, desired.body);
+    const num = ghCreateIssue(slug, { title: desired.title, bodyFile, labels: desired.labels });
+    setTaskFields(taskPath, { issue: formatIssueRef(num) });
+    if (desired.state === 'closed') ghPatchIssue(slug, num, { state: 'closed' });
+    console.log(`mirror: ${repo.name}/${taskId} — created issue #${num}, wrote back issue: ${formatIssueRef(num)}`);
+  } finally {
+    try {
+      rmSync(bodyFile, { force: true });
+    } catch {
+      /* best-effort cleanup */
+    }
+  }
+}
+
+function cmdMirror(positional, flags) {
+  if (!ghAvailable()) {
+    warn("'gh' not found on PATH — mirror needs the GitHub CLI (https://cli.github.com/). Skipping.");
+    return;
+  }
+
+  const registry = loadRegistry();
+  const dryRun = !!flags['dry-run'];
+  const repos = flags.repo ? [resolveRepo(registry, flags.repo)] : registry.repos;
+
+  let taskCount = 0;
+  let repoCount = 0;
+
+  for (const repo of repos) {
+    if (repo.mirror !== 'github') {
+      if (flags.repo) console.log(`mirror: ${repo.name} — not opted in (add 'mirror: github' under it in registry.yaml)`);
+      continue;
+    }
+
+    const slug = ghRepoSlug(repo.path);
+    if (!slug) {
+      warn(`${repo.name} — no resolvable GitHub remote (origin) — skipping`);
+      continue;
+    }
+
+    const tasksDir = tasksDirFor(repo.path);
+    if (!existsSync(tasksDir)) continue;
+
+    let files;
+    try {
+      files = readdirSync(tasksDir).filter((f) => f.endsWith('.md'));
+    } catch (e) {
+      warn(`cannot read tasks dir for ${repo.name}: ${e.message}`);
+      continue;
+    }
+    if (!files.length) continue;
+
+    console.log(`mirror: ${repo.name} → ${slug}${dryRun ? ' [dry-run]' : ''}`);
+
+    let issues;
+    try {
+      issues = ghListMirroredIssues(slug);
+    } catch (e) {
+      warn(`${repo.name} — 'gh issue list --repo ${slug}' failed: ${e.message} — skipping this repo`);
+      continue;
+    }
+    const issuesByNumber = new Map(issues.map((i) => [i.number, i]));
+    const issuesByMarker = new Map();
+    for (const i of issues) {
+      const m = (i.body ?? '').match(/<!--\s*maestro-task:\s*(\S+)\s*-->/);
+      if (m) issuesByMarker.set(`<!-- maestro-task: ${m[1]} -->`, i);
+    }
+
+    repoCount++;
+    for (const file of files) {
+      const full = path.join(tasksDir, file);
+      try {
+        const { data, body } = parseFrontmatter(readFileSync(full, 'utf8'));
+        if (!data.id) throw new Error('missing id field');
+        mirrorTask(repo, slug, full, data, body, { dryRun, issuesByNumber, issuesByMarker });
+        taskCount++;
+      } catch (e) {
+        warn(`${repo.name}/${file} — mirror failed: ${e.message}`);
+      }
+    }
+  }
+
+  console.error(`mirror: ${taskCount} task(s) reconciled across ${repoCount} repo(s)${dryRun ? ' (dry run — nothing written)' : ''}`);
+}
+
 /* ---- dispatch --------------------------------------------------------------- */
 
 const [, , sub, ...rest] = process.argv;
@@ -1473,15 +1841,18 @@ switch (sub) {
   case 'handoff':
     cmdHandoff(positional, flags);
     break;
+  case 'mirror':
+    cmdMirror(positional, flags);
+    break;
   case 'done':
   case 'block':
   case 'release':
     fail(
-      `'${sub}' isn't built yet. Supported: init, new, claim, heartbeat, sync, board, work, route, set, say, read, ask, answer, inbox, handoff.`
+      `'${sub}' isn't built yet. Supported: init, new, claim, heartbeat, sync, board, work, route, set, say, read, ask, answer, inbox, handoff, mirror.`
     );
     break;
   default:
     fail(
-      `unknown subcommand '${sub}'. Supported: init, new, claim, heartbeat, sync, board, work, route, set, say, read, ask, answer, inbox, handoff.`
+      `unknown subcommand '${sub}'. Supported: init, new, claim, heartbeat, sync, board, work, route, set, say, read, ask, answer, inbox, handoff, mirror.`
     );
 }

@@ -31,7 +31,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  AGENT ORCHESTRATION
 ═══════════════════════════════════════════════════════════════
  /orchestrate <goal>      Decompose → route to specialists → gate → report
- /maestro [subcommand]    Cross-provider task board + comms: new/work/route/ask/answer/inbox
+ /maestro [subcommand]    Cross-provider task board + comms: new/work/route/ask/answer/inbox/mirror
  /subagent <task>         Background agent: explore → implement → verify
  /parallel <a> | <b>      Run tasks simultaneously, aggregate results
  /research <topic>        Background research → structured findings
