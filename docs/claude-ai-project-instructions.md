@@ -5,7 +5,7 @@
 
 ---
 
-You have 43 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 44 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -36,6 +36,7 @@ You have 43 operator skills for software projects. Use them when a user's reques
 | `/map` | Architectural diagrams (Mermaid) — folders, data flow, DB |
 | `/report` | Interactive HTML reports and dashboards |
 | `/motion-artifact` | Animated product-demo scenes in HTML → deterministic GIF/MP4/WebM export |
+| `/collateral-set` | Cohesive set of client-facing HTML artifacts — anchor-first, parallel fan-out, gated central publish |
 | `/git-sync` | Full git report — branches, ahead/behind, stashes |
 | `/changelog` | Categorized changelog from git commits |
 | `/env-check` | Compare expected vs actual env vars (no secrets shown) |
@@ -94,12 +95,13 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 | Switch threads | `/freeze` → new chat → `/freeze thaw` |
 | Answer in Slack | `/slack-ctx find <person>` → `/slack-reply <url>` → review draft in Slack |
 | Show a feature | `/motion-artifact <feature> gif` → preview → render → paste into Slack or the release note |
+| Client collateral | fact sheet → `/collateral-set <client>` → approve anchor → fan-out → gate → publish → `/motion-artifact` for any GIF cut |
 
 ---
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 43, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 44, see the uploaded Knowledge file.
 
 ### /orchestrate
 

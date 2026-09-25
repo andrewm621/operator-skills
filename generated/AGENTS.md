@@ -96,6 +96,7 @@ that underlying Claude-specific tooling or MCP server is also present.
 - **/scaffold** — Create a new project from templates tuned to your stack conventions. Scaffolds full project structure with framework, database, auth, and design system pre-wired.
 - **/foundation-loop** — Drive a fresh or near-fresh app from generated skeleton to a working foundation — auth wired, one core data flow proven end-to-end, clean build — through bounded implement/verify/critique rounds with a real stop condition and a hard round ceiling, cutting the back-and-forth of babysitting early build-out.
 - **/map** — Generate or update an architectural map of a project — folder structure, dependencies, data flow, and component relationships — with Mermaid diagrams.
+- **/collateral-set** — Produce a cohesive set of client-facing HTML artifacts (explainers, pitch, landing page, calculator, case study, playbook) in one sitting — build one anchor by hand to lock the design system, fan the rest out to parallel subagents, gate every page for accuracy and cohesion, and publish them centrally as live Artifacts.
 
 ### Git & Infrastructure
 

@@ -69,6 +69,7 @@ const CLAUDE_ONLY = new Set([
   "slack-reply",
   "slack-ctx",
   "email-triage",
+  "collateral-set",
 ]);
 
 /**

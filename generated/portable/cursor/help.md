@@ -9,7 +9,7 @@ Arguments: {the text you type after the command} (optional: category name to fil
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `{the text you type after the command}` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  42 custom commands
+ SKILL CATALOG  43 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -43,6 +43,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /search-all <query>      Search code/files/packages across all projects
  /document <subject>      Write docs to dev-notes, Notion, inline, or README
  /motion-artifact [fmt]   Animated demo scene → deterministic GIF/MP4/WebM
+ /collateral-set <client> Anchor-first set of client HTML artifacts → gated publish
  /email-triage [scope]    Triage Gmail into NEEDS YOU/WAITING/FYI/NOISE — report only
 
 ═══════════════════════════════════════════════════════════════
@@ -103,6 +104,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  Pre-merge          /invert <feature> → /test → /pr-review
  Big decision        /pre-mortem <decision> → resolve Tier 1 → decide
  Status report      /report <project or topic> → opens in browser
+ Client collateral  fact sheet → /collateral-set → /motion-artifact for GIFs
  Design system      /rebel-new-component → /parallel-check all
  Cross-project      /search-all → /deps align → /parallel build-check
  Wire up feedback   /gleap install → /env-check → /gleap audit
