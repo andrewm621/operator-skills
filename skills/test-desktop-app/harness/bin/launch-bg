@@ -10,12 +10,12 @@
 
 --seed-state SPEC  SPEC = '<json-or-source-file>:<relpath>' written under ~/Library/Application Support/<bundle id>/
                    (the TEST identifier's data dir; refused if that dir exists and the harness did not create it).
-Refuses: a bundle id that is not a test identifier (must contain test|probe|e2e|dev) unless
+Refuses: a bundle id that is not a test identifier (must END in .test, .e2e, .probe, .bridge or .refusal-check; `-probe` etc. also work) unless
 --allow-real-identifier; a bundle id that is already running. If the new app becomes frontmost during launch the
 previous app is restored and the exit status is 4.
 
 Prints one JSON line: {"pid":..,"bundle_id":..,"window":{..},"stderr":"..","front_before":{..}}.
-Stop it with: kill <that pid>   (only ever PIDs you started)
+Stop it with: bin/stop <that pid>   (refuses any pid launch-bg did not record)
 """
 import argparse
 import json
@@ -38,6 +38,9 @@ if "--" in argv:   # everything after -- belongs to the app (argparse REMAINDER 
     i = argv.index("--")
     argv, app_args = argv[:i], argv[i + 1:]
 a = p.parse_args(argv)
+bad_env = [e for e in a.env if "=" not in e or e.startswith("=")]
+if bad_env:
+    sys.exit(f"launch-bg: --env expects KEY=VALUE, got {bad_env[0]!r}")
 try:
     app = dt.launch_bg(a.app, args=app_args, env=dict(e.split("=", 1) for e in a.env), seed=a.seed_state,
                        stderr_path=a.stderr, allow_real_identifier=a.allow_real_identifier,

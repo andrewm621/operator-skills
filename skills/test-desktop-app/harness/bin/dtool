@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
-"""dtool: run one of the on-demand Swift tools (compiled once into ~/.cache/desktop-app-testing).
+"""dtool: run one of the on-demand Swift tools (compiled once into the private cache ~/Library/Caches/desktop-app-testing).
 
   dtool winlist <pid>                         JSON list of the pid's windows (id,title,layer,x,y,w,h,onscreen,minimized)
   dtool pkey <pid> key <name> [cmd,shift,alt,ctrl]   |   dtool pkey <pid> type "<text>"      (CGEventPostToPid)
   dtool pclick <pid> <x> <y> [windowId] [count]      (CGEventPostToPid, global screen points)
   dtool pscroll <pid> <x> <y> <dy>
-  dtool ax <pid> tree [depth] | press <role> <title> | enable | set <attr> <true|false>
+  dtool ax <pid> tree [depth] [nomenu] | press <role> <title> [exact] | enable [attr] | set AXMinimized <true|false>
   dtool sckshot <windowId> <out.png>          ScreenCaptureKit window capture (alternative to screencapture -l)
   dtool hidclick <x> <y>                      REAL click, foreground mode only (use under focus-guard --foreground)
+
+The gates live in desktop_test.tool(), not here: hidclick needs focus-mode = foreground; pkey, pclick, pscroll and
+`ax press|set|enable` only accept pids that launch-bg recorded (use `exact` with `ax press`).
 """
 import os
 import sys
@@ -17,8 +20,6 @@ import desktop_test as dt  # noqa: E402
 
 if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
     sys.exit(__doc__)
-if sys.argv[1] == "hidclick":
-    dt.require_foreground("hidclick")
 try:
     r = dt.tool(sys.argv[1], *sys.argv[2:], check=False)
 except dt.HarnessError as e:

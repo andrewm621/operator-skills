@@ -5,7 +5,11 @@ Config: ~/.claude/app-testing.json  {"focus": "background"|"auto"|"foreground", 
   background  never take focus, never post HID events
   foreground  anything goes (use when the user said the machine is free)
   auto        foreground only if no keyboard/mouse input for idleMinutes (HIDIdleTime via ioreg), else background
-Env override: APP_TESTING_FOCUS=background|auto|foreground.  Unknown / unreadable idle time -> background.
+Env override: APP_TESTING_FOCUS=background|auto|foreground (non-empty).
+Fails safe: only the exact strings above mean anything; a typo, wrong case, a bad idleMinutes, a config file that is
+not a JSON object, an unreadable idle time, or any error at all -> background. A locked screen, no GUI session, or
+loginwindow in front is background in EVERY mode. Input the harness itself posts at HID level resets the idle clock,
+so after a foreground step the next `auto` check says background until the user has been idle again.
 
   focus-mode            # -> background | foreground
   focus-mode -v         # also prints mode, idle seconds and the front app to stderr

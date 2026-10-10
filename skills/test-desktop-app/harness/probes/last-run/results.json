@@ -400,7 +400,7 @@
             "error": "screencapture window 35456 failed rc=1 could not create image from window"
           },
           "sck": {
-            "error": "sckshot 35456 /private/var/folders/p2/_8mxt2hn3rn6h746xthz4sc40000gn/T/desktop-probe-ntulsd1_/P5-C-sck.png -> rc 5: sck error: Error Domain=com.apple.ScreenCapt"
+            "error": "sckshot 35456 <run-dir>/P5-C-sck.png -> rc 5: sck error: Error Domain=com.apple.ScreenCapt"
           }
         },
         "D minimized (AXMinimized by PID)": {

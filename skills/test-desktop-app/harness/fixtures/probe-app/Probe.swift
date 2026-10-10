@@ -16,13 +16,6 @@
 //                                    JS function body in the page, {"t":"eval",...} is logged, and the file is deleted.
 //                                    `#snapshot name.png` instead writes WKWebView.takeSnapshot to DIR/name.png (bare
 //                                    file name only; created O_EXCL|O_NOFOLLOW; no paths, no "..").
-//         --alpha A                  window alphaValue (e.g. 0.02: effectively invisible but not "occluded")
-//         --ignore-mouse             window ignores mouse events (clicks fall through to what is underneath)
-//         --title T                  window title (default "Desktop Probe")
-//         --cmd-file PATH            every 200 ms, if PATH exists: run its contents as an async JS function body in
-//                                    the page, log {"t":"eval","ms":elapsed,"result":...}, delete PATH. This mimics an
-//                                    in-process bridge /eval so the probe can show what works while occluded.
-//                                    A file starting with `#snapshot /abs/out.png` takes WKWebView.takeSnapshot instead.
 //
 // Everything the page or AppKit observes is written to stderr as one JSON object per line:
 //   {"t":"key","type":"keydown","key":"a","trusted":true,"vis":"visible","docFocus":false}  ... etc.

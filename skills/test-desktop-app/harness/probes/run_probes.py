@@ -16,11 +16,13 @@ Directories: by default a fresh tempfile.mkdtemp(prefix="desktop-probe-") dir (0
 dir must not exist yet (created 0700) or already be a private dir owned by you; a foreign or symlinked dir is refused.
 The built app and the probe's command channel live inside it, because both are executed / read as commands.
 
-Writes: <out>/results.json, <out>/results.md, <out>/focus.log, <out>/<probe>.log (app stderr), screenshots.
+Writes: <out>/results.json, <out>/focus.log, <out>/<probe>.log (app stderr), screenshots.
 """
 import argparse
+import hashlib
 import json
 import os
+import re
 import statistics
 import subprocess
 import sys
@@ -309,10 +311,23 @@ def p45():
         send(cmdlabel, "return await Promise.race([new Promise(r => requestAnimationFrame(() => r('raf-ok'))), "
                            "new Promise(r => setTimeout(() => r('raf-timeout-3s'), 3000))])")
         time.sleep(secs / 2 + 3.4)
-        snap_name = f"snap-{a.pid}-{int(time.time() * 1000)}.png"
-        snap = RUN / f"cmd-{cmdlabel}" / snap_name
-        send(cmdlabel, f"#snapshot {snap_name}")
-        time.sleep(1.3)
+        # chained timers: ten sequential 50 ms sleeps (expected 500 ms if timers are not throttled, ~10 s at 1 Hz)
+        send(cmdlabel, "const t = performance.now(); for (let i = 0; i < 10; i++) await new Promise(r => setTimeout(r, 50)); "
+                       "return 'chained10x50=' + Math.round(performance.now() - t) + 'ms'")
+        end = time.time() + 16
+        while time.time() < end and not any("chained10x50" in str(e.get("result")) for e in events(a)[n0:] if e["t"] == "eval"):
+            time.sleep(0.25)
+        # snapshot of a page that CHANGES while hidden: snapshot, mutate the DOM, snapshot again, compare
+        def take(tag):
+            name = f"snap-{a.pid}-{tag}-{int(time.time() * 1000)}.png"
+            send(cmdlabel, f"#snapshot {name}")
+            time.sleep(1.3)
+            return RUN / f"cmd-{cmdlabel}" / name
+        snap = take("a")
+        send(cmdlabel, "document.getElementById('n').textContent = 'MUTATED-WHILE-HIDDEN ' + 'x'.repeat(40); "
+                       "document.body.style.background = '#fde'; return 'mutated'")
+        time.sleep(1.0)
+        snap2 = take("b")
         ev = events(a)[n0:]
         raf = [e["fps"] for e in ev if e["t"] == "raf"]
         tim = [e["per_s"] for e in ev if e["t"] == "timer"]
@@ -325,12 +340,16 @@ def p45():
             snap_info = {"ms": snap_ev["elapsed_ms"], "distinct": ps["distinct"], "page_content": ps["distinct"] > 20}
         elif snap_ev:
             snap_info = {"error": snap_ev.get("error")}
+        if snap_info and snap.exists() and snap2.exists():
+            h1, h2 = (hashlib.sha256(x.read_bytes()).hexdigest() for x in (snap, snap2))
+            snap_info["reflects_dom_change_while_hidden"] = h1 != h2 and dt.png_stats(snap2)["dominant"] != dt.png_stats(snap)["dominant"]
         return {"state": label, "visibilityState": sorted({e["vis"] for e in ev if e["t"] == "raf"}),
                 "raf_fps_median": statistics.median(raf) if raf else None,
                 "timer_per_s_median": statistics.median(tim) if tim else None,
                 "native_occluded": sorted({e["occluded"] for e in st}), "native_active": sorted({e["active"] for e in st}),
                 "eval_sync_ms": next((e["elapsed_ms"] for e in evs if e.get("result") == "2"), None),
                 "in_process_snapshot": snap_info,
+                "eval_chained": next((e.get("result") for e in evs if "chained10x50" in str(e.get("result"))), None),
                 "eval_timing": next((e.get("result") for e in evs if "setTimeout50" in str(e.get("result"))), None),
                 "eval_raf": next(({"ms": e["elapsed_ms"], "result": e.get("result")} for e in evs if "raf" in str(e.get("result"))), None)}
 
@@ -363,6 +382,14 @@ def p45():
         states[-1]["pid_keys_into_ghost"] = [e.get("value") for e in events(g)[n0:] if e["t"] == "key" and e["type"] == "input"]
         hand_back(g, prev)
         g.quit()
+    # Vc: VISIBLE control for P5: if the web area is blank in hidden windows, it must have content in a visible one.
+    # alpha 0.3 on a free spot of the second display (a faint window for a few seconds, no focus, no input).
+    if other:
+        vc = launch_state("P45-Vc", "--alpha", "0.3", "--ignore-mouse", "--frame", vframe)
+        geometry(vc)
+        time.sleep(1.5)
+        shots["Vc visible control (alpha 0.3, free spot of the second display)"] = capture_both(vc, "Vc")
+        vc.quit()
     # A: behind everything, uncovered or not depending on the user's windows
     a = launch_state("P45-A", "--level", "back", "--frame", FRAME, *cmdfile("P45-A"))
     geometry(a)
@@ -474,7 +501,10 @@ def main():
     summary = {"focus_mode_at_end": dt.focus_mode(), "probe_pids": sorted(probe_pids),
                "times_probe_was_frontmost": len(probe_front), "probe_front_events": probe_front,
                "front_changes_total": len(focus_events)}
-    (RUN / "results.json").write_text(json.dumps({"results": results, "focus_summary": summary}, indent=2))
+    text = json.dumps({"results": results, "focus_summary": summary}, indent=2)
+    text = text.replace(str(RUN), "<run-dir>")
+    text = re.sub(r"/(?:private/)?var/folders/[^\"\s]*?/T/desktop-probe-[A-Za-z0-9_]+", "<run-dir>", text)
+    (RUN / "results.json").write_text(text)
     with open(RUN / "focus.log", "w") as fh:
         fh.write("# lsappinfo front: step samples (before/after each probe step)\n")
         for s in FOCUS_STEPS:

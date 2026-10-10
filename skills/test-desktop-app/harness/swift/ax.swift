@@ -1,10 +1,14 @@
 // ax <pid> tree [maxDepth] [nomenu]   dump the accessibility tree of <pid> (role, title/desc, value, actions)
-// ax <pid> press <role> <title>       AXPress the first element whose role == <role> (e.g. AXButton, AXMenuItem)
-//                                     and whose title/description/value contains <title> (case-insensitive)
-// ax <pid> enable [attr]              set AXManualAccessibility (default) or the named attr (e.g. AXEnhancedUserInterface)
-//                                     on the app element
+// ax <pid> press <role> <title> [exact]
+//                                     AXPress the first element whose role == <role> (e.g. AXButton, AXMenuItem) and
+//                                     whose title/description/value matches <title> case-insensitively: CONTAINS by
+//                                     default, EQUALS with the trailing `exact` ("Quit" would also match "Force Quit...",
+//                                     "Save" also "Save as copy"; use exact)
+// ax <pid> enable [attr]              set AXManualAccessibility (default) or AXEnhancedUserInterface on the app element
+//                                     (nothing else is accepted)
 //                                     (asks lazy AX implementations to build their tree)
-// ax <pid> set <attr> <true|false>    set a boolean attribute on every window (e.g. AXMinimized)
+// ax <pid> set AXMinimized <true|false>   set the attribute on every window (only AXMinimized is accepted; AXFrontmost
+//                                     and friends are refused because they would activate the app)
 // AX talks to the app by PID and does not need it frontmost. Needs Accessibility for the calling process.
 // Caveat: AXPress on a native control does not move focus; on web content inside a WKWebView it depends on
 // WebKit's lazy AX tree (see the guide, probe P3).
@@ -13,7 +17,7 @@ import ApplicationServices
 
 let a = CommandLine.arguments
 guard a.count >= 3, let pid = pid_t(a[1]) else {
-    FileHandle.standardError.write("usage: ax <pid> tree [depth] | press <role> <title> | enable | set <attr> <bool>\n".data(using: .utf8)!); exit(2)
+    FileHandle.standardError.write("usage: ax <pid> tree [depth] | press <role> <title> [exact] | enable [attr] | set AXMinimized <bool>\n".data(using: .utf8)!); exit(2)
 }
 guard AXIsProcessTrusted() else {
     FileHandle.standardError.write("calling process lacks Accessibility permission\n".data(using: .utf8)!); exit(3)
@@ -65,12 +69,14 @@ case "tree":
 case "press":
     guard a.count >= 5 else { exit(2) }
     let role = a[3], needle = a[4].lowercased()
+    let exact = a.count > 5 && a[5] == "exact"
     var hit: AXUIElement?
     walk(app, 0, 12) { e, _ in
         if hit != nil { return false }
         if str(e, kAXRoleAttribute) == role {
             let hay = [kAXTitleAttribute, kAXDescriptionAttribute, kAXValueAttribute].map { str(e, $0) }.joined(separator: "|").lowercased()
-            if hay.contains(needle) { hit = e; return false }
+            let fields = [kAXTitleAttribute, kAXDescriptionAttribute, kAXValueAttribute].map { str(e, $0).lowercased() }
+            if exact ? fields.contains(needle) : hay.contains(needle) { hit = e; return false }
         }
         return true
     }
@@ -79,12 +85,18 @@ case "press":
     print(r == .success ? "pressed" : "AXPress failed: \(r.rawValue)")
     exit(r == .success ? 0 : 1)
 case "enable":
-    for name in [a.count > 3 ? a[3] : "AXManualAccessibility"] {
+    let attr = a.count > 3 ? a[3] : "AXManualAccessibility"
+    guard ["AXManualAccessibility", "AXEnhancedUserInterface"].contains(attr) else {
+        FileHandle.standardError.write("refused: enable accepts only AXManualAccessibility or AXEnhancedUserInterface\n".data(using: .utf8)!); exit(2)
+    }
+    for name in [attr] {
         let r = AXUIElementSetAttributeValue(app, name as CFString, kCFBooleanTrue)
         print("\(name): \(r == .success ? "ok" : "error \(r.rawValue)")")
     }
 case "set":
-    guard a.count >= 5 else { exit(2) }
+    guard a.count >= 5, a[3] == "AXMinimized", ["true", "false"].contains(a[4]) else {
+        FileHandle.standardError.write("refused: set accepts only `AXMinimized true|false`\n".data(using: .utf8)!); exit(2)
+    }
     let value: CFBoolean = a[4] == "true" ? kCFBooleanTrue : kCFBooleanFalse
     var n = 0
     for w in (attr(app, kAXWindowsAttribute) as? [AXUIElement]) ?? [] {

@@ -3,25 +3,31 @@
 
   focus-guard [--foreground] [--watch-pid N ...] [--watch-bundle ID ...] [--no-restore] [--log FILE] -- CMD [ARGS...]
 
-Default (a step that CLAIMS to be background-safe): run CMD, then check that the frontmost app did not change.
---foreground (a step that needs real input/activation): re-check focus-mode right now; if it says `background`
-              the step is NOT run (exit 3, "not run, user active"). If `foreground`, run it.
-Always: record `lsappinfo front` before and after; if the front app changed, put the previous app back
-(unless --no-restore).
+Default (a step that CLAIMS to be background-safe): run CMD while sampling `lsappinfo front` every ~50 ms (so a
+transient steal inside the step is caught, not just the state before/after), then compare.
+--foreground (a step that needs real input/activation): re-check focus-mode right now; if it says `background` the
+              step is NOT run (exit 3, "not run, user active"). If `foreground`, run it.
 
---watch-pid/--watch-bundle name the app(s) under test. With a watch list, only a change TO a watched app counts
-as a violation (the user switching apps by themselves does not, and is not "restored"). Without one, any change
-counts and is restored.
+--watch-pid / --watch-bundle name the app(s) under test (use them: they are how a steal is told apart from the user
+switching apps). With a watch list:
+  - the front app becoming a watched app during the step is a VIOLATION in background mode (exit 4);
+  - the previous app is restored only if a watched app is STILL frontmost afterwards (--no-restore disables);
+  - the user switching to some other app is reported (`focus_changed`) but is neither a violation nor restored.
+Without a watch list the guard cannot attribute a change: it reports `focus_changed` with `attributed: null`, does NOT
+restore anything, and (in background mode) exits 5 so the run is not silently trusted.
 
-Exit: 0 ok | 3 foreground step skipped (user active) | 4 focus changed while in background mode (restored)
-      | otherwise CMD's own non-zero exit status.
-A one-line JSON summary goes to stderr (and to --log FILE, appended).
+Exit codes (the JSON line on stderr is authoritative; its `cmd_rc` is the command's real status):
+  0 ok | 3 foreground step skipped (user active) | 4 focus went to a watched app in background mode (restored)
+  | 5 focus changed, cause unknown (no watch list; not restored)
+  | the command's own non-zero status, EXCEPT that a command status of 3, 4 or 5 is reported as 103, 104 or 105 so it
+    cannot be mistaken for the guard's own codes.
 """
 import argparse
 import json
 import os
 import subprocess
 import sys
+import threading
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
@@ -42,7 +48,7 @@ if not cmd:
 mode = dt.focus_mode()  # fresh read, right before running
 before = dt.front_app()
 summary = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "cmd": cmd, "mode": mode, "foreground_step": a.foreground,
-           "front_before": before}
+           "watch_pids": a.watch_pid, "watch_bundles": a.watch_bundle, "front_before": before}
 
 
 def finish(code: int) -> None:
@@ -56,23 +62,41 @@ def finish(code: int) -> None:
 
 
 if a.foreground and mode != "foreground":
-    summary.update(result="skipped: not run, user active")
+    summary.update(result="skipped: not run, user active (or screen locked)")
     finish(3)
 
-rc = subprocess.run(cmd).returncode
-time.sleep(0.3)  # let any activation settle before sampling
-after = dt.front_app()
-summary.update(cmd_rc=rc, front_after=after)
+samples: list[dict] = []
+stop = threading.Event()
 
-changed = after.get("pid") != before.get("pid")
-watched = changed and (not (a.watch_pid or a.watch_bundle) or after.get("pid") in a.watch_pid
-                       or after.get("bundle") in a.watch_bundle)
-summary["focus_changed"] = changed
-summary["to_watched_app"] = bool(watched)
-if watched and not a.no_restore:
+
+def sampler():
+    while not stop.is_set():
+        samples.append(dt.front_app())
+        stop.wait(0.05)
+
+
+th = threading.Thread(target=sampler, daemon=True)
+th.start()
+rc = subprocess.run(cmd).returncode
+time.sleep(0.3)  # let any activation settle before the last sample
+stop.set()
+th.join(timeout=2)
+after = dt.front_app()
+samples.append(after)
+
+ev = dt.guard_evaluate(before, samples, a.watch_pid, a.watch_bundle)
+summary.update(cmd_rc=rc, front_after=after, samples=len(samples), focus_changed=ev["changed"],
+               to_watched_app=ev["to_watched"], attributed=ev["attributed"])
+if ev["restore"] and not a.no_restore:
     summary["restored"] = dt.restore_front(before)
-if watched and mode == "background":
-    summary["result"] = "VIOLATION: focus changed in background mode"
-    finish(4)
-summary["result"] = "ok" if rc == 0 else f"cmd failed rc={rc}"
-finish(rc)
+
+code = 103 if rc == 3 else 104 if rc == 4 else 105 if rc == 5 else rc
+if ev["watching"] and ev["to_watched"] and mode == "background":
+    summary["result"] = "VIOLATION: focus went to the app under test in background mode"
+    code = 4
+elif not ev["watching"] and ev["changed"] and mode == "background":
+    summary["result"] = "focus changed during the step; no watch list, so not attributed and not restored"
+    code = 5 if rc == 0 else code
+else:
+    summary["result"] = "ok" if rc == 0 else f"cmd failed rc={rc}"
+finish(code)
