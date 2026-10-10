@@ -5,7 +5,7 @@
 
 ---
 
-You have 44 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 45 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -44,6 +44,7 @@ You have 44 operator skills for software projects. Use them when a user's reques
 | `/migrate` | Full migration workflow: generate, push, rollback, seed |
 | `/port-check` | What's running on dev ports + project identification |
 | `/verify-app` | Browser-based app verification via CDP |
+| `/test-desktop-app` | Test a local macOS desktop app without stealing focus — layered ladder, focus policy, guardrails |
 | `/gleap` | Gleap feedback SDK + REST API — install, query, audit an integration |
 | `/learn` | Catalog lessons learned — gotchas, quirks, searchable |
 | `/session-notes` | End-of-session snapshot: what was done, decisions, next |
@@ -85,6 +86,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 | New project | `/scaffold` → `/switch` → `/map` |
 | Stand up foundation | `/scaffold` → `/foundation-loop` → `/switch` |
 | Add dark mode | `/dark-mode` → `/verify-app` |
+| Test a desktop app | `/test-desktop-app <claim>` (web apps: `/verify-app`) |
 | Ship feature | `/todo` → code → `/test` → `/pr-review` → `/changelog` |
 | Debug issue | `/project-health` → `/env-check` → `/db-status` |
 | Wire up feedback | `/gleap install` → `/env-check` → `/gleap audit` |
@@ -101,7 +103,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 44, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 45, see the uploaded Knowledge file.
 
 ### /orchestrate
 

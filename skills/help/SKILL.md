@@ -14,7 +14,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  43 custom commands
+ SKILL CATALOG  44 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -68,6 +68,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /port-check              Show what's running on dev ports
  /perf [url|bundle]       Lighthouse + bundle size + Core Web Vitals
  /verify-app [url]        Verify running app via Dia Browser + CDP
+ /test-desktop-app <claim> Test a local macOS app without stealing focus
  /report [topic]          Generate polished interactive HTML report/dashboard
 
 ═══════════════════════════════════════════════════════════════

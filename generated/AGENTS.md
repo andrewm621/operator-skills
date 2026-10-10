@@ -54,6 +54,7 @@ reads this file.
 - **/env-check** — Compare expected vs actual environment variables and flag mismatches. Never displays secret values.
 - **/db-status** — Database connection check and quick status. For full migration workflows, use `/migrate`.
 - **/migrate** — Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely.
+- **/test-desktop-app** — Test a local macOS desktop app (Tauri first; Electron and native later) without stealing focus from the person using the machine — picks the most background layer that can verify the claim, enforces the focus policy and guardrails, and reports what was verified live, what wasn't, and what is left for a human.
 - **/gleap** — Work with Gleap (in-app feedback, support inbox, surveys, product tours) — install the widget, query the server REST API, or debug an existing integration. Covers the two-key auth model, the inconsistent response envelopes, and the query syntax.
 
 ### Knowledge

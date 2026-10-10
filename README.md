@@ -2,7 +2,7 @@
 
 **Claude slash commands for people who build things.**
 
-44 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
+45 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
 
 They started as one-off prompts, became reusable slash commands, then became a system where skills call other skills — roadmaps feed into phases, phases feed into todos, todos feed into parallel agents, and everything gets logged. This is that system, open-sourced.
 
@@ -23,7 +23,7 @@ Open Cowork and send this message:
 
 > Clone https://github.com/andrewm621/operator-skills.git to ~/operator-skills and symlink the skills directory to ~/.claude/skills/operator
 
-Claude runs the commands for you. Type `/` to see all 44 skills in autocomplete.
+Claude runs the commands for you. Type `/` to see all 45 skills in autocomplete.
 
 See [`docs/cowork-setup-guide.md`](docs/cowork-setup-guide.md) for manual install and optional Global Instructions.
 
@@ -34,7 +34,7 @@ git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
 ln -s ~/operator-skills/skills ~/.claude/skills/operator
 ```
 
-Type `/` in a new session to see all 44 skills.
+Type `/` in a new session to see all 45 skills.
 
 ## Skill Catalog
 
@@ -95,6 +95,7 @@ Type `/` in a new session to see all 44 skills.
 | `/migrate` | Full migration workflow — generate, review, apply, rollback | `/migrate generate` |
 | `/port-check` | What's running on dev ports + project identification | `/port-check` |
 | `/verify-app` | Browser-based app verification via CDP — screenshots + errors | `/verify-app` |
+| `/test-desktop-app` | Test a local macOS desktop app (Tauri first) without stealing focus — layered ladder, focus policy, guardrails, reporting | `/test-desktop-app dirty-quit modal focuses Cancel` |
 | `/gleap` | Gleap feedback SDK + REST API — install, query, audit an integration | `/gleap audit` |
 
 ### Knowledge
@@ -189,7 +190,7 @@ Adding or editing a skill? See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short v
 
 | Feature | Code (CLI) | Cowork (Desktop) | Claude.ai (Web) |
 |---------|-----------|-----------------|-----------------|
-| All 44 skills | Full | Full | Full |
+| All 45 skills | Full | Full | Full |
 | `/` autocomplete | Native | Native | Manual invoke |
 | Subagent spawning | Full | Full | Simulated |
 | File system access | Full | Full | Via Knowledge files |

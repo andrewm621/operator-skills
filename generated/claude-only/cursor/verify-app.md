@@ -45,3 +45,4 @@ Target URL: {the text you type after the command} (default: http://localhost:300
 ## Notes
 - Uses `agent-browser` CLI (auto-connects to Dia via ~/.agent-browser/config.json)
 - For deeper debugging, use Chrome DevTools MCP tools: `mcp__chrome-devtools__lighthouse_audit`, `mcp__chrome-devtools__list_network_requests`, `mcp__chrome-devtools__performance_start_trace`
+- Desktop apps (Tauri, Electron, native macOS) are not covered here; use `/test-desktop-app` instead.
