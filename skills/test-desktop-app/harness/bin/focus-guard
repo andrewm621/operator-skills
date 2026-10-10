@@ -49,7 +49,8 @@ def finish(code: int) -> None:
     line = json.dumps(summary)
     print("focus-guard: " + line, file=sys.stderr)
     if a.log:
-        with open(a.log, "a") as fh:
+        fd = os.open(a.log, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)  # never through a symlink
+        with os.fdopen(fd, "a") as fh:
             fh.write(line + "\n")
     sys.exit(code)
 

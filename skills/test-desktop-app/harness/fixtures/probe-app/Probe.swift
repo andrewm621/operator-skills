@@ -9,6 +9,16 @@
 //         --alpha A                  window alphaValue (e.g. 0.02: effectively invisible but not "occluded")
 //         --ignore-mouse             window ignores mouse events (clicks fall through to what is underneath)
 //         --title T                  window title (default "Desktop Probe")
+//         --cmd-dir DIR              command channel (off unless given). DIR must be an absolute path to a real directory
+//                                    owned by the current user with mode 0700 (the harness creates it with mkdtemp);
+//                                    the probe REFUSES TO START otherwise. Every 200 ms, if DIR/cmd.js exists (a regular
+//                                    file you own, not a symlink, not group/world-writable) its contents run as an async
+//                                    JS function body in the page, {"t":"eval",...} is logged, and the file is deleted.
+//                                    `#snapshot name.png` instead writes WKWebView.takeSnapshot to DIR/name.png (bare
+//                                    file name only; created O_EXCL|O_NOFOLLOW; no paths, no "..").
+//         --alpha A                  window alphaValue (e.g. 0.02: effectively invisible but not "occluded")
+//         --ignore-mouse             window ignores mouse events (clicks fall through to what is underneath)
+//         --title T                  window title (default "Desktop Probe")
 //         --cmd-file PATH            every 200 ms, if PATH exists: run its contents as an async JS function body in
 //                                    the page, log {"t":"eval","ms":elapsed,"result":...}, delete PATH. This mimics an
 //                                    in-process bridge /eval so the probe can show what works while occluded.
@@ -36,6 +46,48 @@ func arg(_ name: String) -> String? {
 }
 
 // A titled NSWindow normally gets pulled back on screen; the probe wants to test off-screen placement.
+// ---- command channel hardening: the channel runs JS and writes files, so it only lives in a private dir
+func privateDirCanonical(_ path: String) -> String? {
+    var st = stat()
+    guard path.hasPrefix("/"), lstat(path, &st) == 0, (st.st_mode & S_IFMT) == S_IFDIR,   // lstat: a symlink is not a dir here
+          st.st_uid == getuid(), (st.st_mode & 0o077) == 0 else { return nil }
+    return URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+}
+
+/// Reads and deletes DIR/cmd.js if it is a regular file owned by us, not a symlink, not group/world-writable.
+func takeCommand(in dir: String) -> String? {
+    let path = dir + "/cmd.js"
+    let fd = open(path, O_RDONLY | O_NOFOLLOW)
+    guard fd >= 0 else {
+        if errno == ELOOP {   // a symlink was planted as cmd.js: refuse, report, remove the link (never the target)
+            log(["t": "cmd-refused", "src": "native", "why": "cmd.js is a symlink"])
+            unlink(path)
+        }
+        return nil
+    }
+    defer { close(fd) }
+    var st = stat()
+    guard fstat(fd, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG, st.st_uid == getuid(), (st.st_mode & 0o022) == 0 else {
+        log(["t": "cmd-refused", "src": "native", "why": "cmd.js is not a regular file owned by this user"])
+        unlink(path); return nil
+    }
+    var data = Data()
+    var buf = [UInt8](repeating: 0, count: 4096)
+    while true { let n = read(fd, &buf, buf.count); if n <= 0 { break }; data.append(buf, count: n) }
+    unlink(path)
+    return String(data: data, encoding: .utf8)
+}
+
+/// Writes DIR/<name> (bare file name only) exclusively and without following symlinks.
+func writeInDir(_ dir: String, name: String, data: Data) -> Bool {
+    guard !name.isEmpty, !name.hasPrefix("."), name.range(of: "^[A-Za-z0-9._-]+$", options: .regularExpression) != nil,
+          !name.contains("..") else { return false }
+    let fd = open(dir + "/" + name, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600)
+    guard fd >= 0 else { return false }
+    defer { close(fd) }
+    return data.withUnsafeBytes { write(fd, $0.baseAddress, data.count) } == data.count
+}
+
 final class ProbeWindow: NSWindow {
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }
@@ -89,7 +141,16 @@ final class Delegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler, N
 
     @objc func nativePing(_ sender: Any?) { log(["t": "native-ping", "src": "native"]) }
 
+    var cmdDir: String?
+
     func applicationDidFinishLaunching(_ n: Notification) {
+        if let d = arg("--cmd-dir") {
+            guard let canon = privateDirCanonical(d) else {
+                log(["t": "fatal", "src": "native", "why": "--cmd-dir is not a private (0700, owned by you, non-symlink) directory"])
+                exit(2)
+            }
+            cmdDir = canon
+        }
         let f = (arg("--frame") ?? "80,80,520,360").split(separator: ",").compactMap { Double($0) }
         let screenH = NSScreen.screens.first?.frame.height ?? 900
         // global screen points have a top-left origin; Cocoa wants bottom-left
@@ -156,21 +217,20 @@ final class Delegate: NSObject, NSApplicationDelegate, WKScriptMessageHandler, N
                  "occluded": !self.window.occlusionState.contains(.visible), "mini": self.window.isMiniaturized,
                  "key": self.window.isKeyWindow])
         }
-        if let path = arg("--cmd-file") {
+        if let dir = cmdDir {
             Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
-                guard let self = self, let js = try? String(contentsOfFile: path, encoding: .utf8) else { return }
-                try? FileManager.default.removeItem(atPath: path)
+                guard let self = self, let js = takeCommand(in: dir) else { return }
                 let t0 = Date()
-                if js.hasPrefix("#snapshot ") {   // in-process WKWebView.takeSnapshot -> PNG at the given path
-                    let out = String(js.dropFirst(10)).trimmingCharacters(in: .whitespacesAndNewlines)
+                if js.hasPrefix("#snapshot ") {   // in-process WKWebView.takeSnapshot -> DIR/<name>
+                    let name = String(js.dropFirst(10)).trimmingCharacters(in: .whitespacesAndNewlines)
                     self.web.takeSnapshot(with: nil) { img, err in
                         let ms = Int(Date().timeIntervalSince(t0) * 1000)
                         guard let img = img, let tiff = img.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff),
                               let png = rep.representation(using: .png, properties: [:]) else {
                             log(["t": "eval", "src": "native", "elapsed_ms": ms, "error": "snapshot failed: \(String(describing: err))"]); return
                         }
-                        try? png.write(to: URL(fileURLWithPath: out))
-                        log(["t": "eval", "src": "native", "elapsed_ms": ms, "result": "snapshot-written \(out)"])
+                        let ok = writeInDir(dir, name: name, data: png)
+                        log(["t": "eval", "src": "native", "elapsed_ms": ms, ok ? "result" : "error": ok ? "snapshot-written \(name)" : "snapshot refused or failed for name \(name)"])
                     }
                     return
                 }

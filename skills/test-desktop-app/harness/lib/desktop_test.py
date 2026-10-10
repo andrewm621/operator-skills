@@ -20,6 +20,7 @@ import plistlib
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -29,7 +30,8 @@ from pathlib import Path
 
 HARNESS = Path(__file__).resolve().parent.parent
 SWIFT_DIR = HARNESS / "swift"
-CACHE = Path(os.environ.get("DESKTOP_TEST_CACHE", "~/.cache/desktop-app-testing")).expanduser()
+# compiled Swift tools are EXECUTED, so the cache must be user-private (never a shared /tmp path)
+CACHE = Path(os.environ.get("DESKTOP_TEST_CACHE", "~/Library/Caches/desktop-app-testing")).expanduser()
 CONFIG = Path(os.environ.get("APP_TESTING_CONFIG", "~/.claude/app-testing.json")).expanduser()
 DEFAULT_CONFIG = {"focus": "auto", "idleMinutes": 5}
 
@@ -106,7 +108,53 @@ def restore_front(prev: dict) -> bool:
 
 # --------------------------------------------------------------------------- scratch / path guards
 
+def _is_private_dir(p: Path) -> bool:
+    try:
+        st = os.lstat(p)
+    except OSError:
+        return False
+    return stat.S_ISDIR(st.st_mode) and st.st_uid == os.getuid() and not (st.st_mode & 0o077)
+
+
+def assert_private_dir(path: str | os.PathLike) -> Path:
+    """Require a real directory (not a symlink) owned by this user with mode 0700. Use for anything that will be
+    executed or read as commands (tool cache, build dir, command channel)."""
+    p = Path(path)
+    if not _is_private_dir(p):
+        raise HarnessError(f"{p} is not a private dir (must be a real dir, owned by uid {os.getuid()}, mode 0700)")
+    return p.resolve()
+
+
+def private_dir(path: str | os.PathLike | None = None, prefix: str = "dat-") -> Path:
+    """A fresh private dir. No path: tempfile.mkdtemp (random name, 0700). With a path: it must not exist yet (it is
+    created 0700, parents as needed) or already be a private dir owned by you. Never adopts a foreign dir."""
+    if path is None:
+        return assert_private_dir(tempfile.mkdtemp(prefix=prefix))
+    p = Path(path).expanduser()
+    if os.path.lexists(p):
+        return assert_private_dir(p)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    os.mkdir(p, 0o700)
+    os.chmod(p, 0o700)
+    return assert_private_dir(p)
+
+
+def assert_owned_executable(path: str | os.PathLike) -> None:
+    """Refuse to launch something another user could have planted or can modify: every path we own-check must
+    belong to this uid and not be group/world-writable (the .app dir, Contents/MacOS, the executable)."""
+    p = Path(path)
+    checks = [p]
+    if p.suffix == ".app":
+        checks += [p / "Contents", p / "Contents/MacOS"] + list((p / "Contents/MacOS").glob("*"))
+    for c in checks:
+        st = os.lstat(c)
+        if st.st_uid != os.getuid() or st.st_mode & 0o022:
+            raise HarnessError(f"refusing to launch {p}: {c} is not owned by you or is group/world-writable")
+
+
 def scratch_roots() -> list[Path]:
+    """Roots under which scratch DATA copies may live. Shared /tmp is allowed only if the first dir below it is
+    private to you (see assert_scratch); never put anything executed or read as commands here, use private_dir()."""
     roots = [Path("/private/tmp"), Path(tempfile.gettempdir()).resolve()]
     extra = os.environ.get("DESKTOP_TEST_SCRATCH")
     if extra:
@@ -115,10 +163,18 @@ def scratch_roots() -> list[Path]:
 
 
 def assert_scratch(path: str | os.PathLike) -> Path:
-    """Refuse any path that is not inside a scratch root. Use before creating or seeding anything."""
+    """Refuse any path that is not inside a scratch root, and (for shared roots like /private/tmp) any path whose
+    top-level directory below the root exists but is not owned by you / is group- or world-writable
+    (a pre-created foreign dir). Validate before creating or seeding anything."""
     p = Path(path).expanduser().resolve()
-    if not any(p == r or r in p.parents for r in scratch_roots()):
+    root = next((r for r in scratch_roots() if r in p.parents), None)
+    if root is None:
         raise HarnessError(f"{p} is not under a scratch root {[str(r) for r in scratch_roots()]}")
+    top = root / p.relative_to(root).parts[0]
+    if os.path.lexists(top):
+        st = os.lstat(top)
+        if st.st_uid != os.getuid() or st.st_mode & 0o022 or stat.S_ISLNK(st.st_mode):
+            raise HarnessError(f"{top} exists but is not yours / is writable by others / is a symlink; refusing")
     return p
 
 
@@ -156,10 +212,10 @@ def tool(name: str, *args: str, check: bool = True, timeout: float = 30) -> subp
     """Run swift/<name>.swift (compiled once into the cache dir, keyed by source hash)."""
     src = SWIFT_DIR / f"{name}.swift"
     digest = hashlib.sha256(src.read_bytes()).hexdigest()[:10]
-    exe = CACHE / f"{name}-{digest}"
+    cache = private_dir(CACHE)
+    exe = cache / f"{name}-{digest}"
     if not exe.exists():
-        CACHE.mkdir(parents=True, exist_ok=True)
-        tmp = exe.with_suffix(f".tmp{os.getpid()}")
+        tmp = cache / f"{name}-{digest}.tmp{os.getpid()}"
         r = subprocess.run(["swiftc", "-O", "-o", str(tmp), str(src)], capture_output=True, text=True)
         if r.returncode != 0:
             raise HarnessError(f"swiftc failed for {name}:\n{r.stderr}")
@@ -201,6 +257,8 @@ def capture(window_id: int, out_png: str | os.PathLike) -> Path:
     """screencapture -x -o -l<id>: works when the window is occluded, takes no focus, no cursor."""
     out = Path(out_png)
     out.parent.mkdir(parents=True, exist_ok=True)
+    if out.is_symlink():
+        raise HarnessError(f"refusing to write the screenshot through a symlink: {out}")
     r = subprocess.run(["screencapture", "-x", "-o", f"-l{window_id}", str(out)], capture_output=True, text=True)
     if r.returncode != 0 or not out.exists() or out.stat().st_size < 500:
         raise HarnessError(f"screencapture window {window_id} failed rc={r.returncode} {r.stderr.strip()}")
@@ -361,10 +419,13 @@ def launch_bg(target: str | os.PathLike, *, args: list[str] | None = None, env: 
     of YOUR test app); the new app is NOT frontmost
     afterwards (if it is, the previous frontmost app is restored and HarnessError is raised)."""
     target = Path(target).expanduser().resolve()
+    assert_owned_executable(target)
     front_before = front_app()
     bundle_id = None
-    stderr = Path(stderr_path) if stderr_path else Path(tempfile.mkdtemp(prefix="dat-")) / "stderr.log"
+    stderr = Path(stderr_path) if stderr_path else private_dir(prefix="dat-") / "stderr.log"
     stderr.parent.mkdir(parents=True, exist_ok=True)
+    if stderr.is_symlink():
+        raise HarnessError(f"refusing a symlinked stderr path: {stderr}")
     stderr.touch()
     if target.suffix == ".app":
         info = _bundle_info(target)

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """launch-bg: start a local app WITHOUT activating it, print its PID, assert it is not frontmost.
 
-  launch-bg <App.app | executable> [--seed-state SPEC ...] [--arg A ...] [--env K=V ...]
-            [--stderr FILE] [--no-window-wait] [--allow-real-identifier]
+  launch-bg <App.app | executable> [--seed-state SPEC ...] [--env K=V ...] [--stderr FILE]
+            [--no-window-wait] [--allow-real-identifier] [-- APP-ARGS...]
 
   .app bundle  -> `open -g -n --stderr FILE [--env K=V] App.app [--args ...]`, PID found by diffing processes
                   under App.app/Contents/MacOS (so a user instance of the same app is never confused with it)
@@ -28,14 +28,18 @@ import desktop_test as dt  # noqa: E402
 p = argparse.ArgumentParser(usage="launch-bg <app> [options]")
 p.add_argument("app")
 p.add_argument("--seed-state", action="append", default=[])
-p.add_argument("--arg", action="append", default=[])
 p.add_argument("--env", action="append", default=[])
 p.add_argument("--stderr")
 p.add_argument("--no-window-wait", action="store_true")
 p.add_argument("--allow-real-identifier", action="store_true")
-a = p.parse_args()
+argv = sys.argv[1:]
+app_args = []
+if "--" in argv:   # everything after -- belongs to the app (argparse REMAINDER would also swallow our own options)
+    i = argv.index("--")
+    argv, app_args = argv[:i], argv[i + 1:]
+a = p.parse_args(argv)
 try:
-    app = dt.launch_bg(a.app, args=a.arg, env=dict(e.split("=", 1) for e in a.env), seed=a.seed_state,
+    app = dt.launch_bg(a.app, args=app_args, env=dict(e.split("=", 1) for e in a.env), seed=a.seed_state,
                        stderr_path=a.stderr, allow_real_identifier=a.allow_real_identifier,
                        wait_window_s=None if a.no_window_wait else 15)
 except dt.HarnessError as e:

@@ -55,23 +55,23 @@
           "visibilityState": [
             "hidden"
           ],
-          "raf_fps_median": 0.0,
-          "timer_per_s_median": 1.0,
+          "raf_fps_median": 0,
+          "timer_per_s_median": 1,
           "native_occluded": [
             true
           ],
           "native_active": [
             false
           ],
-          "eval_sync_ms": 84,
+          "eval_sync_ms": 58,
           "in_process_snapshot": {
-            "ms": 1,
+            "ms": 2,
             "distinct": 119,
             "page_content": true
           },
-          "eval_timing": "setTimeout50=52ms messageChannel=0ms",
+          "eval_timing": "setTimeout50=51ms messageChannel=1ms",
           "eval_raf": {
-            "ms": 3001,
+            "ms": 3003,
             "result": "raf-timeout-3s"
           }
         },
@@ -80,8 +80,8 @@
           "visibilityState": [
             "visible"
           ],
-          "raf_fps_median": 60.0,
-          "timer_per_s_median": 10.0,
+          "raf_fps_median": 60,
+          "timer_per_s_median": 10,
           "native_occluded": [
             false
           ],
@@ -90,13 +90,13 @@
           ],
           "eval_sync_ms": 0,
           "in_process_snapshot": {
-            "ms": 3,
+            "ms": 2,
             "distinct": 119,
             "page_content": true
           },
-          "eval_timing": "setTimeout50=50ms messageChannel=1ms",
+          "eval_timing": "setTimeout50=51ms messageChannel=1ms",
           "eval_raf": {
-            "ms": 1,
+            "ms": 10,
             "result": "raf-ok"
           },
           "pid_keys_into_ghost": [
@@ -107,26 +107,26 @@
         {
           "state": "G2 ghost on the main display (user windows above it)",
           "visibilityState": [
-            "visible"
+            "hidden"
           ],
-          "raf_fps_median": 75.0,
-          "timer_per_s_median": 10.0,
+          "raf_fps_median": 0.0,
+          "timer_per_s_median": 1.0,
           "native_occluded": [
-            false
+            true
           ],
           "native_active": [
             false
           ],
-          "eval_sync_ms": 0,
+          "eval_sync_ms": 4,
           "in_process_snapshot": {
             "ms": 2,
             "distinct": 128,
             "page_content": true
           },
-          "eval_timing": "setTimeout50=50ms messageChannel=0ms",
+          "eval_timing": "setTimeout50=51ms messageChannel=0ms",
           "eval_raf": {
-            "ms": 6,
-            "result": "raf-ok"
+            "ms": 3001,
+            "result": "raf-timeout-3s"
           },
           "pid_keys_into_ghost": [
             "a",
@@ -146,15 +146,15 @@
           "native_active": [
             false
           ],
-          "eval_sync_ms": 1,
+          "eval_sync_ms": 2,
           "in_process_snapshot": {
-            "ms": 2,
+            "ms": 3,
             "distinct": 128,
             "page_content": true
           },
           "eval_timing": "setTimeout50=51ms messageChannel=1ms",
           "eval_raf": {
-            "ms": 3003,
+            "ms": 3002,
             "result": "raf-timeout-3s"
           }
         },
@@ -171,15 +171,15 @@
           "native_active": [
             false
           ],
-          "eval_sync_ms": 3,
+          "eval_sync_ms": 18,
           "in_process_snapshot": {
             "ms": 2,
             "distinct": 128,
             "page_content": true
           },
-          "eval_timing": "setTimeout50=50ms messageChannel=1ms",
+          "eval_timing": "setTimeout50=50ms messageChannel=0ms",
           "eval_raf": {
-            "ms": 3001,
+            "ms": 3002,
             "result": "raf-timeout-3s"
           }
         },
@@ -188,21 +188,21 @@
           "visibilityState": [
             "hidden"
           ],
-          "raf_fps_median": 0,
-          "timer_per_s_median": 1,
+          "raf_fps_median": 0.0,
+          "timer_per_s_median": 1.0,
           "native_occluded": [
             true
           ],
           "native_active": [
             false
           ],
-          "eval_sync_ms": 1,
+          "eval_sync_ms": 92,
           "in_process_snapshot": {
-            "ms": 7,
+            "ms": 4,
             "distinct": 119,
             "page_content": true
           },
-          "eval_timing": "setTimeout50=51ms messageChannel=0ms",
+          "eval_timing": "setTimeout50=52ms messageChannel=0ms",
           "eval_raf": {
             "ms": 3002,
             "result": "raf-timeout-3s"
@@ -218,23 +218,23 @@
           "visibilityState": [
             "hidden"
           ],
-          "raf_fps_median": 0.0,
-          "timer_per_s_median": 1.5,
+          "raf_fps_median": 0,
+          "timer_per_s_median": 2,
           "native_occluded": [
             true
           ],
           "native_active": [
             false
           ],
-          "eval_sync_ms": 2,
+          "eval_sync_ms": 3,
           "in_process_snapshot": {
-            "ms": 2,
+            "ms": 7,
             "distinct": 128,
             "page_content": true
           },
-          "eval_timing": "setTimeout50=51ms messageChannel=0ms",
+          "eval_timing": "setTimeout50=50ms messageChannel=1ms",
           "eval_raf": {
-            "ms": 3003,
+            "ms": 3007,
             "result": "raf-timeout-3s"
           },
           "ax_set": "set AXMinimized=true on 1 window(s)"
@@ -253,7 +253,7 @@
       "captures": {
         "V level-back on a second display": {
           "window": {
-            "id": 34702,
+            "id": 35409,
             "x": 3470,
             "y": 1020,
             "w": 520,
@@ -280,7 +280,7 @@
         },
         "G ghost on the second display (free desktop area)": {
           "window": {
-            "id": 34708,
+            "id": 35422,
             "x": 3470,
             "y": 1020,
             "w": 520,
@@ -307,7 +307,7 @@
         },
         "G2 ghost on the main display (user windows above it)": {
           "window": {
-            "id": 34714,
+            "id": 35430,
             "x": 1500,
             "y": 900,
             "w": 520,
@@ -334,7 +334,7 @@
         },
         "A level-back, on-screen": {
           "window": {
-            "id": 34720,
+            "id": 35432,
             "x": 1500,
             "y": 900,
             "w": 520,
@@ -361,7 +361,7 @@
         },
         "B occluded by sibling window": {
           "window": {
-            "id": 34720,
+            "id": 35432,
             "x": 1500,
             "y": 900,
             "w": 520,
@@ -388,7 +388,7 @@
         },
         "C off-screen (x=-6000)": {
           "window": {
-            "id": 34733,
+            "id": 35456,
             "x": -6000,
             "y": 200,
             "w": 520,
@@ -397,15 +397,15 @@
             "minimized": false
           },
           "screencapture": {
-            "error": "screencapture window 34733 failed rc=1 could not create image from window"
+            "error": "screencapture window 35456 failed rc=1 could not create image from window"
           },
           "sck": {
-            "error": "sckshot 34733 /private/tmp/desktop-probe-run/P5-C-sck.png -> rc 5: sck error: Error Domain=com.apple.ScreenCaptureKit.SCStreamErrorDomain Code=-3811 \"Failed to "
+            "error": "sckshot 35456 /private/var/folders/p2/_8mxt2hn3rn6h746xthz4sc40000gn/T/desktop-probe-ntulsd1_/P5-C-sck.png -> rc 5: sck error: Error Domain=com.apple.ScreenCapt"
           }
         },
         "D minimized (AXMinimized by PID)": {
           "window": {
-            "id": 34740,
+            "id": 35459,
             "x": 1500,
             "y": 900,
             "w": 520,
@@ -436,30 +436,30 @@
       "probe": "P6",
       "name": "`open -g -n` cold launch vs `lsappinfo front` (25 ms sampling for ~5 s)",
       "result": "doesn't steal focus",
-      "notes": "[{\"run\": 0, \"samples\": 119, \"probe_was_frontmost\": false, \"launch_error\": null, \"window_visible_after_s\": 2.38, \"front_pids_seen\": 1}, {\"run\": 1, \"samples\": 117, \"probe_was_frontmost\": false, \"launch_error\": null, \"window_visible_after_s\": 2.36, \"front_pids_seen\": 1}, {\"run\": 2, \"samples\": 124, \"probe_was_frontmost\": false, \"launch_error\": null, \"window_visible_after_s\": 2.34, \"front_pids_seen\": 1}]. `open` without -g and a bare-executable Popen launch: not run, user active (they can activate the app).",
+      "notes": "[{\"run\": 0, \"samples\": 90, \"probe_was_frontmost\": false, \"launch_error\": null, \"window_visible_after_s\": 2.42, \"front_pids_seen\": 1}, {\"run\": 1, \"samples\": 96, \"probe_was_frontmost\": false, \"launch_error\": null, \"window_visible_after_s\": 2.42, \"front_pids_seen\": 1}, {\"run\": 2, \"samples\": 115, \"probe_was_frontmost\": false, \"launch_error\": null, \"window_visible_after_s\": 2.47, \"front_pids_seen\": 1}]. `open` without -g and a bare-executable Popen launch: not run, user active (they can activate the app).",
       "runs": [
         {
           "run": 0,
-          "samples": 119,
+          "samples": 90,
           "probe_was_frontmost": false,
           "launch_error": null,
-          "window_visible_after_s": 2.38,
+          "window_visible_after_s": 2.42,
           "front_pids_seen": 1
         },
         {
           "run": 1,
-          "samples": 117,
+          "samples": 96,
           "probe_was_frontmost": false,
           "launch_error": null,
-          "window_visible_after_s": 2.36,
+          "window_visible_after_s": 2.42,
           "front_pids_seen": 1
         },
         {
           "run": 2,
-          "samples": 124,
+          "samples": 115,
           "probe_was_frontmost": false,
           "launch_error": null,
-          "window_visible_after_s": 2.34,
+          "window_visible_after_s": 2.47,
           "front_pids_seen": 1
         }
       ]
@@ -468,25 +468,25 @@
   "focus_summary": {
     "focus_mode_at_end": "background",
     "probe_pids": [
-      12083,
-      12339,
-      12630,
-      13057,
-      13364,
-      13838,
-      14272,
-      14833,
-      15395,
-      15955,
-      16720,
-      17294,
-      17815,
-      18481,
-      19300,
-      20017
+      40598,
+      40929,
+      41231,
+      41502,
+      41914,
+      42362,
+      42773,
+      43410,
+      44274,
+      44995,
+      45735,
+      46306,
+      46952,
+      47607,
+      48054,
+      48499
     ],
     "times_probe_was_frontmost": 0,
     "probe_front_events": [],
-    "front_changes_total": 5
+    "front_changes_total": 13
   }
 }

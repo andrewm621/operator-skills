@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """run_probes.py: run probes P1-P6 of the desktop-app-testing playbook against the Probe fixture app.
 
-  python3 run_probes.py [--out /private/tmp/desktop-probe-run]
+  python3 run_probes.py [--out DIR]
 
 Re-run this on a new macOS version (or a new WebView) to re-verify the facts in desktop-app-testing.guide.md.
-It builds ../fixtures/probe-app/Probe.app (bundle id co.andrewmiller.desktop-probe) under /private/tmp, starts only
+It builds ../fixtures/probe-app/Probe.app (bundle id co.andrewmiller.desktop-probe) into a PRIVATE dir, starts only
 its own instances, and never touches any other process.
 
 Focus policy: every step here uses background-safe techniques only (PID-targeted events, AX by PID,
@@ -12,10 +12,15 @@ Focus policy: every step here uses background-safe techniques only (PID-targeted
 `focus-mode` says foreground, and are otherwise recorded as "not run, user active". A watcher thread samples
 `lsappinfo front` every 50 ms for the whole run and logs every change to focus.log.
 
+Directories: by default a fresh tempfile.mkdtemp(prefix="desktop-probe-") dir (0700, random name). With --out the
+dir must not exist yet (created 0700) or already be a private dir owned by you; a foreign or symlinked dir is refused.
+The built app and the probe's command channel live inside it, because both are executed / read as commands.
+
 Writes: <out>/results.json, <out>/results.md, <out>/focus.log, <out>/<probe>.log (app stderr), screenshots.
 """
 import argparse
 import json
+import os
 import statistics
 import subprocess
 import sys
@@ -28,11 +33,10 @@ sys.path.insert(0, str(HERE.parent / "lib"))
 import desktop_test as dt  # noqa: E402
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--out", default="/private/tmp/desktop-probe-run")
+ap.add_argument("--out", help="output dir; default: a fresh mkdtemp dir")
 args = ap.parse_args()
-RUN = dt.assert_scratch(args.out)
-RUN.mkdir(parents=True, exist_ok=True)
-BUILD = dt.assert_scratch("/private/tmp/desktop-probe-build")
+RUN = dt.private_dir(args.out, prefix="desktop-probe-")
+BUILD = dt.private_dir(RUN / "build")
 APP = BUILD / "Probe.app"
 WEB_REGION = (0.0, 0.14, 1.0, 0.40)   # where the probe page draws its heading/input/button, as window fractions
 FRAME = "1500,900,520,360"   # global top-left points; level "back" keeps the window behind every normal window
@@ -279,23 +283,35 @@ def p45():
         apps.append(a)
         return a
 
-    def cmdfile(label): return ["--cmd-file", str(RUN / f"cmd-{label}.js")]
+    def cmdfile(label):
+        """A private (0700, mine) command-channel dir per probe instance, passed explicitly on argv."""
+        return ["--cmd-dir", str(dt.private_dir(RUN / f"cmd-{label}"))]
 
-    def observe_with(a, label, cmdpath, secs):
+    def send(label, text):
+        """Atomically drop DIR/cmd.js (tmp + rename) so the probe never reads half a command."""
+        d = RUN / f"cmd-{label}"
+        tmp = d / ".cmd.tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "w") as fh:
+            fh.write(text)
+        os.replace(tmp, d / "cmd.js")
+
+    def observe_with(a, label, cmdlabel, secs):
         n0 = len(events(a))
         time.sleep(secs / 2)
-        cmdpath.write_text("return 1 + 1")
+        send(cmdlabel, "return 1 + 1")
         time.sleep(0.6)
-        cmdpath.write_text("const t = performance.now(); await new Promise(r => setTimeout(r, 50)); const st = Math.round(performance.now() - t); "
+        send(cmdlabel, "const t = performance.now(); await new Promise(r => setTimeout(r, 50)); const st = Math.round(performance.now() - t); "
                            "const mc = await new Promise(r => { const c = new MessageChannel(); const s = performance.now(); "
                            "c.port1.onmessage = () => r(Math.round(performance.now() - s)); c.port2.postMessage(0); }); "
                            "return 'setTimeout50=' + st + 'ms messageChannel=' + mc + 'ms'")
         time.sleep(1.6)
-        cmdpath.write_text("return await Promise.race([new Promise(r => requestAnimationFrame(() => r('raf-ok'))), "
+        send(cmdlabel, "return await Promise.race([new Promise(r => requestAnimationFrame(() => r('raf-ok'))), "
                            "new Promise(r => setTimeout(() => r('raf-timeout-3s'), 3000))])")
         time.sleep(secs / 2 + 3.4)
-        snap = RUN / f"snap-{label[:3].strip()}-{a.pid}.png"
-        cmdpath.write_text(f"#snapshot {snap}")
+        snap_name = f"snap-{a.pid}-{int(time.time() * 1000)}.png"
+        snap = RUN / f"cmd-{cmdlabel}" / snap_name
+        send(cmdlabel, f"#snapshot {snap_name}")
         time.sleep(1.3)
         ev = events(a)[n0:]
         raf = [e["fps"] for e in ev if e["t"] == "raf"]
@@ -326,7 +342,7 @@ def p45():
         v = launch_state("P45-V", "--level", "back", "--frame", vframe, *cmdfile("P45-V"))
         geometry(v)
         flog("P4", "V launched (second display, level back)")
-        st = observe_with(v, "V level-back on a second display", RUN / "cmd-P45-V.js", 4)
+        st = observe_with(v, "V level-back on a second display", "P45-V", 4)
         states.append(st)
         shots["V level-back on a second display"] = capture_both(v, "V")
         v.quit()
@@ -339,7 +355,7 @@ def p45():
         g = launch_state("P45-" + gl[:2].strip(), "--alpha", "0.0", "--ignore-mouse", "--frame", gframe, *cmdfile("P45-" + gl[:2].strip()))
         geometry(g)
         flog("P4", f"{gl[:2].strip()} launched (ghost: alpha 0, ignore-mouse)")
-        states.append(observe_with(g, gl, RUN / f"cmd-P45-{gl[:2].strip()}.js", 4))
+        states.append(observe_with(g, gl, f"P45-{gl[:2].strip()}", 4))
         shots[gl] = capture_both(g, gl[:2].strip())
         n0 = len(events(g))
         dt.type_text(g.pid, "ab")
@@ -351,13 +367,13 @@ def p45():
     a = launch_state("P45-A", "--level", "back", "--frame", FRAME, *cmdfile("P45-A"))
     geometry(a)
     flog("P4", "A launched")
-    states.append(observe_with(a, "A level-back, on-screen", RUN / "cmd-P45-A.js", 4))
+    states.append(observe_with(a, "A level-back, on-screen", "P45-A", 4))
     shots["A level-back, on-screen"] = capture_both(a, "A")
     # B: covered by a second probe window at the same level and frame (deterministic occlusion, no user window needed)
     b = launch_state("P45-B", "--level", "back", "--frame", FRAME, "--title", "Occluder", multiple=True)
     geometry(b)
     flog("P4", "B (occluder) launched")
-    states.append(observe_with(a, "B occluded by sibling window", RUN / "cmd-P45-A.js", 4))
+    states.append(observe_with(a, "B occluded by sibling window", "P45-A", 4))
     shots["B occluded by sibling window"] = capture_both(a, "B")
     b.quit(); a.quit()
     # C: off-screen
@@ -365,7 +381,7 @@ def p45():
     geometry(c)
     flog("P4", "C launched")
     wc = dt.main_window(c.pid)
-    states.append(observe_with(c, "C off-screen (x=-6000)", RUN / "cmd-P45-C.js", 4))
+    states.append(observe_with(c, "C off-screen (x=-6000)", "P45-C", 4))
     states[-1]["window_reported"] = {k: wc[k] for k in ("x", "y", "onscreen")}
     shots["C off-screen (x=-6000)"] = capture_both(c, "C")
     c.quit()
@@ -376,7 +392,7 @@ def p45():
     res = dt.ax_set_window_attr(d.pid, "AXMinimized", "true")
     time.sleep(1.2)
     flog("P4", "D minimized")
-    states.append(observe_with(d, "D minimized (AXMinimized by PID)", RUN / "cmd-P45-D.js", 4))
+    states.append(observe_with(d, "D minimized (AXMinimized by PID)", "P45-D", 4))
     states[-1]["ax_set"] = res
     shots["D minimized (AXMinimized by PID)"] = capture_both(d, "D")
     flog("P4", "D done")

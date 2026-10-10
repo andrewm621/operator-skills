@@ -1,8 +1,18 @@
 #!/bin/sh
-# build.sh <out-dir under /private/tmp>   -> <out-dir>/Probe.app  (bundle id co.andrewmiller.desktop-probe)
+# build.sh <out-dir>   -> <out-dir>/Probe.app  (bundle id co.andrewmiller.desktop-probe)
+# <out-dir> must be a PRIVATE dir: created here with mode 0700 if it does not exist, otherwise it must already be a
+# real dir (not a symlink), owned by you, mode 0700. The built app is executed, so never a shared/predictable /tmp dir.
 set -eu
-OUT="${1:?usage: build.sh /private/tmp/desktop-probe-<x>}"
-case "$OUT" in /private/tmp/*|"${TMPDIR:-/nonexistent}"*) ;; *) echo "refusing: $OUT is not under a scratch dir" >&2; exit 1;; esac
+OUT="${1:?usage: build.sh <private-out-dir>}"
+if [ -e "$OUT" ] || [ -L "$OUT" ]; then
+  # BSD stat: type, owner uid, octal permission bits
+  set -- $(stat -f '%HT %u %Lp' "$OUT")
+  if [ "$1" != "Directory" ] || [ "$2" != "$(id -u)" ] || [ "$3" != "700" ]; then
+    echo "refusing: $OUT is not a real directory owned by you with mode 0700 (got: $*)" >&2; exit 1
+  fi
+else
+  mkdir -p "$(dirname "$OUT")" && mkdir -m 700 "$OUT"
+fi
 HERE="$(cd "$(dirname "$0")" && pwd)"
 APP="$OUT/Probe.app"
 rm -rf "$APP"; mkdir -p "$APP/Contents/MacOS"
