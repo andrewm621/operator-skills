@@ -95,7 +95,7 @@ Type `/` in a new session to see all 45 skills.
 | `/migrate` | Full migration workflow — generate, review, apply, rollback | `/migrate generate` |
 | `/port-check` | What's running on dev ports + project identification | `/port-check` |
 | `/verify-app` | Browser-based app verification via CDP — screenshots + errors | `/verify-app` |
-| `/test-desktop-app` | Test a local macOS desktop app (Tauri first) without stealing focus — layered ladder, focus policy, guardrails, reporting | `/test-desktop-app dirty-quit modal focuses Cancel` |
+| `/test-desktop-app` | Test a local macOS desktop app (Tauri first) without stealing focus — layered ladder, focus policy, guardrails, reporting | `/test-desktop-app the unsaved-changes modal focuses Cancel` |
 | `/gleap` | Gleap feedback SDK + REST API — install, query, audit an integration | `/gleap audit` |
 
 ### Knowledge

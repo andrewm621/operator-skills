@@ -68,7 +68,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /port-check              Show what's running on dev ports
  /perf [url|bundle]       Lighthouse + bundle size + Core Web Vitals
  /verify-app [url]        Verify running app via Dia Browser + CDP
- /test-desktop-app <claim> Test a local macOS app without stealing focus
+ /test-desktop-app <what> Test a local macOS app without stealing focus
  /report [topic]          Generate polished interactive HTML report/dashboard
 
 ═══════════════════════════════════════════════════════════════
