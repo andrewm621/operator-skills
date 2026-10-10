@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""capture-window: screenshot ONE window by id or by owner PID, with no focus change and no cursor.
+
+  capture-window <pid|windowid> <out.png>
+  capture-window pid:1234 out.png        # explicit: the largest layer-0 window of that process
+  capture-window wid:5678 out.png        # explicit: that CGWindowID
+
+A bare number is tried as a window id first only if no process has that pid. Prefer the explicit forms.
+Uses `screencapture -x -o -l<id>`: works while the window is covered by others, needs Screen Recording
+permission for the CALLER (Terminal / the agent host), fails (or yields a desktop wallpaper) if it lacks it.
+Prints the window id and PNG path; exit 1 on failure.
+"""
+import os
+import subprocess
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+import desktop_test as dt  # noqa: E402
+
+if len(sys.argv) != 3:
+    sys.exit(__doc__)
+spec, out = sys.argv[1], sys.argv[2]
+try:
+    kind, _, num = spec.partition(":") if ":" in spec else ("auto", "", spec)
+    n = int(num)
+    if kind == "auto":
+        alive = subprocess.run(["kill", "-0", str(n)], capture_output=True).returncode == 0
+        kind = "pid" if alive else "wid"
+    wid = n
+    if kind == "pid":
+        w = dt.main_window(n)
+        if not w:
+            sys.exit(f"capture-window: pid {n} has no window")
+        wid = w["id"]
+    dt.capture(wid, out)
+    print(f"window {wid} -> {out} ({os.path.getsize(out)} bytes)")
+except (ValueError, dt.HarnessError) as e:
+    sys.exit(f"capture-window: {e}")

@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""focus-guard: run a test step and prove it did not steal focus.
+
+  focus-guard [--foreground] [--watch-pid N ...] [--watch-bundle ID ...] [--no-restore] [--log FILE] -- CMD [ARGS...]
+
+Default (a step that CLAIMS to be background-safe): run CMD, then check that the frontmost app did not change.
+--foreground (a step that needs real input/activation): re-check focus-mode right now; if it says `background`
+              the step is NOT run (exit 3, "not run, user active"). If `foreground`, run it.
+Always: record `lsappinfo front` before and after; if the front app changed, put the previous app back
+(unless --no-restore).
+
+--watch-pid/--watch-bundle name the app(s) under test. With a watch list, only a change TO a watched app counts
+as a violation (the user switching apps by themselves does not, and is not "restored"). Without one, any change
+counts and is restored.
+
+Exit: 0 ok | 3 foreground step skipped (user active) | 4 focus changed while in background mode (restored)
+      | otherwise CMD's own non-zero exit status.
+A one-line JSON summary goes to stderr (and to --log FILE, appended).
+"""
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+import desktop_test as dt  # noqa: E402
+
+p = argparse.ArgumentParser(usage="focus-guard [options] -- CMD [ARGS...]", add_help=True)
+p.add_argument("--foreground", action="store_true")
+p.add_argument("--watch-pid", type=int, action="append", default=[])
+p.add_argument("--watch-bundle", action="append", default=[])
+p.add_argument("--no-restore", action="store_true")
+p.add_argument("--log")
+p.add_argument("cmd", nargs=argparse.REMAINDER)
+a = p.parse_args()
+cmd = a.cmd[1:] if a.cmd[:1] == ["--"] else a.cmd
+if not cmd:
+    p.error("missing -- CMD")
+
+mode = dt.focus_mode()  # fresh read, right before running
+before = dt.front_app()
+summary = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "cmd": cmd, "mode": mode, "foreground_step": a.foreground,
+           "front_before": before}
+
+
+def finish(code: int) -> None:
+    line = json.dumps(summary)
+    print("focus-guard: " + line, file=sys.stderr)
+    if a.log:
+        with open(a.log, "a") as fh:
+            fh.write(line + "\n")
+    sys.exit(code)
+
+
+if a.foreground and mode != "foreground":
+    summary.update(result="skipped: not run, user active")
+    finish(3)
+
+rc = subprocess.run(cmd).returncode
+time.sleep(0.3)  # let any activation settle before sampling
+after = dt.front_app()
+summary.update(cmd_rc=rc, front_after=after)
+
+changed = after.get("pid") != before.get("pid")
+watched = changed and (not (a.watch_pid or a.watch_bundle) or after.get("pid") in a.watch_pid
+                       or after.get("bundle") in a.watch_bundle)
+summary["focus_changed"] = changed
+summary["to_watched_app"] = bool(watched)
+if watched and not a.no_restore:
+    summary["restored"] = dt.restore_front(before)
+if watched and mode == "background":
+    summary["result"] = "VIOLATION: focus changed in background mode"
+    finish(4)
+summary["result"] = "ok" if rc == 0 else f"cmd failed rc={rc}"
+finish(rc)

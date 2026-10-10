@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""focus-mode: print `background` or `foreground` (the focus policy for agents testing desktop apps).
+
+Config: ~/.claude/app-testing.json  {"focus": "background"|"auto"|"foreground", "idleMinutes": 5}
+  background  never take focus, never post HID events
+  foreground  anything goes (use when the user said the machine is free)
+  auto        foreground only if no keyboard/mouse input for idleMinutes (HIDIdleTime via ioreg), else background
+Env override: APP_TESTING_FOCUS=background|auto|foreground.  Unknown / unreadable idle time -> background.
+
+  focus-mode            # -> background | foreground
+  focus-mode -v         # also prints mode, idle seconds and the front app to stderr
+Exit status is always 0 (read stdout); 2 on bad usage.
+"""
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib"))
+import desktop_test as dt  # noqa: E402
+
+if len(sys.argv) > 1 and sys.argv[1] not in ("-v", "--verbose"):
+    sys.exit(__doc__)
+mode = dt.focus_mode()
+if len(sys.argv) > 1:
+    cfg, idle = dt.load_config(), dt.idle_seconds()
+    f = dt.front_app()
+    print(f"config={cfg} env={os.environ.get('APP_TESTING_FOCUS')} idle={idle if idle is None else round(idle, 1)}s "
+          f"front={f.get('name')} (pid {f.get('pid')})", file=sys.stderr)
+print(mode)
