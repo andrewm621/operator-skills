@@ -5,7 +5,8 @@
   dtool pkey <pid> key <name> [cmd,shift,alt,ctrl]   |   dtool pkey <pid> type "<text>"      (CGEventPostToPid)
   dtool pclick <pid> <x> <y> [windowId] [count]      (CGEventPostToPid, global screen points)
   dtool pscroll <pid> <x> <y> <dy>
-  dtool ax <pid> tree [depth] | press <role> <title> | set <attr> <true|false>
+  dtool ax <pid> tree [depth] | press <role> <title> | enable | set <attr> <true|false>
+  dtool sckshot <windowId> <out.png>          ScreenCaptureKit window capture (alternative to screencapture -l)
   dtool hidclick <x> <y>                      REAL click, foreground mode only (use under focus-guard --foreground)
 """
 import os

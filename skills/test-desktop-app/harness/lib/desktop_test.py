@@ -175,9 +175,16 @@ def windows(pid: int) -> list[dict]:
     return json.loads(tool("winlist", pid).stdout or "[]")
 
 
+def displays() -> list[dict]:
+    """Active displays in global top-left points: main, x, y, w, h."""
+    return json.loads(tool("displays").stdout)
+
+
 def main_window(pid: int, min_w: float = 100, onscreen_only: bool = False) -> dict | None:
-    cand = [w for w in windows(pid) if w["layer"] == 0 and w["w"] >= min_w and (w["onscreen"] or not onscreen_only)]
-    return max(cand, key=lambda w: w["w"] * w["h"], default=None)
+    """The app's real window: on-screen first, then titled, then biggest. Any layer (a window can sit at a
+    desktop-level layer). Helper/overlay windows are often untitled, off-screen and layer 0, so do not assume layer 0."""
+    cand = [w for w in windows(pid) if w["w"] >= min_w and w["h"] >= 50 and (w["onscreen"] or not onscreen_only)]
+    return max(cand, key=lambda w: (w["onscreen"], bool(w["title"]), w["w"] * w["h"]), default=None)
 
 
 def wait_window(pid: int, timeout: float = 15, **kw) -> dict:
@@ -220,8 +227,13 @@ def scroll(pid: int, x: float, y: float, dy: int) -> None:
     tool("pscroll", pid, x, y, dy)
 
 
-def ax_tree(pid: int, max_depth: int = 8) -> str:
-    return tool("ax", pid, "tree", max_depth).stdout
+def ax_tree(pid: int, max_depth: int = 8, menubar: bool = False) -> str:
+    return tool("ax", pid, "tree", max_depth, *([] if menubar else ["nomenu"])).stdout
+
+
+def ax_enable(pid: int, attr: str = "AXManualAccessibility") -> str:
+    """Ask a lazy AX implementation (WKWebView) to build its web-content tree."""
+    return tool("ax", pid, "enable", attr).stdout.strip()
 
 
 def ax_press(pid: int, role: str, title: str) -> str:
@@ -341,10 +353,12 @@ def remove_data_dir(bundle_id: str) -> bool:
 
 def launch_bg(target: str | os.PathLike, *, args: list[str] | None = None, env: dict | None = None,
               seed: list[str] | None = None, stderr_path: str | os.PathLike | None = None,
-              boot: float = 15, allow_real_identifier: bool = False, wait_window_s: float | None = 15) -> App:
+              boot: float = 15, allow_real_identifier: bool = False, allow_multiple: bool = False,
+              wait_window_s: float | None = 15) -> App:
     """Launch without activating. `target` is an .app bundle (open -g -n) or a bare executable (Popen).
 
-    Asserts: bundle id is a test identifier and not already running; the new app is NOT frontmost
+    Asserts: bundle id is a test identifier and not already running (allow_multiple=True for a second instance
+    of YOUR test app); the new app is NOT frontmost
     afterwards (if it is, the previous frontmost app is restored and HarnessError is raised)."""
     target = Path(target).expanduser().resolve()
     front_before = front_app()
@@ -358,7 +372,7 @@ def launch_bg(target: str | os.PathLike, *, args: list[str] | None = None, env: 
         if not allow_real_identifier and not TEST_ID.search(bundle_id or ""):
             raise HarnessError(f"bundle id {bundle_id!r} is not a test identifier (…test/probe/e2e/dev); "
                                "build the app with a --config identifier overlay")
-        if running_with_bundle(bundle_id):
+        if running_with_bundle(bundle_id) and not allow_multiple:
             raise HarnessError(f"{bundle_id} is already running (pids {running_with_bundle(bundle_id)}); refusing")
     if seed:
         if not bundle_id:
@@ -407,3 +421,58 @@ def launch_bg(target: str | os.PathLike, *, args: list[str] | None = None, env: 
 
 if __name__ == "__main__":
     print(json.dumps({"mode": focus_mode(), "idle": idle_seconds(), "front": front_app()}, indent=2))
+
+
+# --------------------------------------------------------------------------- PNG sanity (stdlib only)
+
+def png_stats(path: str | os.PathLike, crop: tuple[float, float, float, float] | None = None) -> dict:
+    """Decode an 8-bit PNG (what screencapture/ScreenCaptureKit write) and say whether it holds real content.
+
+    Returns width, height, distinct (number of distinct colors, sampled), dominant (share of the most common
+    color) and blank (True when the image is one flat color or fully transparent).
+    crop=(x0, y0, x1, y1) as fractions of the image restricts the check to a region: a window's chrome alone has
+    many colors, so use it to ask "is there page content in the web area?" (a hidden WKWebView paints nothing)."""
+    import struct
+    import zlib
+    data = Path(path).read_bytes()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise HarnessError(f"{path} is not a PNG")
+    pos, idat, w = 8, b"", 0
+    while pos < len(data):
+        n, typ = struct.unpack(">I4s", data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + n]
+        if typ == b"IHDR":
+            w, h, depth, ctype = struct.unpack(">IIBB", body[:10])
+        elif typ == b"IDAT":
+            idat += body
+        pos += 12 + n
+    bpp = {2: 3, 6: 4, 0: 1, 4: 2}.get(ctype)
+    if depth != 8 or bpp is None:
+        return {"width": w, "height": h, "note": f"unsupported png depth={depth} type={ctype}"}
+    raw, stride = zlib.decompress(idat), w * bpp
+    prev, rows, i = bytearray(stride), [], 0
+    for _ in range(h):
+        f, line, i = raw[i], bytearray(raw[i + 1:i + 1 + stride]), i + 1 + stride
+        for x in range(stride):
+            a = line[x - bpp] if x >= bpp else 0
+            b, c = prev[x], (prev[x - bpp] if x >= bpp else 0)
+            if f == 1: line[x] = (line[x] + a) & 255
+            elif f == 2: line[x] = (line[x] + b) & 255
+            elif f == 3: line[x] = (line[x] + ((a + b) >> 1)) & 255
+            elif f == 4:
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                line[x] = (line[x] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        rows.append(line)
+        prev = line
+    from collections import Counter
+    cnt = Counter()
+    fx0, fy0, fx1, fy1 = crop or (0.0, 0.0, 1.0, 1.0)
+    step = max(1, h // 120)
+    for line in rows[int(h * fy0):max(int(h * fy1), int(h * fy0) + 1):step]:
+        for x in range(int(w * fx0), max(int(w * fx1), int(w * fx0) + 1), 3):
+            cnt[bytes(line[x * bpp:x * bpp + bpp])] += 1
+    total = sum(cnt.values())
+    top = cnt.most_common(1)[0]
+    alpha0 = bpp == 4 and top[0][3] == 0 and top[1] / total > 0.99
+    return {"width": w, "height": h, "distinct": len(cnt), "dominant": round(top[1] / total, 3),
+            "blank": len(cnt) <= 2 or alpha0}

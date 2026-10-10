@@ -1,6 +1,7 @@
 // pclick <pid> <x> <y> [windowId] [count]
 // Mouse down/up at GLOBAL screen point (x, y) posted to <pid> with CGEvent.postToPid. The real cursor does not
-// move. If windowId is non-zero it is stamped on the event so AppKit routes it to that window.
+// move. If windowId is non-zero it is stamped on the event (private field 51 + 91/92) so AppKit attaches it to
+// that window; without it AppKit receives the click with windowNumber 0 and drops it.
 // Whether an INACTIVE app acts on it depends on the view's acceptsFirstMouse (see the guide, probe P2).
 import Foundation
 import CoreGraphics
@@ -17,6 +18,9 @@ for t in [CGEventType.leftMouseDown, .leftMouseUp] {
     let e = CGEvent(mouseEventSource: src, mouseType: t, mouseCursorPosition: p, mouseButton: .left)!
     e.setIntegerValueField(.mouseEventClickState, value: count)
     if wid != 0 {
+        // field 51 (undocumented) is what makes AppKit attach the event to a window; without it the NSEvent has
+        // windowNumber 0 and nothing acts on it. 91/92 are the documented window-under-pointer fields.
+        e.setIntegerValueField(CGEventField(rawValue: 51)!, value: wid)
         e.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: wid)
         e.setIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent, value: wid)
     }

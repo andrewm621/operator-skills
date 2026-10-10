@@ -1,0 +1,492 @@
+{
+  "results": [
+    {
+      "probe": "P1",
+      "name": "PID-targeted key into backgrounded WKWebView field",
+      "result": "works",
+      "notes": "keydowns=7, input value='hellox', isTrusted=True, document.hasFocus()=[False], probe took the front: False. type_text (unicode string) and key (virtual keycode) both posted via CGEventPostToPid."
+    },
+    {
+      "probe": "P2",
+      "name": "PID-targeted click, acceptsFirstMouse=false, window occluded, level back",
+      "result": "doesn't",
+      "notes": "click acted on (DOM or NSButton)=False, app activated by a click=False; detail={\"web button, no windowId\": {\"appkit_mouseDown\": 1, \"appkit_mouseUp\": 1, \"with_window\": 0, \"dom_mousedown\": 0, \"web_btn_clicks\": 0, \"native_pings\": 0, \"app_became_active\": 0}, \"web button, windowId stamped\": {\"appkit_mouseDown\": 1, \"appkit_mouseUp\": 0, \"with_window\": 1, \"dom_mousedown\": 0, \"web_btn_clicks\": 0, \"native_pings\": 0, \"app_became_active\": 0}, \"native NSButton, windowId stamped\": {\"appkit_mouseDown\": 1, \"appkit_mouseUp\": 0, \"with_window\": 1, \"dom_mousedown\": 0, \"web_btn_clicks\": 0, \"native_pings\": 0, \"app_became_active\": 0}}",
+      "accept_first_mouse": false,
+      "placement": "occluded, level back"
+    },
+    {
+      "probe": "P2",
+      "name": "PID-targeted click, acceptsFirstMouse=true, window occluded, level back",
+      "result": "doesn't",
+      "notes": "click acted on (DOM or NSButton)=False, app activated by a click=False; detail={\"web button, no windowId\": {\"appkit_mouseDown\": 1, \"appkit_mouseUp\": 1, \"with_window\": 0, \"dom_mousedown\": 0, \"web_btn_clicks\": 0, \"native_pings\": 0, \"app_became_active\": 0}, \"web button, windowId stamped\": {\"appkit_mouseDown\": 1, \"appkit_mouseUp\": 0, \"with_window\": 1, \"dom_mousedown\": 0, \"web_btn_clicks\": 0, \"native_pings\": 0, \"app_became_active\": 0}, \"native NSButton, windowId stamped\": {\"appkit_mouseDown\": 1, \"appkit_mouseUp\": 0, \"with_window\": 1, \"dom_mousedown\": 0, \"web_btn_clicks\": 0, \"native_pings\": 0, \"app_became_active\": 0}}",
+      "accept_first_mouse": true,
+      "placement": "occluded, level back"
+    },
+    {
+      "probe": "P2",
+      "name": "PID-targeted click, acceptsFirstMouse=false, window not occluded, alpha 0.01 on a free spot of the second display",
+      "result": "doesn't",
+      "notes": "click acted on (DOM or NSButton)=False, app activated by a click=False; detail={\"web button, no windowId\": {\"appkit_mouseDown\": 1, \"appkit_mouseUp\": 1, \"with_window\": 0, \"dom_mousedown\": 0, \"web_btn_clicks\": 0, \"native_pings\": 0, \"app_became_active\": 0}, \"web button, windowId stamped\": {\"appkit_mouseDown\": 1, \"appkit_mouseUp\": 0, \"with_window\": 1, \"dom_mousedown\": 0, \"web_btn_clicks\": 0, \"native_pings\": 0, \"app_became_active\": 0}, \"native NSButton, windowId stamped\": {\"appkit_mouseDown\": 1, \"appkit_mouseUp\": 0, \"with_window\": 1, \"dom_mousedown\": 0, \"web_btn_clicks\": 0, \"native_pings\": 0, \"app_became_active\": 0}}",
+      "accept_first_mouse": false,
+      "placement": "not occluded, alpha 0.01 on a free spot of the second display"
+    },
+    {
+      "probe": "P2",
+      "name": "PID-targeted click, acceptsFirstMouse=true, window not occluded, alpha 0.01 on a free spot of the second display",
+      "result": "doesn't",
+      "notes": "click acted on (DOM or NSButton)=False, app activated by a click=False; detail={\"web button, no windowId\": {\"appkit_mouseDown\": 1, \"appkit_mouseUp\": 1, \"with_window\": 0, \"dom_mousedown\": 0, \"web_btn_clicks\": 0, \"native_pings\": 0, \"app_became_active\": 0}, \"web button, windowId stamped\": {\"appkit_mouseDown\": 1, \"appkit_mouseUp\": 0, \"with_window\": 1, \"dom_mousedown\": 0, \"web_btn_clicks\": 0, \"native_pings\": 0, \"app_became_active\": 0}, \"native NSButton, windowId stamped\": {\"appkit_mouseDown\": 1, \"appkit_mouseUp\": 0, \"with_window\": 1, \"dom_mousedown\": 0, \"web_btn_clicks\": 0, \"native_pings\": 0, \"app_became_active\": 0}}",
+      "accept_first_mouse": true,
+      "placement": "not occluded, alpha 0.01 on a free spot of the second display"
+    },
+    {
+      "probe": "P3",
+      "name": "AX tree dump + AXPress by PID while not frontmost",
+      "result": "works",
+      "notes": "WKWebView content in AX tree: AXWebArea=True, 'Web Ping' button=True; stages=[{\"stage\": \"no extra step\", \"dumps_needed\": 2, \"AXWebArea\": true, \"Web Ping\": true}]; AXPress -> {\"web button\": {\"ax\": \"pressed\", \"event_seen\": true, \"dom_mouse_events\": 3, \"dom_trusted\": [true]}, \"native button\": {\"ax\": \"pressed\", \"event_seen\": true, \"dom_mouse_events\": 0, \"dom_trusted\": []}, \"menu item\": {\"ax\": \"pressed\", \"event_seen\": true, \"dom_mouse_events\": 0, \"dom_trusted\": []}}; app activations=0. Trees: P3-ax-tree*.txt (not committed)"
+    },
+    {
+      "probe": "P4",
+      "name": "visibilityState + rAF/timer cadence + JS eval when occluded / offscreen / minimized",
+      "result": "measured",
+      "notes": "see states",
+      "states": [
+        {
+          "state": "V level-back on a second display",
+          "visibilityState": [
+            "hidden"
+          ],
+          "raf_fps_median": 0.0,
+          "timer_per_s_median": 1.0,
+          "native_occluded": [
+            true
+          ],
+          "native_active": [
+            false
+          ],
+          "eval_sync_ms": 84,
+          "in_process_snapshot": {
+            "ms": 1,
+            "distinct": 119,
+            "page_content": true
+          },
+          "eval_timing": "setTimeout50=52ms messageChannel=0ms",
+          "eval_raf": {
+            "ms": 3001,
+            "result": "raf-timeout-3s"
+          }
+        },
+        {
+          "state": "G ghost on the second display (free desktop area)",
+          "visibilityState": [
+            "visible"
+          ],
+          "raf_fps_median": 60.0,
+          "timer_per_s_median": 10.0,
+          "native_occluded": [
+            false
+          ],
+          "native_active": [
+            false
+          ],
+          "eval_sync_ms": 0,
+          "in_process_snapshot": {
+            "ms": 3,
+            "distinct": 119,
+            "page_content": true
+          },
+          "eval_timing": "setTimeout50=50ms messageChannel=1ms",
+          "eval_raf": {
+            "ms": 1,
+            "result": "raf-ok"
+          },
+          "pid_keys_into_ghost": [
+            "a",
+            "ab"
+          ]
+        },
+        {
+          "state": "G2 ghost on the main display (user windows above it)",
+          "visibilityState": [
+            "visible"
+          ],
+          "raf_fps_median": 75.0,
+          "timer_per_s_median": 10.0,
+          "native_occluded": [
+            false
+          ],
+          "native_active": [
+            false
+          ],
+          "eval_sync_ms": 0,
+          "in_process_snapshot": {
+            "ms": 2,
+            "distinct": 128,
+            "page_content": true
+          },
+          "eval_timing": "setTimeout50=50ms messageChannel=0ms",
+          "eval_raf": {
+            "ms": 6,
+            "result": "raf-ok"
+          },
+          "pid_keys_into_ghost": [
+            "a",
+            "ab"
+          ]
+        },
+        {
+          "state": "A level-back, on-screen",
+          "visibilityState": [
+            "hidden"
+          ],
+          "raf_fps_median": 0.0,
+          "timer_per_s_median": 1.0,
+          "native_occluded": [
+            true
+          ],
+          "native_active": [
+            false
+          ],
+          "eval_sync_ms": 1,
+          "in_process_snapshot": {
+            "ms": 2,
+            "distinct": 128,
+            "page_content": true
+          },
+          "eval_timing": "setTimeout50=51ms messageChannel=1ms",
+          "eval_raf": {
+            "ms": 3003,
+            "result": "raf-timeout-3s"
+          }
+        },
+        {
+          "state": "B occluded by sibling window",
+          "visibilityState": [
+            "hidden"
+          ],
+          "raf_fps_median": 0,
+          "timer_per_s_median": 2,
+          "native_occluded": [
+            true
+          ],
+          "native_active": [
+            false
+          ],
+          "eval_sync_ms": 3,
+          "in_process_snapshot": {
+            "ms": 2,
+            "distinct": 128,
+            "page_content": true
+          },
+          "eval_timing": "setTimeout50=50ms messageChannel=1ms",
+          "eval_raf": {
+            "ms": 3001,
+            "result": "raf-timeout-3s"
+          }
+        },
+        {
+          "state": "C off-screen (x=-6000)",
+          "visibilityState": [
+            "hidden"
+          ],
+          "raf_fps_median": 0,
+          "timer_per_s_median": 1,
+          "native_occluded": [
+            true
+          ],
+          "native_active": [
+            false
+          ],
+          "eval_sync_ms": 1,
+          "in_process_snapshot": {
+            "ms": 7,
+            "distinct": 119,
+            "page_content": true
+          },
+          "eval_timing": "setTimeout50=51ms messageChannel=0ms",
+          "eval_raf": {
+            "ms": 3002,
+            "result": "raf-timeout-3s"
+          },
+          "window_reported": {
+            "x": -6000,
+            "y": 200,
+            "onscreen": true
+          }
+        },
+        {
+          "state": "D minimized (AXMinimized by PID)",
+          "visibilityState": [
+            "hidden"
+          ],
+          "raf_fps_median": 0.0,
+          "timer_per_s_median": 1.5,
+          "native_occluded": [
+            true
+          ],
+          "native_active": [
+            false
+          ],
+          "eval_sync_ms": 2,
+          "in_process_snapshot": {
+            "ms": 2,
+            "distinct": 128,
+            "page_content": true
+          },
+          "eval_timing": "setTimeout50=51ms messageChannel=0ms",
+          "eval_raf": {
+            "ms": 3003,
+            "result": "raf-timeout-3s"
+          },
+          "ax_set": "set AXMinimized=true on 1 window(s)"
+        },
+        {
+          "state": "E on another Space / visible-frontmost baseline",
+          "result": "not run, user active (switching Spaces or activating the probe would disturb the user)"
+        }
+      ]
+    },
+    {
+      "probe": "P5",
+      "name": "screencapture -l vs ScreenCaptureKit on occluded / offscreen / minimized windows",
+      "result": "measured",
+      "notes": "see captures",
+      "captures": {
+        "V level-back on a second display": {
+          "window": {
+            "id": 34702,
+            "x": 3470,
+            "y": 1020,
+            "w": 520,
+            "h": 360,
+            "onscreen": true,
+            "minimized": false
+          },
+          "screencapture": {
+            "width": 1040,
+            "height": 720,
+            "distinct": 102,
+            "dominant": 0.981,
+            "blank": false,
+            "web_region_distinct": 1
+          },
+          "sck": {
+            "width": 1040,
+            "height": 720,
+            "distinct": 102,
+            "dominant": 0.981,
+            "blank": false,
+            "web_region_distinct": 1
+          }
+        },
+        "G ghost on the second display (free desktop area)": {
+          "window": {
+            "id": 34708,
+            "x": 3470,
+            "y": 1020,
+            "w": 520,
+            "h": 360,
+            "onscreen": true,
+            "minimized": false
+          },
+          "screencapture": {
+            "width": 1040,
+            "height": 720,
+            "distinct": 1,
+            "dominant": 1.0,
+            "blank": true,
+            "web_region_distinct": 1
+          },
+          "sck": {
+            "width": 1040,
+            "height": 720,
+            "distinct": 1,
+            "dominant": 1.0,
+            "blank": true,
+            "web_region_distinct": 1
+          }
+        },
+        "G2 ghost on the main display (user windows above it)": {
+          "window": {
+            "id": 34714,
+            "x": 1500,
+            "y": 900,
+            "w": 520,
+            "h": 360,
+            "onscreen": true,
+            "minimized": false
+          },
+          "screencapture": {
+            "width": 520,
+            "height": 360,
+            "distinct": 1,
+            "dominant": 1.0,
+            "blank": true,
+            "web_region_distinct": 1
+          },
+          "sck": {
+            "width": 1040,
+            "height": 720,
+            "distinct": 1,
+            "dominant": 1.0,
+            "blank": true,
+            "web_region_distinct": 1
+          }
+        },
+        "A level-back, on-screen": {
+          "window": {
+            "id": 34720,
+            "x": 1500,
+            "y": 900,
+            "w": 520,
+            "h": 360,
+            "onscreen": true,
+            "minimized": false
+          },
+          "screencapture": {
+            "width": 520,
+            "height": 360,
+            "distinct": 90,
+            "dominant": 0.98,
+            "blank": false,
+            "web_region_distinct": 1
+          },
+          "sck": {
+            "width": 1040,
+            "height": 720,
+            "distinct": 58,
+            "dominant": 0.75,
+            "blank": false,
+            "web_region_distinct": 2
+          }
+        },
+        "B occluded by sibling window": {
+          "window": {
+            "id": 34720,
+            "x": 1500,
+            "y": 900,
+            "w": 520,
+            "h": 360,
+            "onscreen": true,
+            "minimized": false
+          },
+          "screencapture": {
+            "width": 520,
+            "height": 360,
+            "distinct": 90,
+            "dominant": 0.98,
+            "blank": false,
+            "web_region_distinct": 1
+          },
+          "sck": {
+            "width": 1040,
+            "height": 720,
+            "distinct": 58,
+            "dominant": 0.75,
+            "blank": false,
+            "web_region_distinct": 2
+          }
+        },
+        "C off-screen (x=-6000)": {
+          "window": {
+            "id": 34733,
+            "x": -6000,
+            "y": 200,
+            "w": 520,
+            "h": 360,
+            "onscreen": true,
+            "minimized": false
+          },
+          "screencapture": {
+            "error": "screencapture window 34733 failed rc=1 could not create image from window"
+          },
+          "sck": {
+            "error": "sckshot 34733 /private/tmp/desktop-probe-run/P5-C-sck.png -> rc 5: sck error: Error Domain=com.apple.ScreenCaptureKit.SCStreamErrorDomain Code=-3811 \"Failed to "
+          }
+        },
+        "D minimized (AXMinimized by PID)": {
+          "window": {
+            "id": 34740,
+            "x": 1500,
+            "y": 900,
+            "w": 520,
+            "h": 360,
+            "onscreen": false,
+            "minimized": true
+          },
+          "screencapture": {
+            "width": 520,
+            "height": 360,
+            "distinct": 90,
+            "dominant": 0.98,
+            "blank": false,
+            "web_region_distinct": 1
+          },
+          "sck": {
+            "width": 1040,
+            "height": 720,
+            "distinct": 58,
+            "dominant": 0.75,
+            "blank": false,
+            "web_region_distinct": 2
+          }
+        }
+      }
+    },
+    {
+      "probe": "P6",
+      "name": "`open -g -n` cold launch vs `lsappinfo front` (25 ms sampling for ~5 s)",
+      "result": "doesn't steal focus",
+      "notes": "[{\"run\": 0, \"samples\": 119, \"probe_was_frontmost\": false, \"launch_error\": null, \"window_visible_after_s\": 2.38, \"front_pids_seen\": 1}, {\"run\": 1, \"samples\": 117, \"probe_was_frontmost\": false, \"launch_error\": null, \"window_visible_after_s\": 2.36, \"front_pids_seen\": 1}, {\"run\": 2, \"samples\": 124, \"probe_was_frontmost\": false, \"launch_error\": null, \"window_visible_after_s\": 2.34, \"front_pids_seen\": 1}]. `open` without -g and a bare-executable Popen launch: not run, user active (they can activate the app).",
+      "runs": [
+        {
+          "run": 0,
+          "samples": 119,
+          "probe_was_frontmost": false,
+          "launch_error": null,
+          "window_visible_after_s": 2.38,
+          "front_pids_seen": 1
+        },
+        {
+          "run": 1,
+          "samples": 117,
+          "probe_was_frontmost": false,
+          "launch_error": null,
+          "window_visible_after_s": 2.36,
+          "front_pids_seen": 1
+        },
+        {
+          "run": 2,
+          "samples": 124,
+          "probe_was_frontmost": false,
+          "launch_error": null,
+          "window_visible_after_s": 2.34,
+          "front_pids_seen": 1
+        }
+      ]
+    }
+  ],
+  "focus_summary": {
+    "focus_mode_at_end": "background",
+    "probe_pids": [
+      12083,
+      12339,
+      12630,
+      13057,
+      13364,
+      13838,
+      14272,
+      14833,
+      15395,
+      15955,
+      16720,
+      17294,
+      17815,
+      18481,
+      19300,
+      20017
+    ],
+    "times_probe_was_frontmost": 0,
+    "probe_front_events": [],
+    "front_changes_total": 5
+  }
+}

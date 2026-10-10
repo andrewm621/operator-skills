@@ -1,6 +1,9 @@
-// ax <pid> tree [maxDepth]            dump the accessibility tree of <pid> (role, title/desc, value, actions)
+// ax <pid> tree [maxDepth] [nomenu]   dump the accessibility tree of <pid> (role, title/desc, value, actions)
 // ax <pid> press <role> <title>       AXPress the first element whose role == <role> (e.g. AXButton, AXMenuItem)
 //                                     and whose title/description/value contains <title> (case-insensitive)
+// ax <pid> enable [attr]              set AXManualAccessibility (default) or the named attr (e.g. AXEnhancedUserInterface)
+//                                     on the app element
+//                                     (asks lazy AX implementations to build their tree)
 // ax <pid> set <attr> <true|false>    set a boolean attribute on every window (e.g. AXMinimized)
 // AX talks to the app by PID and does not need it frontmost. Needs Accessibility for the calling process.
 // Caveat: AXPress on a native control does not move focus; on web content inside a WKWebView it depends on
@@ -10,7 +13,7 @@ import ApplicationServices
 
 let a = CommandLine.arguments
 guard a.count >= 3, let pid = pid_t(a[1]) else {
-    FileHandle.standardError.write("usage: ax <pid> tree [depth] | press <role> <title> | set <attr> <bool>\n".data(using: .utf8)!); exit(2)
+    FileHandle.standardError.write("usage: ax <pid> tree [depth] | press <role> <title> | enable | set <attr> <bool>\n".data(using: .utf8)!); exit(2)
 }
 guard AXIsProcessTrusted() else {
     FileHandle.standardError.write("calling process lacks Accessibility permission\n".data(using: .utf8)!); exit(3)
@@ -40,8 +43,14 @@ func walk(_ e: AXUIElement, _ depth: Int, _ maxDepth: Int, _ visit: (AXUIElement
 switch a[2] {
 case "tree":
     let maxDepth = a.count > 3 ? Int(a[3]) ?? 8 : 8
+    let skipMenu = a.contains("nomenu")   // the menu bar is huge (Apple menu, Recent Items, ...)
     var count = 0
     walk(app, 0, maxDepth) { e, d in
+        if skipMenu && str(e, kAXRoleAttribute) == "AXMenuBar" { return false }
+        if d > 0 && str(e, kAXRoleAttribute) == "AXApplication" {   // seen once: the app element answered as its own child
+            print("!AX-DEGRADED: the app element returned itself as a child; retry, or relaunch the app")
+            return false
+        }
         count += 1
         if count > 2000 { return false }
         let role = str(e, kAXRoleAttribute), title = str(e, kAXTitleAttribute), desc = str(e, kAXDescriptionAttribute)
@@ -69,6 +78,11 @@ case "press":
     let r = AXUIElementPerformAction(h, kAXPressAction as CFString)
     print(r == .success ? "pressed" : "AXPress failed: \(r.rawValue)")
     exit(r == .success ? 0 : 1)
+case "enable":
+    for name in [a.count > 3 ? a[3] : "AXManualAccessibility"] {
+        let r = AXUIElementSetAttributeValue(app, name as CFString, kCFBooleanTrue)
+        print("\(name): \(r == .success ? "ok" : "error \(r.rawValue)")")
+    }
 case "set":
     guard a.count >= 5 else { exit(2) }
     let value: CFBoolean = a[4] == "true" ? kCFBooleanTrue : kCFBooleanFalse
