@@ -36,6 +36,14 @@ ln -s ~/operator-skills/skills ~/.claude/skills/operator
 
 Type `/` in a new session to see all 46 skills.
 
+### Every agent at once (Claude Code, Codex, Cursor, Grok)
+
+```bash
+./install-global.sh            # add --dry-run to preview
+```
+
+Symlinks each skill folder into `~/.codex/skills/` and `~/.cursor/skills/`, and refreshes the frontmatter-stripped copies in `~/.claude/commands/`. Grok scans both `~/.claude/commands` and `~/.cursor/skills`, so it needs nothing extra. Anything it would replace is moved to a dated `*-backup/` folder first. Re-run after adding or renaming a skill.
+
 ## Skill Catalog
 
 ### Orchestration
