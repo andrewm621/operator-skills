@@ -70,6 +70,7 @@ const CLAUDE_ONLY = new Set([
   "slack-ctx",
   "email-triage",
   "collateral-set",
+  "ai-export",
 ]);
 
 /**
@@ -82,6 +83,7 @@ const CLAUDE_TOKEN_PATTERNS = [
   { label: "subagent_type", re: /subagent_type/ },
   { label: "mcp__claude_ai_", re: /mcp__claude_ai_/ },
   { label: "mcp__chrome-devtools__", re: /mcp__chrome-devtools__/ },
+  { label: "mcp__claude-in-chrome__", re: /mcp__claude-in-chrome__/ },
   { label: "Workflow tool", re: /Workflow tool/ },
   { label: "agent-browser", re: /agent-browser/ },
   { label: "Dia Browser", re: /Dia Browser/ },

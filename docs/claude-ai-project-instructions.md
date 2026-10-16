@@ -5,7 +5,7 @@
 
 ---
 
-You have 45 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 46 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -50,6 +50,7 @@ You have 45 operator skills for software projects. Use them when a user's reques
 | `/session-notes` | End-of-session snapshot: what was done, decisions, next |
 | `/document` | Write to dev-notes, Notion, inline docs, or README |
 | `/search-all` | Cross-project search for code, files, or packages |
+| `/ai-export` | Export AI chat threads (ChatGPT verified) from your logged-in browser to markdown, archive the raw JSON, file into your vault |
 | `/email-triage` | Triage Gmail into a two-axis urgency × context report — read-only |
 | `/help` | Cheat sheet of all skills with quick combos |
 | `/notion` | Sync notes and decisions to a Notion workspace |
@@ -96,6 +97,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 | End of day | `/log wrap` or `/session-notes` |
 | Switch threads | `/freeze` → new chat → `/freeze thaw` |
 | Answer in Slack | `/slack-ctx find <person>` → `/slack-reply <url>` → review draft in Slack |
+| Export AI threads | `/ai-export chatgpt <project URL>` → approve the download → converted notes + raw archive → file into the vault |
 | Show a feature | `/motion-artifact <feature> gif` → preview → render → paste into Slack or the release note |
 | Client collateral | fact sheet → `/collateral-set <client>` → approve anchor → fan-out → gate → publish → `/motion-artifact` for any GIF cut |
 
@@ -103,7 +105,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 45, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 46, see the uploaded Knowledge file.
 
 ### /orchestrate
 

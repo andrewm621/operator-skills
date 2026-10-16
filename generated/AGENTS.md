@@ -106,6 +106,7 @@ that underlying Claude-specific tooling or MCP server is also present.
 
 ### Knowledge
 
+- **/ai-export** — Export AI chat threads (ChatGPT verified; Claude.ai and Grok unverified) from your logged-in browser through the app's own JSON API, convert them locally to markdown, archive the raw JSON, and file the notes into your knowledge vault.
 - **/email-triage** — Triage Andrew's Gmail inbox into a two-axis urgency × context report — read-only, never touches labels, archive state, drafts, or sends.
 - **/notion** — Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current.
 - **/notion-ctx** — Manage a per-project registry of relevant Notion documents with cached summaries for fast context loading. Keeps Notion knowledge fresh and token-efficient.

@@ -9,7 +9,7 @@ Arguments: {the text you type after the command} (optional: category name to fil
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `{the text you type after the command}` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  44 custom commands
+ SKILL CATALOG  45 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -41,6 +41,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /dark-mode [where]       Light/Dark/System toggle — OS default, no-flash
  /map [project]           Architectural diagrams (Mermaid) → ARCHITECTURE.md
  /search-all <query>      Search code/files/packages across all projects
+ /ai-export <plat> <url>  Export AI chat threads (ChatGPT verified) → markdown + vault
  /document <subject>      Write docs to dev-notes, Notion, inline, or README
  /motion-artifact [fmt]   Animated demo scene → deterministic GIF/MP4/WebM
  /collateral-set <client> Anchor-first set of client HTML artifacts → gated publish
