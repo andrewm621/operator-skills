@@ -10,11 +10,16 @@
 // surfaces. Walks the tree recursively, so it doesn't need to know about the
 // generated/portable/ vs generated/claude-only/ split explicitly.
 //
+// Also checks the ~/.agents/skills install surface (Delta, Zed): every
+// skills/<name> must have a resolving <agents dir>/<name>/SKILL.md that lands
+// inside this repo. Override the dir with AGENTS_SKILLS_DIR (default
+// ~/.agents/skills). Fix with ./install-global.sh.
+//
 // Usage: node verify-adapters.mjs
 
-import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join, relative, sep } from "node:path";
 import { generate, REPO_ROOT } from "./generate-adapters.mjs";
 
 const COMMITTED_DIR = join(REPO_ROOT, "generated");
@@ -43,7 +48,31 @@ function listFilesRecursive(dir) {
   return results.sort();
 }
 
+/** Check <agents dir>/<name>/SKILL.md resolves into this repo for every skill. Returns problem lines. */
+function checkAgentsSkills() {
+  const agentsDir = process.env.AGENTS_SKILLS_DIR || join(homedir(), ".agents", "skills");
+  const repoSkills = realpathSync(join(REPO_ROOT, "skills"));
+  const problems = [];
+  const names = readdirSync(join(REPO_ROOT, "skills"))
+    .filter((n) => existsSync(join(REPO_ROOT, "skills", n, "SKILL.md")))
+    .sort();
+  for (const name of names) {
+    let resolved;
+    try {
+      resolved = realpathSync(join(agentsDir, name, "SKILL.md"));
+    } catch {
+      problems.push(`missing in ${agentsDir}: ${name}`);
+      continue;
+    }
+    if (!resolved.startsWith(repoSkills + sep)) {
+      problems.push(`foreign in ${agentsDir}: ${name} -> ${resolved}`);
+    }
+  }
+  return { agentsDir, total: names.length, problems };
+}
+
 function main() {
+  let failed = false;
   const tmpDir = mkdtempSync(join(tmpdir(), "operator-skills-verify-"));
   const drift = [];
 
@@ -78,10 +107,22 @@ function main() {
     console.error(`✗ generated/ is out of sync with skills/*/SKILL.md (${drift.length} issue${drift.length === 1 ? "" : "s"}):\n`);
     for (const line of drift) console.error(`  - ${line}`);
     console.error(`\nRun: node ${relative(process.cwd(), join(REPO_ROOT, "generate-adapters.mjs"))} to regenerate, then re-verify.`);
-    process.exit(1);
+    failed = true;
+  } else {
+    console.log("✓ generated/ matches skills/*/SKILL.md — no drift.");
   }
 
-  console.log("✓ generated/ matches skills/*/SKILL.md — no drift.");
+  const agents = checkAgentsSkills();
+  if (agents.problems.length > 0) {
+    console.error(`✗ ${agents.agentsDir} is out of sync with skills/ (${agents.problems.length} of ${agents.total}):\n`);
+    for (const line of agents.problems) console.error(`  - ${line}`);
+    console.error(`\nRun: ./install-global.sh to link them, then re-verify.`);
+    failed = true;
+  } else {
+    console.log(`✓ ${agents.agentsDir} links all ${agents.total} skills into this repo.`);
+  }
+
+  if (failed) process.exit(1);
 }
 
 main();
