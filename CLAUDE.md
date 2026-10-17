@@ -34,7 +34,7 @@ diff /tmp/a /tmp/b && echo "IDENTICAL"
 
 To exercise a skill for real, symlink and open a new session — `/`-command definitions are read at session start, so edits never apply to the current session.
 
-## Architecture: one source, seven surfaces
+## Architecture: one source, eight surfaces
 
 `skills/<name>/SKILL.md` is the single source of truth. Every other representation is a copy, and **nothing errors when they diverge** — that's the central hazard of this codebase.
 
@@ -44,10 +44,11 @@ skills/<name>/SKILL.md  ──┬─→ README.md                          (cata
                           ├─→ docs/claude-ai-project-instructions.md (row + count ×2)        [hand]
                           ├─→ docs/cowork-setup-guide.md          (count ×1)                 [hand]
                           ├─→ skills/help/SKILL.md                (cheat-sheet line + count) [hand]
-                          └─→ generated/                          (Codex, Cursor, AGENTS.md) [generated]
+                          ├─→ generated/                          (Codex, Cursor, AGENTS.md) [generated]
+                          └─→ ~/.agents/skills/<name>             (Delta, Zed; symlink)      [install-global.sh]
 ```
 
-The first five are hand-maintained; `generated/` is machine-produced and guarded by `verify-adapters.mjs`. `CONTRIBUTING.md` holds the authoritative add/edit checklist — **read it before touching `skills/`**.
+The first five are hand-maintained; `generated/` is machine-produced and `~/.agents/skills` is symlinked by `install-global.sh`; both are guarded by `verify-adapters.mjs`. `CONTRIBUTING.md` holds the authoritative add/edit checklist — **read it before touching `skills/`**.
 
 ### The three traps
 
