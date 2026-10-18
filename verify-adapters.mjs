@@ -268,7 +268,7 @@ function checkHelp(skills) {
   const external = new Set(); // @REBEL/UI commands ship with the design system, not in skills/
   let section = "";
   for (const line of skillBlock.slice(0, combos === -1 ? skillBlock.length : combos)) {
-    if (/^ [A-Z@][A-Z0-9 &@/.-]+$/.test(line)) section = line.trim();
+    if (/^ [A-Z@][A-Z0-9 &@/.-]+(\s+\(.*\))?$/.test(line)) section = line.trim();
     const m = line.match(/^ \/([a-z0-9-]+)/);
     if (!m) continue;
     listed.push(m[1]);

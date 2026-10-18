@@ -201,7 +201,7 @@ The best skills are the ones you modify to match how you actually work.
 
 ## Contributing
 
-Adding or editing a skill? See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short version: a skill is registered in six places (the `SKILL.md`, the README catalog + count, both Claude.ai docs, the Cowork guide, and the `/help` cheat sheet), and `docs/claude-ai-skill-reference.md` is a verbatim mirror of the skill bodies — keep them in sync or the web version drifts. The checklist and a verify script are in that file.
+Adding or editing a skill? See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short version: a skill is registered on several surfaces (the `SKILL.md`, the README catalog + count, both Claude.ai docs, the Cowork guide, the `/help` cheat sheet, and the generated adapters), and `docs/claude-ai-skill-reference.md` is a verbatim mirror of the skill bodies. Run `node verify-adapters.mjs` before committing — it fails on any drift between them.
 
 ## Platform Compatibility
 

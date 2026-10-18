@@ -69,11 +69,11 @@ Arguments: $ARGUMENTS (optional `--skip-build` flag and optional target director
    - Type errors → "Run `/test` to investigate failures"
    - Build errors → "Run `/test` or check the error output above"
    - Env issues → "Run `/env-check` for full env comparison"
-   - Database issues (if detected) → "Run `/db-status` for connection and migration check"
+   - Database issues (if detected) → "Run `/migrate status` for connection and migration check"
    - Git issues → "Run `/git-sync` for branch and sync status"
 
 ## Notes
 - This is the "run everything and summarize" skill — it surfaces issues, specialized skills fix them
 - The build step can be slow (30s-2min) — skip it with `/project-health --skip-build`, optionally with a directory: `/project-health ../app --skip-build`
 - This skill makes no source changes — it only reports. The build and type check can write artifacts (`.next/`, `dist/`, `*.tsbuildinfo`)
-- For a narrower check, use the individual skills directly: `/deps`, `/test`, `/env-check`, `/db-status`
+- For a narrower check, use the individual skills directly: `/deps`, `/test`, `/env-check`, `/migrate status`
