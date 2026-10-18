@@ -5,7 +5,7 @@
 
 ---
 
-You have 46 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 47 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -47,6 +47,7 @@ You have 46 operator skills for software projects. Use them when a user's reques
 | `/test-desktop-app` | Test a local macOS desktop app without stealing focus — layered ladder, focus policy, guardrails |
 | `/gleap` | Gleap feedback SDK + REST API — install, query, audit an integration |
 | `/learn` | Catalog lessons learned — gotchas, quirks, searchable |
+| `/note` | Add a note to your knowledge base (local Markdown vault) — follows vault conventions, routes, dedupes |
 | `/session-notes` | End-of-session snapshot: what was done, decisions, next |
 | `/document` | Write to dev-notes, Notion, inline docs, or README |
 | `/search-all` | Cross-project search for code, files, or packages |
@@ -105,7 +106,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 46, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 47, see the uploaded Knowledge file.
 
 ### /orchestrate
 

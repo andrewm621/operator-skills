@@ -2,7 +2,7 @@
 
 **Claude slash commands for people who build things.**
 
-46 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
+47 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
 
 They started as one-off prompts, became reusable slash commands, then became a system where skills call other skills — roadmaps feed into phases, phases feed into todos, todos feed into parallel agents, and everything gets logged. This is that system, open-sourced.
 
@@ -23,7 +23,7 @@ Open Cowork and send this message:
 
 > Clone https://github.com/andrewm621/operator-skills.git to ~/operator-skills and symlink the skills directory to ~/.claude/skills/operator
 
-Claude runs the commands for you. Type `/` to see all 46 skills in autocomplete.
+Claude runs the commands for you. Type `/` to see all 47 skills in autocomplete.
 
 See [`docs/cowork-setup-guide.md`](docs/cowork-setup-guide.md) for manual install and optional Global Instructions.
 
@@ -34,7 +34,7 @@ git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
 ln -s ~/operator-skills/skills ~/.claude/skills/operator
 ```
 
-Type `/` in a new session to see all 46 skills.
+Type `/` in a new session to see all 47 skills.
 
 ### Every agent at once (Claude Code, Codex, Cursor, Grok)
 
@@ -43,6 +43,17 @@ Type `/` in a new session to see all 46 skills.
 ```
 
 Symlinks each skill folder into `~/.codex/skills/` and `~/.cursor/skills/`, and refreshes the frontmatter-stripped copies in `~/.claude/commands/`. Grok scans both `~/.claude/commands` and `~/.cursor/skills`, so it needs nothing extra. Anything it would replace is moved to a dated `*-backup/` folder first. Re-run after adding or renaming a skill.
+
+### Per-user config (optional)
+
+Skills that need to know something about *your* setup — currently `/note`, which needs the location of your knowledge-base vault — read it from one file outside the repo, so nothing personal is ever committed:
+
+```bash
+mkdir -p ~/.config/operator-skills
+cp ~/operator-skills/config.example.yaml ~/.config/operator-skills/config.yaml   # then edit the paths
+```
+
+The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operator-skills/config.yaml` if that's set). Each skill reads only its own top-level section — `/note` uses `knowledge:`, with one or more named vaults (path, inbox folder, optional conventions file, default frontmatter, routes, optional auto-commit). See [`config.example.yaml`](config.example.yaml). If the file is missing, `/note` shows the example and offers to create it rather than guessing a path.
 
 ## Skill Catalog
 
@@ -111,6 +122,7 @@ Symlinks each skill folder into `~/.codex/skills/` and `~/.cursor/skills/`, and 
 | Skill | What it does | Example |
 |-------|-------------|---------|
 | `/learn` | Catalog lessons learned — gotchas, quirks, searchable index | `/learn recall supabase auth` |
+| `/note` | Add a note to your knowledge base (local Markdown vault) — follows the vault's conventions, routes, dedupes, never overwrites | `/note ref: Postgres advisory locks cheat sheet` |
 | `/session-notes` | End-of-session snapshot — what was done, decisions, next steps | `/session-notes` |
 | `/document` | Write to dev-notes, Notion, inline docs, or README | `/document decision: why we chose Drizzle` |
 | `/search-all` | Cross-project search for code, files, or packages | `/search-all pkg:stripe` |
@@ -199,7 +211,7 @@ Adding or editing a skill? See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short v
 
 | Feature | Code (CLI) | Cowork (Desktop) | Claude.ai (Web) |
 |---------|-----------|-----------------|-----------------|
-| All 46 skills | Full | Full | Full |
+| All 47 skills | Full | Full | Full |
 | `/` autocomplete | Native | Native | Manual invoke |
 | Subagent spawning | Full | Full | Simulated |
 | File system access | Full | Full | Via Knowledge files |

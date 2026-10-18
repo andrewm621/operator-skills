@@ -7,7 +7,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  45 custom commands
+ SKILL CATALOG  46 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -41,6 +41,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /search-all <query>      Search code/files/packages across all projects
  /ai-export <plat> <url>  Export AI chat threads (ChatGPT verified) → markdown + vault
  /document <subject>      Write docs to dev-notes, Notion, inline, or README
+ /note <text>             Add a note to your knowledge base (local Markdown vault)
  /motion-artifact [fmt]   Animated demo scene → deterministic GIF/MP4/WebM
  /collateral-set <client> Anchor-first set of client HTML artifacts → gated publish
  /email-triage [scope]    Triage Gmail into NEEDS YOU/WAITING/FYI/NOISE — report only

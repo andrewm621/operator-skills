@@ -1,0 +1,27 @@
+# operator-skills per-user config
+#
+# Copy to ~/.config/operator-skills/config.yaml
+# (or $XDG_CONFIG_HOME/operator-skills/config.yaml if XDG_CONFIG_HOME is set).
+# This file lives outside the repo so your paths never get committed.
+# Each skill reads only its own top-level section.
+
+# /note — add a note to your knowledge base (a local Markdown vault:
+# Obsidian, Tolaria, Logseq, or a plain folder).
+knowledge:
+  default: personal              # vault used when --vault is not given
+  vaults:
+    personal:
+      path: ~/notes              # required: the vault's root folder
+      inbox: 00-Inbox            # where new notes land unless routed (relative to path)
+      conventions: AGENTS.md     # optional: vault file to read before writing (rules, frontmatter types)
+      frontmatter:               # optional: defaults merged into every note
+        type: Note
+      commit: false              # true = git add + commit the note after writing (never push)
+      routes:                    # optional: kind -> folder (relative to path)
+        project: 01-Projects
+        reference: 03-Resources
+
+    # More vaults are allowed; pick one with: /note --vault work <text>
+    # work:
+    #   path: ~/work-notes
+    #   inbox: Inbox

@@ -60,6 +60,7 @@ reads this file.
 ### Knowledge
 
 - **/learn** — Extract, catalog, and recall lessons learned — mistakes, gotchas, surprising behaviors, and solutions. Builds a searchable knowledge base from real work sessions so the same problems don't bite twice.
+- **/note** — Add a note to your personal knowledge base (second brain) — a local Markdown vault such as Obsidian, Tolaria, Logseq, or a plain folder. Reads the vault location from a per-user config outside the repo, follows the vault's own conventions, routes the note to the right folder, avoids duplicates, and never overwrites.
 - **/session-notes** — Write up a structured session note capturing what was done, decisions made, and what's next. Saves to dev-notes.
 - **/document** — Document a feature, decision, architecture, or workflow. Writes to dev-notes, Notion, or inline code docs.
 - **/search-all** — Search across all ~/Projects/* directories for a pattern. Finds packages, code references, and files across 50+ projects.
