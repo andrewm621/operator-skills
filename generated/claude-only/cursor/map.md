@@ -13,7 +13,16 @@ Target: {the text you type after the command} (project name, directory, or "work
    - If empty, use the current working directory
    - If a subdirectory path is given (e.g., "app/api"), map just that subtree in detail
 
-2. **Explore the project** — Spawn an Explore subagent (or do directly for small projects) to gather:
+2. **Establish the CLAUDE.md/AGENTS.md pairing** — Skip this step for workspace-level maps (`/map workspace`). For a project directory, `AGENTS.md` is canonical and `CLAUDE.md` is a symlink to it (`CLAUDE.md -> AGENTS.md`). Check the project root and reconcile:
+
+   - Both exist and `CLAUDE.md` already symlinks to `AGENTS.md` — no-op.
+   - Only `CLAUDE.md` exists, as a real file — `mv CLAUDE.md AGENTS.md && ln -s AGENTS.md CLAUDE.md` (preserves content, `AGENTS.md` becomes canonical).
+   - Only `AGENTS.md` exists — `ln -s AGENTS.md CLAUDE.md`.
+   - Neither exists — leave it; that's `/init`'s job, not `/map`'s. Don't create empty files.
+   - Both exist as separate real files (diverged) — don't silently merge or overwrite either one. Flag it in the final output ("CLAUDE.md and AGENTS.md both exist as separate real files — reconcile manually, then re-run /map") and skip the symlink step.
+   - `CLAUDE.md` is a symlink pointing somewhere other than `AGENTS.md` (a custom convention) — leave it alone, just note it's using a custom target.
+
+3. **Explore the project** — Spawn an Explore subagent (or do directly for small projects) to gather:
 
    **a) Structure:**
    - Run `find <dir> -type f -name "*.ts" -o -name "*.tsx" -o -name "*.py" -o -name "*.json" | head -200` to understand the file tree
@@ -34,7 +43,7 @@ Target: {the text you type after the command} (project name, directory, or "work
    - For monorepos: map inter-package dependencies
    - For `@rebel/ui` consumers: note the design system link
 
-3. **Generate the architectural map** — Produce a comprehensive markdown document with Mermaid diagrams:
+4. **Generate the architectural map** — Produce a comprehensive markdown document with Mermaid diagrams:
 
    **a) Project Overview header:**
    ```markdown
@@ -180,7 +189,7 @@ Target: {the text you type after the command} (project name, directory, or "work
 
    **IMPORTANT:** Only include diagram types that are relevant. A simple app doesn't need all 7 diagrams. A CLI tool might only need folder structure + data flow. A monorepo needs the dependency graph. Use judgment.
 
-4. **Save the map** — Write to the appropriate location:
+5. **Save the map** — Write to the appropriate location:
 
    **For individual projects:**
    - Save to `<project-dir>/ARCHITECTURE.md` (lives with the code, git-trackable)
@@ -194,12 +203,12 @@ Target: {the text you type after the command} (project name, directory, or "work
    - Update only the sections that have changed
    - Update the "Generated" date
 
-5. **Update the knowledge map** — If this is a new project being mapped for the first time:
+6. **Update the knowledge map** — If this is a new project being mapped for the first time:
    - Check if it exists in `memory/project_knowledge_map.md`
    - If not, add it to the appropriate category
    - If the project has enough complexity, suggest creating a dedicated `memory/project_<name>.md`
 
-6. **Present the results** — Display the complete architecture map. Since Mermaid renders in markdown viewers, also offer:
+7. **Present the results** — Display the complete architecture map. Since Mermaid renders in markdown viewers, also offer:
    - "View in GitHub/VS Code for rendered diagrams"
    - "Run `/document architecture notion` to create a Notion page with these diagrams"
 
