@@ -1,10 +1,14 @@
-Verify a running web app in Dia Browser via CDP. URL defaults to http://localhost:3000 unless specified.
+Verify a running web app in a real browser via `agent-browser`. URL defaults to http://localhost:3000 unless specified.
 
 Target URL: $ARGUMENTS (default: http://localhost:3000)
 
+**Config:** `browser.mode` (default `headless`), `browser.cdp_port` (default `9222`), `browser.launch_cmd` and `browser.agent_browser_config` (both optional) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. A missing file or key means the default; never guess.
+
 ## Steps
 
-1. **Check CDP connection** — Run `curl -s http://127.0.0.1:9222/json/version` to confirm Dia is connected. If it fails, tell the user to run `dia-dev --restart` and stop.
+1. **Pick the browser** — Read `browser.mode` from the config (default `headless`).
+   - **`headless`** — `agent-browser` launches its own isolated browser. No connection check needed; go to step 2.
+   - **`cdp`** — Attach to the user's running browser. Run `curl -s http://127.0.0.1:<cdp_port>/json/version` (`cdp_port` defaults to `9222`). If it fails, tell the user the browser isn't listening on that port, suggest `browser.launch_cmd` if one is set (otherwise say to start their browser with `--remote-debugging-port=<cdp_port>`), and stop. If it succeeds and `browser.agent_browser_config` is set, add `--config <agent_browser_config>` to every `agent-browser` command below.
 
 2. **Navigate** — Run `agent-browser open <URL> && agent-browser wait --load networkidle` to load the page.
 
@@ -41,6 +45,7 @@ Target URL: $ARGUMENTS (default: http://localhost:3000)
 8. **Auto-fix cycle** — If issues are found that can be fixed in code, fix them, wait for HMR/rebuild, then re-verify (max 2 cycles). For issues that need user input, list them clearly.
 
 ## Notes
-- Uses `agent-browser` CLI (auto-connects to Dia via ~/.agent-browser/config.json)
+- Uses the `agent-browser` CLI. In `headless` mode (the default) it starts its own browser and never touches your real browser or its tabs; in `cdp` mode it drives the browser you point it at, including its logged-in sessions.
+- Subagents should stay in `headless` mode so they never open tabs in your real browser.
 - For deeper debugging, use Chrome DevTools MCP tools: `mcp__chrome-devtools__lighthouse_audit`, `mcp__chrome-devtools__list_network_requests`, `mcp__chrome-devtools__performance_start_trace`
 - Desktop apps (Tauri, Electron, native macOS) are not covered here; use `/test-desktop-app` instead.

@@ -9,7 +9,7 @@ Arguments: {the text you type after the command} (optional: category name to fil
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `{the text you type after the command}` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  46 custom commands
+ SKILL CATALOG  47 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -26,6 +26,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
 ═══════════════════════════════════════════════════════════════
  /orchestrate <goal>      Decompose → route to specialists → gate → report
  /maestro [subcommand]    Cross-provider task board + comms: new/work/route/ask/answer/inbox/mirror
+ /handoff <task>          Hand a task to Codex as a scoped GitHub issue
  /subagent <task>         Background agent: explore → implement → verify
  /parallel <a> | <b>      Run tasks simultaneously; build-check [projects|all] for shared-package consumers
  /research <topic>        Background research → structured findings
@@ -63,7 +64,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /git-sync [dir]          Full git sync report: branches, ahead/behind, stashes
  /port-check              Show what's running on dev ports
  /perf [url|bundle]       Lighthouse + bundle size + Core Web Vitals
- /verify-app [url]        Verify running app via Dia Browser + CDP
+ /verify-app [url]        Verify a running web app in a real browser
  /test-desktop-app <what> Test a local macOS app without stealing focus
  /report [topic]          Generate polished interactive HTML report/dashboard
 

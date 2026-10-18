@@ -1,6 +1,6 @@
 # Maestro — Cross-Provider Orchestration Spec
 
-**Status:** Draft v0.1 · **Date:** 2026-08-28 · **Owner:** Andrew Miller
+**Status:** Draft v0.1 · **Date:** 2026-08-28 · **Owner:** operator-skills maintainers
 
 Maestro is a persistent, cross-provider, cross-terminal orchestration layer over a
 fleet of AI coding agents. It is the maturation of `/orchestrate` from a one-shot,
@@ -30,8 +30,10 @@ Two tiers. **Per-repo detail is authoritative; the global board is a derived
 projection.** Never hand-edit the global view — `/maestro sync` rebuilds it from the
 per-repo task files. One writer per fact; the two-writers problem never arises.
 
+`<projects>` below is `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`); the human's handle (`you` in the examples) is `owner.handle` (default `$USER`). See `docs/config.md`.
+
 ```
-~/Projects/.maestro/               # GLOBAL — control plane (DERIVED, do not hand-edit)
+<projects>/.maestro/               # GLOBAL — control plane (DERIVED, do not hand-edit)
   board.md                         # aggregated human dashboard, all repos
   index.jsonl                      # one line per task: id·repo·status·owner·updated
   registry.yaml                    # which repos participate + their absolute paths
@@ -52,7 +54,7 @@ Task worktrees are created as siblings, never inside the repo, to avoid nesting 
 worktree inside its own working copy:
 
 ```
-~/Projects/.maestro/worktrees/<repo>/T-014/    # git worktree, branch maestro/T-014-auth
+<projects>/.maestro/worktrees/<repo>/T-014/    # git worktree, branch maestro/T-014-auth
 ```
 
 ---
@@ -143,7 +145,7 @@ agent likely died. `/maestro sync` flags it; `/maestro claim --steal T-014` recl
 it. Heartbeat is refreshed by the worker on each todo update (cheap, event-driven —
 no daemon).
 
-### 4.4 Global index — `~/Projects/.maestro/index.jsonl`
+### 4.4 Global index — `<projects>/.maestro/index.jsonl`
 
 Derived cache. One JSON object per line (append-friendly, greppable, never
 hand-edited). Rebuilt wholesale by `/maestro sync`.
@@ -153,7 +155,7 @@ hand-edited). Rebuilt wholesale by `/maestro sync`.
 {"id":"agencyos/T-021","repo":"agencyos","title":"Stripe webhook retries","status":"open","owner":null,"progress":"0/0","priority":1,"updated":"2026-08-28T11:10"}
 ```
 
-### 4.5 Registry — `~/Projects/.maestro/registry.yaml`
+### 4.5 Registry — `<projects>/.maestro/registry.yaml`
 
 The opt-in list of repos Maestro scans. Keeps sync bounded to participating projects
 instead of walking all 50+.
@@ -161,9 +163,9 @@ instead of walking all 50+.
 ```yaml
 repos:
   - name: acme app
-    path: /Users/andrewmiller/Projects/acme app
+    path: /home/you/Projects/acme app
   - name: agencyos
-    path: /Users/andrewmiller/Projects/agencyos
+    path: /home/you/Projects/agencyos
 id_prefix_from: name        # global ids namespaced by repo name
 ```
 
@@ -243,20 +245,20 @@ claude:  { bin: claude, folder_flag: null, prompt_mode: native_skill }
 
 ```bash
 # Cursor
-cd ~/Projects/.maestro/worktrees/acme/T-014 && cat PROMPT.md | agent -p "Execute the attached task brief" --force --output-format json
+cd <projects>/.maestro/worktrees/acme/T-014 && cat PROMPT.md | agent -p "Execute the attached task brief" --force --output-format json
 
 # Grok Build
-cd ~/Projects/.maestro/worktrees/acme/T-014 && cat PROMPT.md | grok -p "Execute the attached task brief" --cwd . --no-auto-update
+cd <projects>/.maestro/worktrees/acme/T-014 && cat PROMPT.md | grok -p "Execute the attached task brief" --cwd . --no-auto-update
 
 # Claude Code
-cd ~/Projects/.maestro/worktrees/acme/T-014 && claude   # then: /maestro work T-014
+cd <projects>/.maestro/worktrees/acme/T-014 && claude   # then: /maestro work T-014
 
 # Codex
 /handoff T-014   # → GitHub issue #; then `codex` in the worktree referencing the issue
 ```
 
 **v1 dispatch is human-in-the-loop:** `/maestro route` prepares the worktree + seed and
-*prints* the launch string. Andrew opens the terminal/provider and runs it. No
+*prints* the launch string. The human opens the terminal/provider and runs it. No
 unattended cross-provider process spawning in v1 — get the substrate proven first.
 
 ---
@@ -441,7 +443,7 @@ A repo only mirrors if its `registry.yaml` entry carries `mirror: github`:
 ```yaml
 repos:
   - name: acme app
-    path: /Users/andrewmiller/Projects/acme app/acme-app
+    path: /home/you/Projects/acme app/acme-app
     mirror: github        # opt-in — absent (the default) means mirror never touches this repo
 ```
 
@@ -477,7 +479,7 @@ then a managed footer —
 **Status:** in-progress
 **Priority:** 2
 **Progress:** 3/12
-**Local path:** /Users/andrewmiller/Projects/acme app/acme-app/.maestro/tasks (T-014)
+**Local path:** /home/you/Projects/acme app/acme-app/.maestro/tasks (T-014)
 
 <!-- maestro-task: acme app/T-014 -->
 ```

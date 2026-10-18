@@ -307,7 +307,7 @@ class SeedAndScratch(Tmp):
 
     def test_assert_scratch_and_private_dir(self):
         with self.assertRaises(dt.HarnessError):
-            dt.assert_scratch(Path.home() / "knowledge/x")
+            dt.assert_scratch(Path.home() / "Documents/x")
         with self.assertRaises(dt.HarnessError):
             dt.assert_private_dir("/private/tmp")
         d = dt.private_dir(prefix="dat-test-")

@@ -74,7 +74,7 @@ tests in `harness/tests/` cover each case.
    `com.test.realapp` do not), and refuses one that is already running. `--seed-state` only writes into
    that test data dir, and only if the harness created it (marker file); `remove_data_dir()` deletes only such a dir.
 4. **Scratch copies of data only.** Copy fixtures/vaults into a scratch dir (`desktop_test.scratch_copy`) and point the
-   app at the copy. Never point a test at `~/knowledge`, a real vault, or the opened folder of the user's session.
+   app at the copy. Never point a test at a real notes vault, your home folder, or the opened folder of the user's session.
 5. **No broad kills, and no OS-level quit of an app you are testing in the background.** No `pkill -f name`, no
    `killall`. Menu "Quit", `osascript ... to quit`, Dock Quit and logout are *macOS-initiated quits*, and apps often
    activate themselves on them (my-app does so on purpose, and its docs say not to quit that way). Quit a test app

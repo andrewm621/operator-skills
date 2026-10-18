@@ -12,7 +12,9 @@ subprocess, no network, no imports beyond the standard library. Filenames come f
 Only the ChatGPT `mapping` / `current_node` shape is supported (verified 2026-10-13). Claude.ai and Grok shapes are
 unverified, so this refuses them rather than guessing.
 
-Never writes `_organized`; that frontmatter key belongs to Tolaria.
+Frontmatter is deliberately minimal and vault-agnostic. Vault-specific keys are opt-in: `--id-key NAME` adds a fresh
+uuid4 under that key, and `--fm KEY=VALUE` (repeatable) adds fixed keys such as a vault's default `type`. Keys that start
+with `_` are reserved for vault tooling and are refused (never written, so `_organized` can't be stamped).
 """
 import argparse
 import collections
@@ -96,6 +98,35 @@ def slugify(title):
 def yq(s):
     """Double-quoted YAML scalar. JSON string escapes are valid YAML escapes."""
     return json.dumps(str(s), ensure_ascii=False)
+
+
+FM_KEY_RE = re.compile(r"[A-Za-z][A-Za-z0-9_-]{0,39}")
+BUILTIN_KEYS = {"type", "created", "source", "conversation_id", "title", "conv_created", "conv_updated", "model",
+                "triage", "url", "related_to", "tags", "belongs_to"}
+
+
+def parse_extra_fm(items, id_key):
+    """Validate --id-key / --fm into ordered (key, value) pairs; value None means 'fresh uuid4'. Dies on a bad key."""
+    pairs, seen = [], set()
+    if id_key:
+        pairs.append((id_key, None))
+    for item in items:
+        key, sep, value = item.partition("=")
+        if not sep:
+            die("--fm expects KEY=VALUE, got %r" % item)
+        pairs.append((key, value))
+    for key, _ in pairs:
+        if not FM_KEY_RE.fullmatch(key):
+            die("frontmatter key %r must match [A-Za-z][A-Za-z0-9_-]* (keys starting with '_' are reserved for vault tooling)" % key)
+        if key in BUILTIN_KEYS or key in seen:
+            die("frontmatter key %r is already written by this script or repeated" % key)
+        seen.add(key)
+    return pairs
+
+
+def extra_fm_lines(args):
+    """Frontmatter lines for the opt-in keys. Values are always double-quoted scalars, so they can't inject keys."""
+    return ["%s: %s" % (k, str(uuid.uuid4()) if v is None else yq(v)) for k, v in args.extra_fm]
 
 
 def to_epoch(t):
@@ -404,8 +435,7 @@ def note_text(c, args, bundle, index_link):
         else:
             url = "https://chatgpt.com/c/%s" % c["conv_id"]
     tags = ["src-chatgpt-thread"] + [t for t in args.tag if re.fullmatch(r"[A-Za-z0-9_-]{1,40}", t)]
-    fm = ["---",
-          "strata_id: " + str(uuid.uuid4()),
+    fm = ["---"] + extra_fm_lines(args)[:1 if args.id_key else 0] + [
           "type: source",
           "created: " + args.date,
           "source: chatgpt-" + kind,
@@ -420,6 +450,7 @@ def note_text(c, args, bundle, index_link):
         fm.append("url: " + yq(url))
     if args.related_to:
         fm.append("related_to: " + yq(args.related_to))
+    fm += extra_fm_lines(args)[1 if args.id_key else 0:]
     fm.append("tags:")
     fm += ["  - " + t for t in tags]
     fm += ["belongs_to:", "  - " + yq(index_link), "---"]
@@ -472,10 +503,14 @@ def main():
     ap.add_argument("--platform", default="chatgpt", help="chatgpt only; claude/grok shapes are unverified")
     ap.add_argument("--slug-prefix", default="", help="prefix for every note filename, e.g. a date, to keep wikilinks unique")
     ap.add_argument("--related-to", default="", help='wikilink for related_to, e.g. "[[some-project]]"')
+    ap.add_argument("--id-key", default="", help="optional: also write a fresh uuid4 under this frontmatter key (e.g. a vault's id field)")
+    ap.add_argument("--fm", action="append", default=[], metavar="KEY=VALUE",
+                    help="optional: extra fixed frontmatter key (repeatable); keys starting with '_' are refused")
     ap.add_argument("--tag", action="append", default=[], help="extra tag (repeatable)")
     ap.add_argument("--raw-path", default="", help="where the gzipped raw bundle was archived (recorded in the index)")
     ap.add_argument("--max-input-mb", type=int, default=MAX_INPUT_MB)
     args = ap.parse_args()
+    args.extra_fm = parse_extra_fm(args.fm, args.id_key)
 
     if args.platform != "chatgpt":
         die("platform %r is not supported: its export shape is unverified, so no converter was written" % args.platform)
@@ -505,11 +540,11 @@ def main():
     key_hits, jwt_values = token_scan(bundle)
     if key_hits:
         warnings.append("TOKEN WARNING: %d accessToken/access_token key(s) outside message text%s. This looks like a real "
-                        "session token. Do not archive or file this bundle until Andrew decides what to do with it."
+                        "session token. Do not archive or file this bundle until the owner decides what to do with it."
                         % (key_hits, " (%d JWT-shaped value(s))" % jwt_values if jwt_values else ""))
     elif text_hit:
         warnings.append("note: message text mentions accessToken or contains a JWT-shaped string. No token key was found "
-                        "outside message text, so this is probably harmless thread content. Andrew decides; nothing was changed.")
+                        "outside message text, so this is probably harmless thread content. The owner decides; nothing was changed.")
     if bundle.get("platform", "chatgpt") != "chatgpt":
         die("bundle platform %r is not supported" % bundle.get("platform"))
     if bundle.get("partial"):
@@ -554,11 +589,13 @@ def main():
     atts = as_list(bundle.get("attachments"))
     kind = bundle.get("kind") if bundle.get("kind") in ("project", "thread") else "project"
     counts = collections.Counter((c["triage"] or "ALL") for _, c in entries)
-    idx = ["---", "strata_id: " + str(uuid.uuid4()), "type: source", "created: " + args.date,
-           "source: chatgpt-" + kind, "tags:", "  - src-chatgpt-thread", "  - chatgpt-pull"]
-    idx += ["  - " + t for t in args.tag if re.fullmatch(r"[A-Za-z0-9_-]{1,40}", t)]
+    idx = ["---"] + extra_fm_lines(args)[:1 if args.id_key else 0] + ["type: source", "created: " + args.date,
+           "source: chatgpt-" + kind]
     if args.related_to:
         idx += ["related_to: " + yq(args.related_to)]
+    idx += extra_fm_lines(args)[1 if args.id_key else 0:]
+    idx += ["tags:", "  - src-chatgpt-thread", "  - chatgpt-pull"]
+    idx += ["  - " + t for t in args.tag if re.fullmatch(r"[A-Za-z0-9_-]{1,40}", t)]
     idx += ["---", "", "# ChatGPT %s pull, %s" % (kind, args.date), ""]
     idx.append("Pulled %s from the ChatGPT web app via its own JSON API (in-page fetch). %d conversations rendered%s."
                % (clean_title(bundle.get("pulled_at"), "at an unknown time"), len(entries),
