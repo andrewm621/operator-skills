@@ -14,7 +14,7 @@ Task: $ARGUMENTS
 1. **Parse the task** — From `$ARGUMENTS`, determine:
 
    **a) Scope:** What needs to be done? Could be:
-   - A feature to implement ("add email notifications to liberty-networking")
+   - A feature to implement ("add email notifications to web-app")
    - A bug to fix ("fix the timezone issue in the cron jobs")
    - A refactor ("convert the auth middleware to use proxy.ts")
    - A setup/config task ("add Stripe webhook handler to agencyos")

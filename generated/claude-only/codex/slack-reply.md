@@ -44,13 +44,13 @@ If `workspace.domain` in the registry is null, write the parsed `domain` into it
 
 **Tier 2 — a name, nickname, or channel.** Grep the registry's `aliases`, `name`, and key
 fields (case-insensitive). A hit gives `channel_id` with zero API calls. If the ask names a
-person *and* a topic ("Josh about the UTI timeline"), also check `threads` for an open
+person *and* a topic ("Jane about the Acme timeline"), also check `threads` for an open
 thread matching both.
 
 **Tier 3 — search Slack.** Only on a Tier 1+2 miss.
 - `mcp__claude_ai_Slack__slack_search_public_and_private` — semantic search is enabled on this account, so
-  natural-language queries work ("question about the UTI rollout timeline"). Narrow with
-  modifiers: `from:@josh`, `in:#rebel-team`, `after:2026-07-28`, `is:thread`.
+  natural-language queries work ("question about the Acme rollout timeline"). Narrow with
+  modifiers: `from:@jane`, `in:#team`, `after:2026-07-28`, `is:thread`.
 - `mcp__claude_ai_Slack__slack_search_channels` when the target is a channel, not a message.
 - `mcp__claude_ai_Slack__slack_search_users` when the target is a DM and you need the `U…` id.
 
@@ -74,9 +74,10 @@ If any participant is unknown, `mcp__claude_ai_Slack__slack_read_user_profile` f
 
 ### 3. Draft in Andrew's voice, tuned for Slack
 
-Voice source: `/Users/andrewmiller/Projects/AI Agent Teams/live/agents/writing.md`. Read it
-if the reply is client-facing or longer than a couple of lines. Skip it for a one-line
-internal ack.
+Voice source (optional): your own voice or style guide, if you keep one — a file you point
+Claude at, or a note in your vault. Read it if the reply is client-facing or longer than a
+couple of lines; skip it for a one-line internal ack. With no guide, match how the user's
+earlier messages in the thread read.
 
 Slack register differs from email — apply these on top of the voice guide:
 - Lead with the answer. No "Hey! Great question —".
@@ -85,17 +86,17 @@ Slack register differs from email — apply these on top of the voice guide:
 - Bullets only for 3+ parallel items. Two items is a sentence.
 - Slack markdown: `*bold*` renders as bold in Slack, `_italic_`, `` `code` ``, `>quote`.
   The draft tool takes standard markdown and converts — write standard `**bold**`.
-- Match the thread's formality. A client channel is not `#rebel-team`.
+- Match the thread's formality. A client channel is not `#team`.
 - If the honest answer is "I don't know yet", draft that plus when he'll know. Do not
-  invent a status, a date, or a delivery claim. Pull real state from the vault
-  (`kb context <project>`, `strata/Projects/`) rather than guessing.
+  invent a status, a date, or a delivery claim. Pull real state from your
+  project notes or tracker rather than guessing.
 
 Flag rather than paper over: if answering requires a fact you don't have, put
-`[NEEDS: what's the actual Keymark go-live date?]` inline and tell Andrew in your summary.
+`[NEEDS: what's the actual Acme go-live date?]` inline and tell Andrew in your summary.
 
 ### 4. Show it, then stage it
 
-Print the draft in the terminal first, with the target ("→ #rebel-team, thread w/ Josh,
+Print the draft in the terminal first, with the target ("→ #team, thread w/ Jane,
 2 replies"). On approval call `mcp__claude_ai_Slack__slack_send_message_draft`:
 
 - `channel_id` — the resolved id (`C…`, `D…`, or `U…` for a DM)
@@ -115,7 +116,7 @@ Error handling:
 Append one row to `~/knowledge/03-Resources/slack-reply-log.md` under today's date:
 
 ```markdown
-- **2026-08-04** — [#rebel-team / Josh Heller](https://<domain>.slack.com/archives/C.../p...) — UTI phase 2 timeline — *drafted, awaiting send*
+- **2026-08-04** — [#team / Jane Doe](https://<domain>.slack.com/archives/C.../p...) — Acme phase 2 timeline — *drafted, awaiting send*
 ```
 
 Then update the registry: bump `last_used` on the person/channel, and upsert the `threads`

@@ -26,7 +26,7 @@ Arguments: $ARGUMENTS
 
    **Build-check format:**
    If `$ARGUMENTS` starts with "build-check", parse project names.
-   - `/parallel build-check agencyos communityos liberty-networking`
+   - `/parallel build-check agencyos communityos web-app`
    - This is a generalization of `/parallel-check` — each project gets a build agent
 
    If only 1 task is parsed, tell the user: "Only one task found — running directly instead of spawning an agent." Then just do the task.

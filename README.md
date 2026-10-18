@@ -62,7 +62,7 @@ The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operat
 | Skill | What it does | Example |
 |-------|-------------|---------|
 | `/orchestrate` | Decompose a goal, route each piece to the best specialist, run parallel/pipeline, gate, report | `/orchestrate ship the billing page: research, build, review` |
-| `/maestro` | Cross-provider command deck — durable task board (create, claim, sync) any terminal or provider can pick up | `/maestro new "Refactor auth" --repo liberty-networking` |
+| `/maestro` | Cross-provider command deck — durable task board (create, claim, sync) any terminal or provider can pick up | `/maestro new "Refactor auth" --repo web-app` |
 | `/parallel` | Run tasks simultaneously, aggregate results | `/parallel research Stripe billing \| check build \| verify localhost:3000` |
 | `/subagent` | Dispatch a background agent to explore + implement | `/subagent add email notifications to the API` |
 | `/research` | Background research — structured findings while you keep working | `/research Drizzle ORM migration API` |
@@ -131,8 +131,8 @@ The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operat
 | `/help` | Cheat sheet of all skills with quick combos | `/help` |
 | `/notion` | Sync notes and decisions to a Notion workspace | `/notion note "Shipped auth flow"` |
 | `/notion-ctx` | Per-project Notion doc registry with cached summaries | `/notion-ctx sync` |
-| `/slack-reply` | Draft a Slack reply in your voice — resolves the thread, stages a draft | `/slack-reply josh re: the UTI timeline` |
-| `/slack-ctx` | Local Slack directory — people, channels, threads, cached ids | `/slack-ctx save <url> josh` |
+| `/slack-reply` | Draft a Slack reply in your voice — resolves the thread, stages a draft | `/slack-reply jane re: the Acme timeline` |
+| `/slack-ctx` | Local Slack directory — people, channels, threads, cached ids | `/slack-ctx save <url> jane` |
 
 ## How They Compose
 

@@ -69,9 +69,9 @@ The playbook, the harness and the measured probe results live next to this skill
 - Related: `/verify-app` for web apps and layer 0; `/test` for the unit-test suite; `/parallel` if several independent
   apps need checking (each with its own identifier and scratch dir).
 
-## Local example (one machine, one project; ignore or replace elsewhere)
+## Worked example (one hypothetical project; replace the names with yours)
 - Setup: the user's focus config is the `auto`, 5-minute one above, created at `~/.claude/app-testing.json`.
-- Project: strata-v1 (Tauri 2 + WKWebView) has a merged debug-only test bridge: `pnpm build:bridge` produces
-  `Strata Bridge.app` with identifier `co.andrewmiller.strata.test`; `scripts/bridge.py` drives it. Quit it with
+- Project: my-app (Tauri 2 + WKWebView) with a debug-only test bridge: `pnpm build:bridge` produces
+  `MyApp Bridge.app` with identifier `com.example.myapp.test`; `scripts/bridge.py` drives it. Quit it with
   `Bridge.quit()`, raise its quit modal with `Bridge.request_close(from_os=True)`, never via AppleScript. See playbook
   section 8 for the protocol and the known gaps against the probe findings.

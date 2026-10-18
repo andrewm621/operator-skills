@@ -30,7 +30,7 @@ Show what's running on common development ports. Identifies projects and offers 
    | Port | Process | PID | Project | Uptime |
    |------|---------|-----|---------|--------|
    | 3000 | next-server | 12345 | agencyos | 2h 15m |
-   | 3001 | next-server | 12346 | liberty-networking | 45m |
+   | 3001 | next-server | 12346 | web-app | 45m |
    | 5432 | postgres | 789 | (system) | 3d |
    | 9222 | Dia | 456 | (browser) | 1h 10m |
 

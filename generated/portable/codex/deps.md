@@ -149,11 +149,11 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
     | agencyos | ^14.2.0 | latest |
     | communityos | ^14.1.0 | minor behind |
     | pay-copilot | ^14.2.0 | latest |
-    | liberty-networking | ^13.9.0 | MAJOR behind |
+    | web-app | ^13.9.0 | MAJOR behind |
     | strata | ^14.2.0 | latest |
 
     Latest: 14.2.0
-    Behind: 2 projects (communityos: minor, liberty-networking: major)
+    Behind: 2 projects (communityos: minor, web-app: major)
 
     Options:
     1. Update all to ^14.2.0 (spawns parallel agents per project)

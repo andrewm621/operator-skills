@@ -53,12 +53,12 @@ Arguments: {the text you type after the command} (optional: action and details)
    component (starting at the basename), check if it equals any project's `dir`.
    The first match wins. This is root-agnostic — it works whether projects live
    under `~/Projects/<dir>/`, `~/<dir>/`, or anywhere else.
-   - e.g. `/Users/andrewmiller/Projects/agencyos/v2/src/` -> tries `src`, `v2`,
-     `agencyos` -> matches `agencyos`
-   - e.g. `C:\Users\Andrew\knowledge` -> tries `knowledge` -> matches `knowledge`
+   - e.g. `/Users/jane/Projects/myapp/v2/src/` -> tries `src`, `v2`,
+     `myapp` -> matches `myapp`
+   - e.g. `C:\Users\Jane\notes` -> tries `notes` -> matches `notes`
 4. Fuzzy fallback: normalize both sides (lowercase, strip spaces/hyphens), compare each cwd component against project keys
 5. If no match: ask user which project, or check if first argument is a project key
-6. If still unresolved and no arguments: default to `rebelsites` for backward compat
+6. If still unresolved: ask which project to use (or suggest `/notion scaffold <project>`). There is no default project.
 7. Output: `[notion: <project-key>]` at start of response
 
 After resolution, use these from the matched project entry:
@@ -69,10 +69,8 @@ After resolution, use these from the matched project entry:
 ### Standard Notes DB Schema (all projects)
 - Name (title), Description (text), Date, URL, Parent item (relation), Sub-item (relation)
 
-### Fallback: RebelSites (if registry unavailable)
-Hub: 30283fe625a68131b2d2f2675cf033bb
-Notes DB: 30283fe6-25a6-8110-a94c-000b41e8741a (data source)
-Templates: Dev Notes @Today (30283fe6-25a6-818c-992e-ffe1219cc0b7), New Idea (30283fe6-25a6-810a-b60c-dd274b54c60b)
+### If the registry is unavailable
+Don't guess IDs. Ask the user for the hub page URL and Notes database (data source) ID, or run `/notion scaffold <project>` to create and register them.
 
 ## Steps
 
@@ -202,7 +200,7 @@ Templates: Dev Notes @Today (30283fe6-25a6-818c-992e-ffe1219cc0b7), New Idea (30
 1. Read registry, find the `infrastructure` project.
 2. List registered pages with tags.
 3. If tag provided: filter pages to matching tag.
-4. Show `context_packs` references: "Related skills: `azure-uti-context-pack:*`, `vercel-plugin:*`"
+4. Show `context_packs` references: "Related skills: `my-infra-context-pack:*`, `vercel-plugin:*`"
 5. Offer: "Load context with `/notion-ctx load infrastructure [--tags <tag>]`"
 
 ## Rules
@@ -223,4 +221,4 @@ Templates: Dev Notes @Today (30283fe6-25a6-818c-992e-ffe1219cc0b7), New Idea (30
    NOTION_EOF
    ```
 10. **Project context** -- Always show `[notion: <project>]` at start of output to confirm which project was resolved.
-11. **Registry-driven** -- Never hardcode page IDs except in the fallback block. All IDs come from the resolved project entry in registry.yaml.
+11. **Registry-driven** -- Never hardcode page IDs. All IDs come from the resolved project entry in registry.yaml.

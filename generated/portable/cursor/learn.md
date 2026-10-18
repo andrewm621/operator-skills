@@ -119,7 +119,7 @@ This is the **most important action** — it surfaces past lessons before you re
    ### api-quirks (5)
    - Zoom API Quirks [zoom, oauth, s2s] (cloud-archiver)
    - Notion API sync quirks [notion, api, rate-limits] (notion-sync)
-   - Spiro CSV field mapping [csv, import, field-mapping] (westonmediaOS)
+   - Spiro CSV field mapping [csv, import, field-mapping] (my-web-app)
    ...
 
    ### platform (4)

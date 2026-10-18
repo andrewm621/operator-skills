@@ -365,6 +365,7 @@ OUTPUT
 
 ## /dark-mode
 
+
 Add a production-grade Light / Dark / System theme toggle to the app in the current directory. $ARGUMENTS
 
 The toggle is 3-way — **Light**, **Dark**, **System** — where **System** is the default on first visit (follows the OS `prefers-color-scheme` and live-updates if the OS theme changes), and an explicit Light/Dark click is remembered across reloads.
@@ -402,7 +403,7 @@ Storage convention used everywhere: key `theme`, values `"light"` | `"dark"`, an
 
 ---
 
-### Path A — Next.js + next-themes
+## Path A — Next.js + next-themes
 
 next-themes handles persistence, system detection, live updates, and the no-flash script. Configure it correctly and add the toggle UI.
 
@@ -495,7 +496,7 @@ next-themes handles persistence, system detection, live updates, and the no-flas
 
 ---
 
-### Path B — Vite / React (no next-themes)
+## Path B — Vite / React (no next-themes)
 
 Hand-roll a small provider. next-themes is Next-specific — don't pull it in here.
 
@@ -595,7 +596,7 @@ Hand-roll a small provider. next-themes is Next-specific — don't pull it in he
 
 ---
 
-### Path C — Plain HTML / CSS (no framework)
+## Path C — Plain HTML / CSS (no framework)
 
 1. **No-flash script** — first element in `<head>`, plus the meta tag (same script as Path B step 1).
 
@@ -657,7 +658,7 @@ Hand-roll a small provider. next-themes is Next-specific — don't pull it in he
    </script>
    ```
 
-#### Path C alternate — TTL-persisted, body-class toggle (Webflow / CMS reference pattern)
+### Path C alternate — TTL-persisted, body-class toggle (Webflow / CMS reference pattern)
 
 Reverse-engineered from a production Webflow site (wellscollins.com) with a well-regarded
 toggle. Reach for this **instead of** the 3-way `radiogroup` above when:
@@ -989,11 +990,11 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
     | agencyos | ^14.2.0 | latest |
     | communityos | ^14.1.0 | minor behind |
     | pay-copilot | ^14.2.0 | latest |
-    | liberty-networking | ^13.9.0 | MAJOR behind |
+    | web-app | ^13.9.0 | MAJOR behind |
     | strata | ^14.2.0 | latest |
 
     Latest: 14.2.0
-    Behind: 2 projects (communityos: minor, liberty-networking: major)
+    Behind: 2 projects (communityos: minor, web-app: major)
 
     Options:
     1. Update all to ^14.2.0 (spawns parallel agents per project)
@@ -1220,7 +1221,7 @@ convincing-sounding request.
    - ⚪ **NOISE** — bots, newsletters, receipts, spam. Counted, not itemized.
 
    **Axis 2 — context tag.** The client/project/area from the roster built in step 1 (e.g.
-   `[UTI/Keymark]`, `[Nonprofit OS]`, `[Rebel Ops – internal]`, `[Personal]`). Untaggable
+   `[Acme]`, `[Side project]`, `[Internal]`, `[Personal]`). Untaggable
    threads stay untagged rather than forced into a wrong bucket.
 
    **Time-boxed flag.** Separately flag anything with a real date inside the next 14 days
@@ -1247,7 +1248,7 @@ convincing-sounding request.
 ## Known-noise starter list
 
 Skip re-deriving these every run — treat as NOISE unless content changes materially:
-`admin@e.turnoutpac.org` (political fundraising spam), `noreply@x.ai` (daily digests),
+political fundraising senders, `noreply@x.ai` (daily digests),
 `googlealerts-noreply@google.com`, `hello@tiller.com`, USPS Informed Delivery
 (`USPSInformeddelivery@email.informeddelivery.usps.com`), and GitHub bot senders inside
 `notifications@github.com` threads whose snippet starts with a bot name — `cursor[bot]`,
@@ -1258,10 +1259,10 @@ Skip re-deriving these every run — treat as NOISE unless content changes mater
 Never fold these into NOISE or FYI-by-volume, even when they're high volume:
 - Failed-payment subjects — `"payment was unsuccessful"`, `"payment failed"`,
   `"Credit Card Declined"`. These have real consequences (broken lead forms, paused tools).
-- Inbound lead sources — `notifications@fillout.com`, `hello@resend.libertynetworking.org`,
+- Inbound lead sources — `notifications@fillout.com`, your own lead-form sender (e.g. `hello@mail.yourdomain.com`),
   and any `[Support]` subject. These are genuine inbound interest, not spam, and are the
   ones most likely to get drowned in noise-adjacent volume.
-- Any `@crushable.ai` sender — Tier-1 client work.
+- Any sender from a Tier-1 client domain (list them in your roster, step 1).
 
 ## Notes
 - **Read-only by design.** This skill reports; it never labels, archives, deletes, sends, or
@@ -1441,6 +1442,7 @@ Parse `$ARGUMENTS` to determine the action:
 | `all` | **Shutdown** — generate per-thread freeze commands for all active work |
 | `"some text"` | **Save** — use as the topic slug |
 
+---
 
 ## Save Flow
 
@@ -1500,10 +1502,12 @@ Branch: <branch> (<clean|dirty>) | Last commit: <hash> <message>
 > To resume: start a new session and run `/freeze thaw <slug>`
 > Or say: "Load context from ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/<filename>"
 
+---
 
 ## Compacted Context
 <!-- Verbatim compaction summary if present, or "No compaction — full context available at freeze time." -->
 
+---
 
 ## Active Task
 <What was being worked on — the specific thing to resume. Be concrete.>
@@ -1528,6 +1532,7 @@ Branch: <branch> (<clean|dirty>) | Last commit: <hash> <message>
 ## Open Threads
 - <Unanswered questions, deferred items, things to come back to>
 
+---
 
 ## Environment State
 - **Uncommitted changes:** <git status summary or "clean">
@@ -1536,6 +1541,7 @@ Branch: <branch> (<clean|dirty>) | Last commit: <hash> <message>
 - **Active roadmap:** <slug + current phase, or "none">
 - **Today's log entries:** <count or "no log today">
 
+---
 
 ## Resumption Prompt
 > Continue with: <the most logical next action, written as an instruction>
@@ -1575,6 +1581,7 @@ To resume in a new thread:
   /freeze thaw <slug>
 ```
 
+---
 
 ## Thaw Flow
 
@@ -1609,8 +1616,8 @@ ls ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/<YYYY-MM-DD
 If related freezes exist, show them after the main context:
 ```
 Related freezes (same project/day):
-  - 2026-05-12 14:30  rebelsites-pipeline-hardening (also rebelsites)
-  - 2026-05-12 16:00  rebelsites-suggestion-chips   (also rebelsites)
+  - 2026-05-12 14:30  webapp-pipeline-hardening (also webapp)
+  - 2026-05-12 16:00  webapp-suggestion-chips   (also webapp)
 You may want to thaw these too for full context.
 ```
 
@@ -1637,6 +1644,7 @@ If the freeze lists files with status "In-progress" or "Needs work", proactively
 
 Suggest the resumption prompt action and ask if the user wants to proceed with it or do something else.
 
+---
 
 ## Shutdown Flow (all)
 
@@ -1670,10 +1678,10 @@ Shutdown Freeze Checklist
 This thread: frozen as <slug>
 
 Other active projects today:
-  1. rebelsites (session log exists, port 3000 running)
-     -> In that terminal, run: /freeze rebelsites-<inferred-topic>
-  2. strata-local (session log exists)
-     -> In that terminal, run: /freeze strata-<inferred-topic>
+  1. webapp (session log exists, port 3000 running)
+     -> In that terminal, run: /freeze webapp-<inferred-topic>
+  2. desktop-app (session log exists)
+     -> In that terminal, run: /freeze desktop-<inferred-topic>
 
 Already frozen today:
   - 2026-05-12 14:30  agencyos-auth-refactor
@@ -1689,12 +1697,13 @@ Infer topic slugs from session log filenames when possible (e.g., `2026-05-12-ge
 If multiple session logs exist for the same project today, note this:
 
 ```
-Note: rebelsites has 2 session logs today — you may have multiple
+Note: webapp has 2 session logs today — you may have multiple
 threads on this project. Freeze each thread with a distinct slug:
-  /freeze rebelsites-pipeline-hardening
-  /freeze rebelsites-suggestion-chips
+  /freeze webapp-pipeline-hardening
+  /freeze webapp-suggestion-chips
 ```
 
+---
 
 ## List Flow
 
@@ -1706,7 +1715,7 @@ Glob for `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/*.md
 Recent freezes:
   1. 2026-05-12 14:30  agencyos-auth-refactor     (agencyos)
   2. 2026-05-12 09:15  freeze-skill-implementation (skills)
-  3. 2026-05-11 16:45  liberty-cron-debugging      (liberty-networking)
+  3. 2026-05-11 16:45  cron-debugging              (web-app)
   ...
 
 Thaw one with: /freeze thaw <slug>
@@ -1714,6 +1723,7 @@ Thaw one with: /freeze thaw <slug>
 
 Parse the topic from the `# Context Freeze:` header line and project from the `Project(s):` line.
 
+---
 
 ## Key Principles
 
@@ -2430,7 +2440,7 @@ This is the **most important action** — it surfaces past lessons before you re
    ### api-quirks (5)
    - Zoom API Quirks [zoom, oauth, s2s] (cloud-archiver)
    - Notion API sync quirks [notion, api, rate-limits] (notion-sync)
-   - Spiro CSV field mapping [csv, import, field-mapping] (westonmediaOS)
+   - Spiro CSV field mapping [csv, import, field-mapping] (my-web-app)
    ...
 
    ### platform (4)
@@ -2752,7 +2762,7 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
 
 1. **Determine scope** — From `$ARGUMENTS`:
 
-   - If a project name is given (e.g., "agencyos", "liberty-networking"), resolve to `~/Projects/<dir>`
+   - If a project name is given (e.g., "agencyos", "web-app"), resolve to `~/Projects/<dir>`
    - If "workspace" or "all", map the full `~/Projects/` workspace at a high level
    - If empty, use the current working directory
    - If a subdirectory path is given (e.g., "app/api"), map just that subtree in detail
@@ -4515,7 +4525,7 @@ Arguments: $ARGUMENTS (optional: action and details)
 
 ## Tool Strategy
 
-**Primary: `ntn` CLI** (Notion CLI at `/usr/local/bin/ntn`) -- uses far fewer tokens than MCP tool calls.
+**Primary: `ntn` CLI** (Notion CLI, resolved from `PATH`) -- uses far fewer tokens than MCP tool calls. If `ntn` is not on `PATH` (e.g. a machine where only the Notion MCP is configured), skip it and use the MCP fallback below for every step.
 - `ntn pages create` -- create pages with markdown content via stdin or `--content`
 - `ntn pages get <id>` -- fetch page content as markdown with frontmatter
 - `ntn pages update <id>` -- update page content via stdin or `--content`
@@ -4532,19 +4542,28 @@ Arguments: $ARGUMENTS (optional: action and details)
 
 ## Notion Workspace Reference
 
-**Source of truth:** `~/.claude/projects/-Users-andrewmiller-Projects/notion-context/registry.yaml`
+**Source of truth:** `~/.claude/notion-context/registry.yaml`
+
+> Machine-independent location. Older installs kept this under
+> `~/.claude/projects/<project-slug>/notion-context/`; if that path exists and
+> `~/.claude/notion-context/` does not, move it there once:
+> `mv ~/.claude/projects/*/notion-context ~/.claude/notion-context`.
 
 ### Project Resolution (Step 0 -- runs before every action)
 
 1. Get cwd
-2. Extract directory name: first path component after `~/Projects/`
-   - e.g., `/Users/andrewmiller/Projects/agencyos/v2/src/` -> `agencyos`
-3. Read registry.yaml
-4. Match: scan projects for one where `dir` == extracted directory name
-5. Fuzzy fallback: normalize both sides (lowercase, strip spaces/hyphens), compare against project keys
-6. If no match: ask user which project, or check if first argument is a project key
-7. If still unresolved and no arguments: default to `rebelsites` for backward compat
-8. Output: `[notion: <project-key>]` at start of response
+2. Read registry.yaml and collect every project's `dir` value
+3. Match by walking cwd from the deepest component upward: for each path
+   component (starting at the basename), check if it equals any project's `dir`.
+   The first match wins. This is root-agnostic — it works whether projects live
+   under `~/Projects/<dir>/`, `~/<dir>/`, or anywhere else.
+   - e.g. `/Users/jane/Projects/myapp/v2/src/` -> tries `src`, `v2`,
+     `myapp` -> matches `myapp`
+   - e.g. `C:\Users\Jane\notes` -> tries `notes` -> matches `notes`
+4. Fuzzy fallback: normalize both sides (lowercase, strip spaces/hyphens), compare each cwd component against project keys
+5. If no match: ask user which project, or check if first argument is a project key
+6. If still unresolved: ask which project to use (or suggest `/notion scaffold <project>`). There is no default project.
+7. Output: `[notion: <project-key>]` at start of response
 
 After resolution, use these from the matched project entry:
 - `$HUB` -- hub page ID (parent for sub-pages)
@@ -4554,10 +4573,8 @@ After resolution, use these from the matched project entry:
 ### Standard Notes DB Schema (all projects)
 - Name (title), Description (text), Date, URL, Parent item (relation), Sub-item (relation)
 
-### Fallback: RebelSites (if registry unavailable)
-Hub: 30283fe625a68131b2d2f2675cf033bb
-Notes DB: 30283fe6-25a6-8110-a94c-000b41e8741a (data source)
-Templates: Dev Notes @Today (30283fe6-25a6-818c-992e-ffe1219cc0b7), New Idea (30283fe6-25a6-810a-b60c-dd274b54c60b)
+### If the registry is unavailable
+Don't guess IDs. Ask the user for the hub page URL and Notes database (data source) ID, or run `/notion scaffold <project>` to create and register them.
 
 ## Steps
 
@@ -4652,7 +4669,7 @@ Templates: Dev Notes @Today (30283fe6-25a6-818c-992e-ffe1219cc0b7), New Idea (30
 
 ### For `scaffold <project>`
 
-1. **Validate** -- Check `~/Projects/<project>/` exists (unless `dir` is null, e.g., `infrastructure`). Check if already in registry.
+1. **Validate** -- Confirm the project has a local directory (its `dir`, resolvable from cwd or a known projects root), unless `dir` is null (e.g., `infrastructure`). Check if already in registry.
    - If already has hub + notes_db: "Already scaffolded. Run `/notion status`."
    - If in registry but missing notes_db: offer to create just the DB.
 
@@ -4687,7 +4704,7 @@ Templates: Dev Notes @Today (30283fe6-25a6-818c-992e-ffe1219cc0b7), New Idea (30
 1. Read registry, find the `infrastructure` project.
 2. List registered pages with tags.
 3. If tag provided: filter pages to matching tag.
-4. Show `context_packs` references: "Related skills: `azure-uti-context-pack:*`, `vercel-plugin:*`"
+4. Show `context_packs` references: "Related skills: `my-infra-context-pack:*`, `vercel-plugin:*`"
 5. Offer: "Load context with `/notion-ctx load infrastructure [--tags <tag>]`"
 
 ## Rules
@@ -4708,7 +4725,7 @@ Templates: Dev Notes @Today (30283fe6-25a6-818c-992e-ffe1219cc0b7), New Idea (30
    NOTION_EOF
    ```
 10. **Project context** -- Always show `[notion: <project>]` at start of output to confirm which project was resolved.
-11. **Registry-driven** -- Never hardcode page IDs except in the fallback block. All IDs come from the resolved project entry in registry.yaml.
+11. **Registry-driven** -- Never hardcode page IDs. All IDs come from the resolved project entry in registry.yaml.
 
 ---
 
@@ -4908,7 +4925,7 @@ Arguments: $ARGUMENTS
 
    **Build-check format:**
    If `$ARGUMENTS` starts with "build-check", parse project names.
-   - `/parallel build-check agencyos communityos liberty-networking`
+   - `/parallel build-check agencyos communityos web-app`
    - This is a generalization of `/parallel-check` — each project gets a build agent
 
    If only 1 task is parsed, tell the user: "Only one task found — running directly instead of spawning an agent." Then just do the task.
@@ -5340,7 +5357,7 @@ Show what's running on common development ports. Identifies projects and offers 
    | Port | Process | PID | Project | Uptime |
    |------|---------|-----|---------|--------|
    | 3000 | next-server | 12345 | agencyos | 2h 15m |
-   | 3001 | next-server | 12346 | liberty-networking | 45m |
+   | 3001 | next-server | 12346 | web-app | 45m |
    | 5432 | postgres | 789 | (system) | 3d |
    | 9222 | Dia | 456 | (browser) | 1h 10m |
 
@@ -6643,7 +6660,7 @@ Topic: $ARGUMENTS
 ## Steps
 
 1. **Classify the research type** — Based on `$ARGUMENTS`, determine the best approach:
-   - **Codebase research** (e.g., "how does auth work in liberty-networking", "find all Stripe webhook handlers"): Use an Explore subagent scoped to the relevant project directory
+   - **Codebase research** (e.g., "how does auth work in web-app", "find all Stripe webhook handlers"): Use an Explore subagent scoped to the relevant project directory
    - **Documentation research** (e.g., "Drizzle ORM migration API", "Next.js 16 proxy.ts"): Use an Explore subagent to read local docs, or use Firecrawl/WebFetch to pull official docs
    - **Cross-project research** (e.g., "how do we handle cron jobs across projects"): Use an Explore subagent across ~/Projects
    - **External research** (e.g., "Stripe metered billing API", "Neon branching best practices"): Use web search and doc fetching tools
@@ -7140,11 +7157,11 @@ Query: $ARGUMENTS
    | agencyos | stripe | ^14.2.0 | no |
    | communityos | stripe | ^14.1.0 | no |
    | pay-copilot | stripe | ^14.2.0 | no |
-   | liberty-networking | stripe | ^13.9.0 | no |
-   | helloconnect | stripe | ^14.0.0 | no |
+   | web-app | stripe | ^13.9.0 | no |
+   | api-service | stripe | ^14.0.0 | no |
    | strata | stripe | ^14.2.0 | no |
 
-   Note: liberty-networking is on an older version (13.9.0 vs 14.2.0)
+   Note: web-app is on an older version (13.9.0 vs 14.2.0)
    ```
 
    **For code searches:**
@@ -7155,9 +7172,9 @@ Query: $ARGUMENTS
    | Project | Matches | Key files |
    |---------|---------|-----------|
    | agencyos | 8 | lib/auth.ts, components/nav.tsx |
-   | liberty-networking | 7 | lib/session.ts, app/layout.tsx |
+   | web-app | 7 | lib/session.ts, app/layout.tsx |
    | communityos | 5 | hooks/use-auth.ts |
-   | helloconnect | 3 | lib/auth.ts |
+   | api-service | 3 | lib/auth.ts |
 
    Sample (agencyos/lib/auth.ts:15):
      const { data: session } = useSession()
@@ -7169,7 +7186,7 @@ Query: $ARGUMENTS
 
    Found in 3 projects:
    - agencyos/proxy.ts (2.1KB, modified 2d ago)
-   - liberty-networking/src/proxy.ts (1.8KB, modified 1w ago)
+   - web-app/src/proxy.ts (1.8KB, modified 1w ago)
    - communityos/proxy.ts (950B, modified 3d ago)
    ```
 
@@ -7317,38 +7334,38 @@ Same ladder as `/slack-reply`, cheapest first:
 3. **Slack** → `mcp__claude_ai_Slack__slack_search_channels` for channels, `mcp__claude_ai_Slack__slack_search_users` for people,
    `mcp__claude_ai_Slack__slack_search_public_and_private` for a thread by content.
 
-Always record **aliases** when saving. The whole point is that "josh", "Josh Heller", and
-"UTI Josh" all land on one entry — a directory that only matches the canonical name saves
+Always record **aliases** when saving. The whole point is that "jane", "Jane Doe", and
+"Acme Jane" all land on one entry — a directory that only matches the canonical name saves
 almost nothing. Add the obvious variants unprompted; ask only when genuinely ambiguous.
 
 ## Entry shapes
 
 ```yaml
 people:
-  josh-heller:
-    name: Josh Heller
-    aliases: [josh, josh h, uti josh]
-    user_id: U0XXXXXXXXX      # doubles as channel_id for DMs
-    context: UTI + Keymark partnership
-    projects: [uti, keymark]
+  jane-doe:
+    name: Jane Doe
+    aliases: [jane, jane d, acme jane]
+    user_id: U0123456789      # doubles as channel_id for DMs
+    context: Acme partnership
+    projects: [acme]
     last_used: 2026-08-04
 
 channels:
-  rebel-team:
-    name: "#rebel-team"
+  team:
+    name: "#team"
     aliases: [team, internal]
-    channel_id: C0AMDBAJMQE
+    channel_id: C0123456789
     type: public              # public | private | dm | group_dm
-    purpose: Internal Rebel Ops team channel
-    projects: [rebel-ops]
+    purpose: Internal team channel
+    projects: [internal]
     last_used: 2026-08-04
 
 threads:
-  uti-rollout-timeline:
-    title: Josh asking when UTI phase 2 lands
-    channel_id: C0AMDBAJMQE
+  acme-rollout-timeline:
+    title: Jane asking when Acme phase 2 lands
+    channel_id: C0123456789
     thread_ts: "1754312345.678900"   # PARENT ts — quote it, it's not a number
-    with: josh-heller
+    with: jane-doe
     first_seen: 2026-08-04
     status: open              # open | replied | closed
 ```
@@ -7363,7 +7380,7 @@ For each cached entry, confirm it still resolves and still matches:
 - People — `mcp__claude_ai_Slack__slack_read_user_profile` on the `user_id`; flag deactivated accounts.
 - Threads — skip. They're a working set; use `prune` instead.
 
-Do not silently rewrite ids during `sync`. Report the mismatches and let Andrew confirm,
+Do not silently rewrite ids during `sync`. Report the mismatches and let the user confirm,
 since a "renamed channel" and "a different channel with a similar name" look identical from
 search results.
 
@@ -7392,7 +7409,7 @@ generated_from: ~/.claude/projects/-Users-andrewmiller-knowledge/slack/registry.
 
 | Channel | Aliases | Purpose | Projects | Last used |
 |---|---|---|---|---|
-| [#rebel-team](https://<domain>.slack.com/archives/C0AMDBAJMQE) | team, internal | Internal Rebel Ops team | rebel-ops | 2026-08-04 |
+| [#team](https://<domain>.slack.com/archives/C0123456789) | team, internal | Internal team channel | internal | 2026-08-04 |
 
 ## People
 
@@ -7470,13 +7487,13 @@ If `workspace.domain` in the registry is null, write the parsed `domain` into it
 
 **Tier 2 — a name, nickname, or channel.** Grep the registry's `aliases`, `name`, and key
 fields (case-insensitive). A hit gives `channel_id` with zero API calls. If the ask names a
-person *and* a topic ("Josh about the UTI timeline"), also check `threads` for an open
+person *and* a topic ("Jane about the Acme timeline"), also check `threads` for an open
 thread matching both.
 
 **Tier 3 — search Slack.** Only on a Tier 1+2 miss.
 - `mcp__claude_ai_Slack__slack_search_public_and_private` — semantic search is enabled on this account, so
-  natural-language queries work ("question about the UTI rollout timeline"). Narrow with
-  modifiers: `from:@josh`, `in:#rebel-team`, `after:2026-07-28`, `is:thread`.
+  natural-language queries work ("question about the Acme rollout timeline"). Narrow with
+  modifiers: `from:@jane`, `in:#team`, `after:2026-07-28`, `is:thread`.
 - `mcp__claude_ai_Slack__slack_search_channels` when the target is a channel, not a message.
 - `mcp__claude_ai_Slack__slack_search_users` when the target is a DM and you need the `U…` id.
 
@@ -7500,9 +7517,10 @@ If any participant is unknown, `mcp__claude_ai_Slack__slack_read_user_profile` f
 
 ### 3. Draft in Andrew's voice, tuned for Slack
 
-Voice source: `/Users/andrewmiller/Projects/AI Agent Teams/live/agents/writing.md`. Read it
-if the reply is client-facing or longer than a couple of lines. Skip it for a one-line
-internal ack.
+Voice source (optional): your own voice or style guide, if you keep one — a file you point
+Claude at, or a note in your vault. Read it if the reply is client-facing or longer than a
+couple of lines; skip it for a one-line internal ack. With no guide, match how the user's
+earlier messages in the thread read.
 
 Slack register differs from email — apply these on top of the voice guide:
 - Lead with the answer. No "Hey! Great question —".
@@ -7511,17 +7529,17 @@ Slack register differs from email — apply these on top of the voice guide:
 - Bullets only for 3+ parallel items. Two items is a sentence.
 - Slack markdown: `*bold*` renders as bold in Slack, `_italic_`, `` `code` ``, `>quote`.
   The draft tool takes standard markdown and converts — write standard `**bold**`.
-- Match the thread's formality. A client channel is not `#rebel-team`.
+- Match the thread's formality. A client channel is not `#team`.
 - If the honest answer is "I don't know yet", draft that plus when he'll know. Do not
-  invent a status, a date, or a delivery claim. Pull real state from the vault
-  (`kb context <project>`, `strata/Projects/`) rather than guessing.
+  invent a status, a date, or a delivery claim. Pull real state from your
+  project notes or tracker rather than guessing.
 
 Flag rather than paper over: if answering requires a fact you don't have, put
-`[NEEDS: what's the actual Keymark go-live date?]` inline and tell Andrew in your summary.
+`[NEEDS: what's the actual Acme go-live date?]` inline and tell Andrew in your summary.
 
 ### 4. Show it, then stage it
 
-Print the draft in the terminal first, with the target ("→ #rebel-team, thread w/ Josh,
+Print the draft in the terminal first, with the target ("→ #team, thread w/ Jane,
 2 replies"). On approval call `mcp__claude_ai_Slack__slack_send_message_draft`:
 
 - `channel_id` — the resolved id (`C…`, `D…`, or `U…` for a DM)
@@ -7541,7 +7559,7 @@ Error handling:
 Append one row to `~/knowledge/03-Resources/slack-reply-log.md` under today's date:
 
 ```markdown
-- **2026-08-04** — [#rebel-team / Josh Heller](https://<domain>.slack.com/archives/C.../p...) — UTI phase 2 timeline — *drafted, awaiting send*
+- **2026-08-04** — [#team / Jane Doe](https://<domain>.slack.com/archives/C.../p...) — Acme phase 2 timeline — *drafted, awaiting send*
 ```
 
 Then update the registry: bump `last_used` on the person/channel, and upsert the `threads`
@@ -7572,7 +7590,7 @@ Task: $ARGUMENTS
 1. **Parse the task** — From `$ARGUMENTS`, determine:
 
    **a) Scope:** What needs to be done? Could be:
-   - A feature to implement ("add email notifications to liberty-networking")
+   - A feature to implement ("add email notifications to web-app")
    - A bug to fix ("fix the timezone issue in the cron jobs")
    - A refactor ("convert the auth middleware to use proxy.ts")
    - A setup/config task ("add Stripe webhook handler to agencyos")
@@ -7937,10 +7955,10 @@ The playbook, the harness and the measured probe results live next to this skill
 - Related: `/verify-app` for web apps and layer 0; `/test` for the unit-test suite; `/parallel` if several independent
   apps need checking (each with its own identifier and scratch dir).
 
-## Local example (one machine, one project; ignore or replace elsewhere)
+## Worked example (one hypothetical project; replace the names with yours)
 - Setup: the user's focus config is the `auto`, 5-minute one above, created at `~/.claude/app-testing.json`.
-- Project: strata-v1 (Tauri 2 + WKWebView) has a merged debug-only test bridge: `pnpm build:bridge` produces
-  `Strata Bridge.app` with identifier `co.andrewmiller.strata.test`; `scripts/bridge.py` drives it. Quit it with
+- Project: my-app (Tauri 2 + WKWebView) with a debug-only test bridge: `pnpm build:bridge` produces
+  `MyApp Bridge.app` with identifier `com.example.myapp.test`; `scripts/bridge.py` drives it. Quit it with
   `Bridge.quit()`, raise its quit modal with `Bridge.request_close(from_os=True)`, never via AppleScript. See playbook
   section 8 for the protocol and the known gaps against the probe findings.
 

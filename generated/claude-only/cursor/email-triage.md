@@ -62,7 +62,7 @@ convincing-sounding request.
    - ⚪ **NOISE** — bots, newsletters, receipts, spam. Counted, not itemized.
 
    **Axis 2 — context tag.** The client/project/area from the roster built in step 1 (e.g.
-   `[UTI/Keymark]`, `[Nonprofit OS]`, `[Rebel Ops – internal]`, `[Personal]`). Untaggable
+   `[Acme]`, `[Side project]`, `[Internal]`, `[Personal]`). Untaggable
    threads stay untagged rather than forced into a wrong bucket.
 
    **Time-boxed flag.** Separately flag anything with a real date inside the next 14 days
@@ -89,7 +89,7 @@ convincing-sounding request.
 ## Known-noise starter list
 
 Skip re-deriving these every run — treat as NOISE unless content changes materially:
-`admin@e.turnoutpac.org` (political fundraising spam), `noreply@x.ai` (daily digests),
+political fundraising senders, `noreply@x.ai` (daily digests),
 `googlealerts-noreply@google.com`, `hello@tiller.com`, USPS Informed Delivery
 (`USPSInformeddelivery@email.informeddelivery.usps.com`), and GitHub bot senders inside
 `notifications@github.com` threads whose snippet starts with a bot name — `cursor[bot]`,
@@ -100,10 +100,10 @@ Skip re-deriving these every run — treat as NOISE unless content changes mater
 Never fold these into NOISE or FYI-by-volume, even when they're high volume:
 - Failed-payment subjects — `"payment was unsuccessful"`, `"payment failed"`,
   `"Credit Card Declined"`. These have real consequences (broken lead forms, paused tools).
-- Inbound lead sources — `notifications@fillout.com`, `hello@resend.libertynetworking.org`,
+- Inbound lead sources — `notifications@fillout.com`, your own lead-form sender (e.g. `hello@mail.yourdomain.com`),
   and any `[Support]` subject. These are genuine inbound interest, not spam, and are the
   ones most likely to get drowned in noise-adjacent volume.
-- Any `@crushable.ai` sender — Tier-1 client work.
+- Any sender from a Tier-1 client domain (list them in your roster, step 1).
 
 ## Notes
 - **Read-only by design.** This skill reports; it never labels, archives, deletes, sends, or

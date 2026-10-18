@@ -191,8 +191,8 @@ ls ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/<YYYY-MM-DD
 If related freezes exist, show them after the main context:
 ```
 Related freezes (same project/day):
-  - 2026-05-12 14:30  rebelsites-pipeline-hardening (also rebelsites)
-  - 2026-05-12 16:00  rebelsites-suggestion-chips   (also rebelsites)
+  - 2026-05-12 14:30  webapp-pipeline-hardening (also webapp)
+  - 2026-05-12 16:00  webapp-suggestion-chips   (also webapp)
 You may want to thaw these too for full context.
 ```
 
@@ -253,10 +253,10 @@ Shutdown Freeze Checklist
 This thread: frozen as <slug>
 
 Other active projects today:
-  1. rebelsites (session log exists, port 3000 running)
-     -> In that terminal, run: /freeze rebelsites-<inferred-topic>
-  2. strata-local (session log exists)
-     -> In that terminal, run: /freeze strata-<inferred-topic>
+  1. webapp (session log exists, port 3000 running)
+     -> In that terminal, run: /freeze webapp-<inferred-topic>
+  2. desktop-app (session log exists)
+     -> In that terminal, run: /freeze desktop-<inferred-topic>
 
 Already frozen today:
   - 2026-05-12 14:30  agencyos-auth-refactor
@@ -272,10 +272,10 @@ Infer topic slugs from session log filenames when possible (e.g., `2026-05-12-ge
 If multiple session logs exist for the same project today, note this:
 
 ```
-Note: rebelsites has 2 session logs today — you may have multiple
+Note: webapp has 2 session logs today — you may have multiple
 threads on this project. Freeze each thread with a distinct slug:
-  /freeze rebelsites-pipeline-hardening
-  /freeze rebelsites-suggestion-chips
+  /freeze webapp-pipeline-hardening
+  /freeze webapp-suggestion-chips
 ```
 
 ---
@@ -290,7 +290,7 @@ Glob for `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/*.md
 Recent freezes:
   1. 2026-05-12 14:30  agencyos-auth-refactor     (agencyos)
   2. 2026-05-12 09:15  freeze-skill-implementation (skills)
-  3. 2026-05-11 16:45  liberty-cron-debugging      (liberty-networking)
+  3. 2026-05-11 16:45  cron-debugging              (web-app)
   ...
 
 Thaw one with: /freeze thaw <slug>

@@ -94,7 +94,7 @@ updated: 2026-08-28T09:00
 One paragraph: the true intent, not the surface ask.
 
 ## Context pointers        ← the "read this first" that saves every cold session
-- repo: liberty networking (read its CLAUDE.md first)
+- repo: acme app (read its CLAUDE.md first)
 - touch: src/auth/**, proxy.ts
 - prior art: dev-notes/decisions/2026-08-01-neon-auth.md
 
@@ -149,7 +149,7 @@ Derived cache. One JSON object per line (append-friendly, greppable, never
 hand-edited). Rebuilt wholesale by `/maestro sync`.
 
 ```jsonl
-{"id":"liberty/T-014","repo":"liberty networking","title":"Refactor auth to Neon Auth","status":"claimed","owner":"codex@term-2","progress":"3/12","priority":2,"updated":"2026-08-28T14:02"}
+{"id":"acme/T-014","repo":"acme app","title":"Refactor auth to Neon Auth","status":"claimed","owner":"codex@term-2","progress":"3/12","priority":2,"updated":"2026-08-28T14:02"}
 {"id":"agencyos/T-021","repo":"agencyos","title":"Stripe webhook retries","status":"open","owner":null,"progress":"0/0","priority":1,"updated":"2026-08-28T11:10"}
 ```
 
@@ -160,8 +160,8 @@ instead of walking all 50+.
 
 ```yaml
 repos:
-  - name: liberty networking
-    path: /Users/andrewmiller/Projects/liberty networking
+  - name: acme app
+    path: /Users/andrewmiller/Projects/acme app
   - name: agencyos
     path: /Users/andrewmiller/Projects/agencyos
 id_prefix_from: name        # global ids namespaced by repo name
@@ -243,13 +243,13 @@ claude:  { bin: claude, folder_flag: null, prompt_mode: native_skill }
 
 ```bash
 # Cursor
-cd ~/Projects/.maestro/worktrees/liberty/T-014 && cat PROMPT.md | agent -p "Execute the attached task brief" --force --output-format json
+cd ~/Projects/.maestro/worktrees/acme/T-014 && cat PROMPT.md | agent -p "Execute the attached task brief" --force --output-format json
 
 # Grok Build
-cd ~/Projects/.maestro/worktrees/liberty/T-014 && cat PROMPT.md | grok -p "Execute the attached task brief" --cwd . --no-auto-update
+cd ~/Projects/.maestro/worktrees/acme/T-014 && cat PROMPT.md | grok -p "Execute the attached task brief" --cwd . --no-auto-update
 
 # Claude Code
-cd ~/Projects/.maestro/worktrees/liberty/T-014 && claude   # then: /maestro work T-014
+cd ~/Projects/.maestro/worktrees/acme/T-014 && claude   # then: /maestro work T-014
 
 # Codex
 /handoff T-014   # → GitHub issue #; then `codex` in the worktree referencing the issue
@@ -440,8 +440,8 @@ A repo only mirrors if its `registry.yaml` entry carries `mirror: github`:
 
 ```yaml
 repos:
-  - name: liberty networking
-    path: /Users/andrewmiller/Projects/liberty networking/liberty-networking-app
+  - name: acme app
+    path: /Users/andrewmiller/Projects/acme app/acme-app
     mirror: github        # opt-in — absent (the default) means mirror never touches this repo
 ```
 
@@ -477,9 +477,9 @@ then a managed footer —
 **Status:** in-progress
 **Priority:** 2
 **Progress:** 3/12
-**Local path:** /Users/andrewmiller/Projects/liberty networking/liberty-networking-app/.maestro/tasks (T-014)
+**Local path:** /Users/andrewmiller/Projects/acme app/acme-app/.maestro/tasks (T-014)
 
-<!-- maestro-task: liberty networking/T-014 -->
+<!-- maestro-task: acme app/T-014 -->
 ```
 
 The `<!-- maestro-task: <repo>/T-<id> -->` marker is how the mirror finds "its" issue

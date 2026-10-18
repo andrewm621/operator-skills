@@ -6,7 +6,7 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
 
 1. **Determine scope** — From `$ARGUMENTS`:
 
-   - If a project name is given (e.g., "agencyos", "liberty-networking"), resolve to `~/Projects/<dir>`
+   - If a project name is given (e.g., "agencyos", "web-app"), resolve to `~/Projects/<dir>`
    - If "workspace" or "all", map the full `~/Projects/` workspace at a high level
    - If empty, use the current working directory
    - If a subdirectory path is given (e.g., "app/api"), map just that subtree in detail

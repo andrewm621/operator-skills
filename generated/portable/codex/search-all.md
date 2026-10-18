@@ -48,11 +48,11 @@ Query: $ARGUMENTS
    | agencyos | stripe | ^14.2.0 | no |
    | communityos | stripe | ^14.1.0 | no |
    | pay-copilot | stripe | ^14.2.0 | no |
-   | liberty-networking | stripe | ^13.9.0 | no |
-   | helloconnect | stripe | ^14.0.0 | no |
+   | web-app | stripe | ^13.9.0 | no |
+   | api-service | stripe | ^14.0.0 | no |
    | strata | stripe | ^14.2.0 | no |
 
-   Note: liberty-networking is on an older version (13.9.0 vs 14.2.0)
+   Note: web-app is on an older version (13.9.0 vs 14.2.0)
    ```
 
    **For code searches:**
@@ -63,9 +63,9 @@ Query: $ARGUMENTS
    | Project | Matches | Key files |
    |---------|---------|-----------|
    | agencyos | 8 | lib/auth.ts, components/nav.tsx |
-   | liberty-networking | 7 | lib/session.ts, app/layout.tsx |
+   | web-app | 7 | lib/session.ts, app/layout.tsx |
    | communityos | 5 | hooks/use-auth.ts |
-   | helloconnect | 3 | lib/auth.ts |
+   | api-service | 3 | lib/auth.ts |
 
    Sample (agencyos/lib/auth.ts:15):
      const { data: session } = useSession()
@@ -77,7 +77,7 @@ Query: $ARGUMENTS
 
    Found in 3 projects:
    - agencyos/proxy.ts (2.1KB, modified 2d ago)
-   - liberty-networking/src/proxy.ts (1.8KB, modified 1w ago)
+   - web-app/src/proxy.ts (1.8KB, modified 1w ago)
    - communityos/proxy.ts (950B, modified 3d ago)
    ```
 

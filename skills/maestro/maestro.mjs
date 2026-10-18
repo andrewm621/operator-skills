@@ -326,12 +326,9 @@ function cmdInit() {
   mkdirSync(GLOBAL_DIR, { recursive: true });
 
   if (!existsSync(REGISTRY_PATH)) {
-    const seed = [
-      { name: 'liberty networking', path: path.join(HOME, 'Projects', 'liberty networking') },
-      { name: 'agencyos', path: path.join(HOME, 'Projects', 'agencyos') },
-    ];
-    writeFileSync(REGISTRY_PATH, renderRegistry(seed));
-    console.log(`Created ${REGISTRY_PATH}`);
+    // Start empty: add repos by appending `- name` / `path` pairs to the registry.
+    writeFileSync(REGISTRY_PATH, renderRegistry([]));
+    console.log(`Created ${REGISTRY_PATH} (no repos yet — append \`- name\` / \`path\` pairs)`);
   } else {
     console.log(`Registry already exists — ${REGISTRY_PATH} (left untouched)`);
   }

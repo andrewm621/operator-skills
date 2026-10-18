@@ -55,38 +55,38 @@ Same ladder as `/slack-reply`, cheapest first:
 3. **Slack** → `mcp__claude_ai_Slack__slack_search_channels` for channels, `mcp__claude_ai_Slack__slack_search_users` for people,
    `mcp__claude_ai_Slack__slack_search_public_and_private` for a thread by content.
 
-Always record **aliases** when saving. The whole point is that "josh", "Josh Heller", and
-"UTI Josh" all land on one entry — a directory that only matches the canonical name saves
+Always record **aliases** when saving. The whole point is that "jane", "Jane Doe", and
+"Acme Jane" all land on one entry — a directory that only matches the canonical name saves
 almost nothing. Add the obvious variants unprompted; ask only when genuinely ambiguous.
 
 ## Entry shapes
 
 ```yaml
 people:
-  josh-heller:
-    name: Josh Heller
-    aliases: [josh, josh h, uti josh]
-    user_id: U0XXXXXXXXX      # doubles as channel_id for DMs
-    context: UTI + Keymark partnership
-    projects: [uti, keymark]
+  jane-doe:
+    name: Jane Doe
+    aliases: [jane, jane d, acme jane]
+    user_id: U0123456789      # doubles as channel_id for DMs
+    context: Acme partnership
+    projects: [acme]
     last_used: 2026-08-04
 
 channels:
-  rebel-team:
-    name: "#rebel-team"
+  team:
+    name: "#team"
     aliases: [team, internal]
-    channel_id: C0AMDBAJMQE
+    channel_id: C0123456789
     type: public              # public | private | dm | group_dm
-    purpose: Internal Rebel Ops team channel
-    projects: [rebel-ops]
+    purpose: Internal team channel
+    projects: [internal]
     last_used: 2026-08-04
 
 threads:
-  uti-rollout-timeline:
-    title: Josh asking when UTI phase 2 lands
-    channel_id: C0AMDBAJMQE
+  acme-rollout-timeline:
+    title: Jane asking when Acme phase 2 lands
+    channel_id: C0123456789
     thread_ts: "1754312345.678900"   # PARENT ts — quote it, it's not a number
-    with: josh-heller
+    with: jane-doe
     first_seen: 2026-08-04
     status: open              # open | replied | closed
 ```
@@ -101,7 +101,7 @@ For each cached entry, confirm it still resolves and still matches:
 - People — `mcp__claude_ai_Slack__slack_read_user_profile` on the `user_id`; flag deactivated accounts.
 - Threads — skip. They're a working set; use `prune` instead.
 
-Do not silently rewrite ids during `sync`. Report the mismatches and let Andrew confirm,
+Do not silently rewrite ids during `sync`. Report the mismatches and let the user confirm,
 since a "renamed channel" and "a different channel with a similar name" look identical from
 search results.
 
@@ -130,7 +130,7 @@ generated_from: ~/.claude/projects/-Users-andrewmiller-knowledge/slack/registry.
 
 | Channel | Aliases | Purpose | Projects | Last used |
 |---|---|---|---|---|
-| [#rebel-team](https://<domain>.slack.com/archives/C0AMDBAJMQE) | team, internal | Internal Rebel Ops team | rebel-ops | 2026-08-04 |
+| [#team](https://<domain>.slack.com/archives/C0123456789) | team, internal | Internal team channel | internal | 2026-08-04 |
 
 ## People
 
