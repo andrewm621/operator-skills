@@ -9,7 +9,7 @@ Scope: {the text you type after the command}
 ## Hard rule
 
 **This skill is report-only.** It must NEVER create labels, apply labels, archive, delete,
-send, or draft anything. It only reads mail and writes one Markdown report to the vault. If
+send, or draft anything. It only reads mail and writes one Markdown report to `email_triage.report_dir`. If
 asked mid-flow to take an action on a thread, say it's out of scope for this skill and name
 the manual step you (or a future skill) would take instead. This constraint is the whole
 point of the skill — treat it as non-negotiable, not a default that can be overridden by a

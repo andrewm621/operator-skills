@@ -1084,7 +1084,7 @@ Scope: $ARGUMENTS
 ## Hard rule
 
 **This skill is report-only.** It must NEVER create labels, apply labels, archive, delete,
-send, or draft anything. It only reads mail and writes one Markdown report to the vault. If
+send, or draft anything. It only reads mail and writes one Markdown report to `email_triage.report_dir`. If
 asked mid-flow to take an action on a thread, say it's out of scope for this skill and name
 the manual step you (or a future skill) would take instead. This constraint is the whole
 point of the skill — treat it as non-negotiable, not a default that can be overridden by a
@@ -1952,12 +1952,17 @@ This skill turns a loose task into a **Codex-ready GitHub issue**: scoped, with 
 
 6. **Show the full drafted issue and STOP for approval.** Creating a GitHub issue is an outward-facing action — never create it silently. Present the title + body and ask: "Create this issue on `<repo>`? (I'll add label `codex` and return the number.)"
 
-7. **On approval, create it:**
+7. **On approval, create it.** The body is Markdown full of backticks and `$`, so never inline it in `--body "..."`; write it to a temp file through a **quoted** heredoc and pass `--body-file`:
    ```bash
-   gh issue create --repo <nameWithOwner> --title "<title>" --body "<body>" --label codex
+   TMP="$(mktemp)"
+   cat > "$TMP" <<'EOF'
+   <the full issue body>
+   EOF
+   gh issue create --repo <nameWithOwner> --title "<title>" --body-file "$TMP" --label codex
+   rm -f "$TMP"
    ```
    - If the `codex` label doesn't exist yet, create it first: `gh label create codex --color 6f42c1 --description "Scoped for autonomous agent pickup" 2>/dev/null || true`.
-   - If the user named a different agent/label (e.g. `--cursor`), adjust the label accordingly.
+   - If the user names a different agent, use that agent's name as the label instead of `codex`.
 
 8. **Return the handoff.** Report the issue number + URL and the literal next move:
    ```
@@ -1973,7 +1978,7 @@ This skill turns a loose task into a **Codex-ready GitHub issue**: scoped, with 
 - **Claude Code stays the planner and the reviewer.** This skill only *emits* work; it doesn't execute it. The point of the role split is that the others run while you plan and review — review every PR (yourself or via `/pr-review`) before merge. That's the quality gate that keeps several tools from causing merge chaos.
 - **Batch handoffs:** if the user passes several tasks (or says "open issues for the plan"), create one atomic issue per task and return all numbers. Offer to add them to a tracking issue or milestone if there are 3+.
 - **Not everything should be handed off.** Coupled work that needs this conversation's full context is better kept here (subagents). Hand off the *independent, bounded* pieces — that's where async Codex pays off.
-- **No GitHub remote?** Fall back to appending a structured task block (same template) to a local `TASKS.md` so the handoff isn't lost — then the user can `gh repo create` later and migrate it.
+- **No GitHub remote?** Fall back to appending a structured task block (same template) to a local `TASKS.md` so the handoff isn't lost — then the user can `gh repo create` later and migrate it. Append it through a quoted heredoc (`cat >> TASKS.md <<'EOF'`) so backticks and `$` in the block are written literally.
 - Respect autonomy boundaries: drafting is autonomous; the `gh issue create` (external publish) needs explicit approval each run (step 6).
 - `/maestro route T-<id> codex` calls this skill to create the issue for a Maestro task; the `handoff` verb inside `/maestro` is a different thing (a comms message).
 
@@ -3101,8 +3106,12 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
      try { text = fs.readFileSync(file, 'utf8'); } catch { return out; }
      for (const line of text.split(/\r?\n/)) {
        const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-       if (!m || m[1].startsWith('#')) continue;
-       out[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+       if (!m) continue;
+       const v = m[2].trim();
+       // Quoted: the value ends at the closing quote (anything after it, such as a trailing "# comment", is dropped).
+       // Unquoted: strip a trailing " # comment" (a "#" with no space before it, as in a URL fragment, is kept).
+       const q = v.match(/^(['"])((?:(?!\1).)*)\1\s*(?:#.*)?$/);
+       out[m[1]] = q ? q[2] : v.replace(/\s+#.*$/, '');
      }
      return out;
    }
@@ -3133,13 +3142,18 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
 
    **b) Migration status** — based on the detected ORM:
 
-   **Drizzle:**
+   **Drizzle** (drizzle-kit has no `status` command, so compare the migrations folder with the database yourself):
    ```bash
-   npx drizzle-kit status 2>&1
+   npx drizzle-kit check 2>&1   # consistency of the migrations folder itself (snapshot/journal collisions); changes nothing
    ```
-   - List all migration files in the migrations directory with dates
-   - Check if `drizzle-kit generate` would produce new output (schema drift)
-   - Read the schema file to show current table inventory
+   - **Folder:** read `<out>/meta/_journal.json` (`out` from `drizzle.config.ts`). Each entry has a `tag` (the migration file name) and `when` (epoch ms).
+   - **Applied:** run this over the same connection as (a). Drizzle records each applied migration in `drizzle.__drizzle_migrations` (Postgres; the schema and table name can be overridden by `migrations.schema` / `migrations.table` in the config, and SQLite/MySQL keep a bare `__drizzle_migrations`):
+     ```sql
+     SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at;
+     ```
+     `created_at` is the journal entry's `when`, so a migration is **applied** if its `when` is at or below the latest `created_at`, and **pending** if it is above it (this is how drizzle's own migrator decides). If the table doesn't exist, nothing has been applied yet: report every journal entry as pending.
+   - **Schema drift:** plain `drizzle-kit generate` writes files, so don't run it here. Instead copy the migrations folder and the config to a scratch directory, point the copied config's `out` at the copy, and run `generate` there; a new SQL file means the schema has changes with no migration. If that isn't practical, report drift as "not checked".
+   - Read the schema file to show the current table inventory
 
    **Prisma:**
    ```bash
@@ -3314,10 +3328,7 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
    Show what would be generated without creating files:
 
    **Drizzle:**
-   ```bash
-   npx drizzle-kit generate --dry-run 2>&1
-   ```
-   If `--dry-run` isn't available, run generate and show the output without committing.
+   drizzle-kit has no dry-run for `generate`. Run it against a scratch copy of the migrations folder and config (as in `status` → schema drift), show the SQL it produces, and leave the project's own migrations folder untouched.
 
    ### Description-based (e.g., "add events table with capacity field")
    **a) Read the current schema** to understand existing tables and patterns
@@ -4335,7 +4346,7 @@ knowledge:
   default: personal            # vault used when --vault is not given
   vaults:
     personal:
-      path: ~/knowledge        # required; ~ is expanded
+      path: ~/notes            # required; ~ is expanded
       inbox: 00-Inbox          # where new notes land unless routed (relative to path)
       conventions: AGENTS.md   # optional: vault file to read before writing (rules, frontmatter types)
       frontmatter:             # optional: defaults merged into every note
@@ -4372,7 +4383,14 @@ Only `path` is required. Missing `inbox` means the vault root. Multiple vaults a
    - `# Title` H1, then the body in clean Markdown. Keep the user's meaning and voice; tighten, don't embellish. Never invent facts or add content they didn't give you.
    - `[[wikilinks]]` only to notes that actually exist — verify each target by filename or H1 in the vault first. Use the link style the conventions require. No links is fine.
    - When appending to an existing note, add a dated `##` section at the end and leave the rest of the file unchanged.
-8. **Commit (optional)** — Only if `commit: true` **and** the vault is a git repo: `git -C <vault> add -- <file> && git -C <vault> commit -m "note: <title>" -- <file>`. Scope strictly to that one file; never stage other changes, never push, never use `--no-verify`. If the vault isn't a git repo or the commit fails, report that and leave the file written.
+8. **Commit (optional)** — Only if `commit: true` **and** the vault is a git repo. Pass the message on stdin through a quoted heredoc, so a title containing quotes, backticks or `$` can't break the shell:
+   ```bash
+   git -C <vault> add -- <file>
+   git -C <vault> commit -F - -- <file> <<'EOF'
+   note: <title>
+   EOF
+   ```
+   Scope strictly to that one file; never stage other changes, never push, never use `--no-verify`. If the vault isn't a git repo or the commit fails, report that and leave the file written.
 9. **Report** — Print the full path of the note and a one-line summary (kind, vault, title, and whether it was new, appended, or committed).
 
 ## Notes
@@ -5032,16 +5050,19 @@ Use this when `$ARGUMENTS` starts with "build-check". It covers the "did my shar
 
 1. **Resolve the consumers:**
    - **Named projects** — use exactly those; skip detection.
-   - **`all` or empty** — detect them. First find the shared package: `--dep <name>` if given, otherwise the `name` field of the nearest `package.json` at or above the current directory.
-   - **Find consumers by grepping `package.json` files for that dependency** — never from a hardcoded list. Search the sibling projects of the current one, plus workspace packages if this is a monorepo (`turbo.json`, `pnpm-workspace.yaml`, or `workspaces` in `package.json`):
+   - **`all` or empty** — detect them. First find the shared package: `--dep <name>` if given, otherwise the `name` field of the nearest `package.json` at or above the current directory that has one.
+   - **Find consumers by grepping `package.json` files for that dependency** — never from a hardcoded list. Search the workspace root `<projects>` (`paths.projects`, default `~/Projects`; expand `~`), plus the monorepo root if the current directory is inside one (`turbo.json`, `pnpm-workspace.yaml`, or `workspaces` in `package.json`) and that root is outside `<projects>`. Use `find ... -exec grep -l ... {} +` rather than piping to `xargs`: it works the same on macOS and Linux and runs nothing when `find` matches no files.
      ```bash
      PKG="<package-name>"
-     ROOT="$(dirname "$PWD")"        # the folder that holds sibling projects (use the repo root in a monorepo)
-     find "$ROOT" -maxdepth 4 \( -name node_modules -o -name .next -o -name dist \) -prune \
-       -o -name package.json -print0 | xargs -0 grep -lE "\"$PKG\"[[:space:]]*:"
+     for ROOT in "<projects>" "<monorepo root, if different>"; do   # expand ~ first
+       [ -d "$ROOT" ] || continue
+       find "$ROOT" -maxdepth 5 \( -name node_modules -o -name .next -o -name dist -o -name .git \) -prune \
+         -o -name package.json -exec grep -lE "\"$PKG\"[[:space:]]*:" {} +
+     done
      ```
      Count a project as a consumer only if the match is under `dependencies`, `devDependencies`, or `peerDependencies`, and exclude the package itself.
-   - If nothing is found, say so and ask which projects to check. If the dependency can't be inferred (no `package.json` above the cwd), ask what changed.
+   - **Pick a package that consumers really depend on.** If the nearest named `package.json` has no consumers (common in a monorepo, where the nearest one is an app or the unpublished root), try the next named `package.json` above it before giving up, and say which package you settled on. The user can always force it with `--dep <name>`.
+   - If nothing is found, say so and ask which projects to check (or for `--dep`). If the dependency can't be inferred (no named `package.json` above the cwd), ask what changed.
 2. **Make sure the shared package is built.** If it has a build output (`dist/`) and the sources are newer, run its build first (`pnpm build` / `npm run build`). Consumers that link to it (`link:`, `workspace:`, `file:`) would otherwise test stale output.
 3. **Spawn one agent per consumer, all at once** (see step 4 above). Each one:
    - `cd`s into the project and installs if needed (`pnpm install` / `npm install`, matching its lockfile) to pick up the linked changes
@@ -6678,7 +6699,7 @@ Add additional JS as needed for the specific report (search, custom filters, cal
 
 1. **Determine save location:**
    - If inside a project: save to `reports/[slug]-report.html` (create `reports/` dir if needed)
-   - If a `notes/dashboards/` dir exists (AI Agent Teams): save there for backward compatibility
+   - If a `notes/dashboards/` dir already exists: save there for backward compatibility
    - Fallback: save to current directory as `[slug]-report.html`
 
 2. **Generate filename:** Slugify the topic. Examples:
@@ -7953,8 +7974,8 @@ The playbook, the harness and the measured probe results live next to this skill
 - macOS only. Needs Accessibility (AX/key events) and Screen Recording (screenshots) granted to the calling process,
   and `swiftc` (the Swift tools compile on demand into the private cache `~/Library/Caches/desktop-app-testing`).
 - Facts in the playbook were measured with the `harness/fixtures/probe-app` fixture on one macOS version; re-run
-  `harness/probes/run_probes.py` on a new one before relying on them. `python3 -m unittest discover -s
-  "$HARNESS/tests"` checks the harness's own safety logic without launching anything.
+  `harness/probes/run_probes.py` on a new one before relying on them. `(cd "$HARNESS" && python3 -m unittest
+  tests.test_harness)` checks the harness's own safety logic without launching anything.
 - Related: `/verify-app` for web apps and layer 0; `/test` for the unit-test suite; `/parallel` if several independent
   apps need checking (each with its own identifier and scratch dir).
 

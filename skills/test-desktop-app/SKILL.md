@@ -68,8 +68,8 @@ The playbook, the harness and the measured probe results live next to this skill
 - macOS only. Needs Accessibility (AX/key events) and Screen Recording (screenshots) granted to the calling process,
   and `swiftc` (the Swift tools compile on demand into the private cache `~/Library/Caches/desktop-app-testing`).
 - Facts in the playbook were measured with the `harness/fixtures/probe-app` fixture on one macOS version; re-run
-  `harness/probes/run_probes.py` on a new one before relying on them. `python3 -m unittest discover -s
-  "$HARNESS/tests"` checks the harness's own safety logic without launching anything.
+  `harness/probes/run_probes.py` on a new one before relying on them. `(cd "$HARNESS" && python3 -m unittest
+  tests.test_harness)` checks the harness's own safety logic without launching anything.
 - Related: `/verify-app` for web apps and layer 0; `/test` for the unit-test suite; `/parallel` if several independent
   apps need checking (each with its own identifier and scratch dir).
 

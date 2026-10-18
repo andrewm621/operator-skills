@@ -113,16 +113,19 @@ Use this when `{the text you type after the command}` starts with "build-check".
 
 1. **Resolve the consumers:**
    - **Named projects** — use exactly those; skip detection.
-   - **`all` or empty** — detect them. First find the shared package: `--dep <name>` if given, otherwise the `name` field of the nearest `package.json` at or above the current directory.
-   - **Find consumers by grepping `package.json` files for that dependency** — never from a hardcoded list. Search the sibling projects of the current one, plus workspace packages if this is a monorepo (`turbo.json`, `pnpm-workspace.yaml`, or `workspaces` in `package.json`):
+   - **`all` or empty** — detect them. First find the shared package: `--dep <name>` if given, otherwise the `name` field of the nearest `package.json` at or above the current directory that has one.
+   - **Find consumers by grepping `package.json` files for that dependency** — never from a hardcoded list. Search the workspace root `<projects>` (`paths.projects`, default `~/Projects`; expand `~`), plus the monorepo root if the current directory is inside one (`turbo.json`, `pnpm-workspace.yaml`, or `workspaces` in `package.json`) and that root is outside `<projects>`. Use `find ... -exec grep -l ... {} +` rather than piping to `xargs`: it works the same on macOS and Linux and runs nothing when `find` matches no files.
      ```bash
      PKG="<package-name>"
-     ROOT="$(dirname "$PWD")"        # the folder that holds sibling projects (use the repo root in a monorepo)
-     find "$ROOT" -maxdepth 4 \( -name node_modules -o -name .next -o -name dist \) -prune \
-       -o -name package.json -print0 | xargs -0 grep -lE "\"$PKG\"[[:space:]]*:"
+     for ROOT in "<projects>" "<monorepo root, if different>"; do   # expand ~ first
+       [ -d "$ROOT" ] || continue
+       find "$ROOT" -maxdepth 5 \( -name node_modules -o -name .next -o -name dist -o -name .git \) -prune \
+         -o -name package.json -exec grep -lE "\"$PKG\"[[:space:]]*:" {} +
+     done
      ```
      Count a project as a consumer only if the match is under `dependencies`, `devDependencies`, or `peerDependencies`, and exclude the package itself.
-   - If nothing is found, say so and ask which projects to check. If the dependency can't be inferred (no `package.json` above the cwd), ask what changed.
+   - **Pick a package that consumers really depend on.** If the nearest named `package.json` has no consumers (common in a monorepo, where the nearest one is an app or the unpublished root), try the next named `package.json` above it before giving up, and say which package you settled on. The user can always force it with `--dep <name>`.
+   - If nothing is found, say so and ask which projects to check (or for `--dep`). If the dependency can't be inferred (no named `package.json` above the cwd), ask what changed.
 2. **Make sure the shared package is built.** If it has a build output (`dist/`) and the sources are newer, run its build first (`pnpm build` / `npm run build`). Consumers that link to it (`link:`, `workspace:`, `file:`) would otherwise test stale output.
 3. **Spawn one agent per consumer, all at once** (see step 4 above). Each one:
    - `cd`s into the project and installs if needed (`pnpm install` / `npm install`, matching its lockfile) to pick up the linked changes

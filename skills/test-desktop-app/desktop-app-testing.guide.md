@@ -427,7 +427,7 @@ prompt, a real OS-initiated quit, and a real HID click or Cmd+Q keypress when th
 | `lib/desktop_test.py` | stdlib Python API tying them together | |
 | `fixtures/probe-app/` | `Probe.swift` + `build.sh` (private out dir) | `swiftc` |
 | `probes/run_probes.py` | re-runs P1 to P6, writes results.json and focus.log into a fresh private dir | Accessibility, Screen Recording |
-| `tests/test_harness.py` | static unit tests of the safety logic (`python3 -m unittest discover -s harness/tests`); launches nothing | `swiftc` |
+| `tests/test_harness.py` | static unit tests of the safety logic (from `harness/`: `python3 -m unittest tests.test_harness`); launches nothing | `swiftc` |
 
 Permissions are granted to the *calling process* (Terminal or the agent host), not to the tools. If a probe returns a
 blank or "could not create image", check Screen Recording; if `ax`/`pkey` exit 3, check Accessibility.

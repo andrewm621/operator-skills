@@ -698,9 +698,10 @@ function resolveAuthor(repo, target) {
 /* `@<handle>` and the bare handle must match for --for/--to filtering (spec §3
    uses `@<handle>` for the human in the line format, but the CLI's default
    `--for`/`--to` value is documented as the bare name) — compare with the
-   leading `@` stripped from both sides. */
+   leading `@` stripped and the case folded on both sides (handles are
+   case-insensitive: `@Alice` and `alice` are the same person). */
 function normalizeWho(who) {
-  return String(who || '').replace(/^@/, '');
+  return String(who || '').replace(/^@/, '').toLowerCase();
 }
 
 /* Shared append path for say/ask/answer/handoff: acquire the channel lock,
@@ -1395,7 +1396,7 @@ function cmdSync() {
   // ask, any target) and the board's ⚑ block (just the ones for the human).
   const openAsks = collectOpenAsks(registry);
   writeFileSync(INBOX_PATH, openAsks.length ? `${openAsks.map((a) => JSON.stringify(a)).join('\n')}\n` : '');
-  const needsYou = openAsks.filter((a) => normalizeWho(a.target) === HUMAN);
+  const needsYou = openAsks.filter((a) => normalizeWho(a.target) === normalizeWho(HUMAN));
 
   writeFileSync(BOARD_PATH, renderBoard(rows, needsYou));
 
@@ -1411,7 +1412,7 @@ function cmdSync() {
 function countNeedsHuman(channelPath) {
   let n = 0;
   for (const m of readChannelMessages(channelPath)) {
-    if (m.kind === 'ask' && m.tag === 'open' && normalizeWho(m.target) === HUMAN) n++;
+    if (m.kind === 'ask' && m.tag === 'open' && normalizeWho(m.target) === normalizeWho(HUMAN)) n++;
   }
   return n;
 }

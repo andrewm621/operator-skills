@@ -49,8 +49,12 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
      try { text = fs.readFileSync(file, 'utf8'); } catch { return out; }
      for (const line of text.split(/\r?\n/)) {
        const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-       if (!m || m[1].startsWith('#')) continue;
-       out[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+       if (!m) continue;
+       const v = m[2].trim();
+       // Quoted: the value ends at the closing quote (anything after it, such as a trailing "# comment", is dropped).
+       // Unquoted: strip a trailing " # comment" (a "#" with no space before it, as in a URL fragment, is kept).
+       const q = v.match(/^(['"])((?:(?!\1).)*)\1\s*(?:#.*)?$/);
+       out[m[1]] = q ? q[2] : v.replace(/\s+#.*$/, '');
      }
      return out;
    }
@@ -81,13 +85,18 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
 
    **b) Migration status** — based on the detected ORM:
 
-   **Drizzle:**
+   **Drizzle** (drizzle-kit has no `status` command, so compare the migrations folder with the database yourself):
    ```bash
-   npx drizzle-kit status 2>&1
+   npx drizzle-kit check 2>&1   # consistency of the migrations folder itself (snapshot/journal collisions); changes nothing
    ```
-   - List all migration files in the migrations directory with dates
-   - Check if `drizzle-kit generate` would produce new output (schema drift)
-   - Read the schema file to show current table inventory
+   - **Folder:** read `<out>/meta/_journal.json` (`out` from `drizzle.config.ts`). Each entry has a `tag` (the migration file name) and `when` (epoch ms).
+   - **Applied:** run this over the same connection as (a). Drizzle records each applied migration in `drizzle.__drizzle_migrations` (Postgres; the schema and table name can be overridden by `migrations.schema` / `migrations.table` in the config, and SQLite/MySQL keep a bare `__drizzle_migrations`):
+     ```sql
+     SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at;
+     ```
+     `created_at` is the journal entry's `when`, so a migration is **applied** if its `when` is at or below the latest `created_at`, and **pending** if it is above it (this is how drizzle's own migrator decides). If the table doesn't exist, nothing has been applied yet: report every journal entry as pending.
+   - **Schema drift:** plain `drizzle-kit generate` writes files, so don't run it here. Instead copy the migrations folder and the config to a scratch directory, point the copied config's `out` at the copy, and run `generate` there; a new SQL file means the schema has changes with no migration. If that isn't practical, report drift as "not checked".
+   - Read the schema file to show the current table inventory
 
    **Prisma:**
    ```bash
@@ -262,10 +271,7 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
    Show what would be generated without creating files:
 
    **Drizzle:**
-   ```bash
-   npx drizzle-kit generate --dry-run 2>&1
-   ```
-   If `--dry-run` isn't available, run generate and show the output without committing.
+   drizzle-kit has no dry-run for `generate`. Run it against a scratch copy of the migrations folder and config (as in `status` → schema drift), show the SQL it produces, and leave the project's own migrations folder untouched.
 
    ### Description-based (e.g., "add events table with capacity field")
    **a) Read the current schema** to understand existing tables and patterns

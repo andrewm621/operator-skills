@@ -1,6 +1,6 @@
 """Static tests for the harness safety logic. No GUI app is launched and no event is posted.
 
-    python3 -m unittest discover -s skills/test-desktop-app/harness/tests -v
+    cd skills/test-desktop-app/harness && python3 -m unittest tests.test_harness -v
 """
 import json
 import os

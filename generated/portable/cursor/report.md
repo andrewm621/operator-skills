@@ -840,7 +840,7 @@ Add additional JS as needed for the specific report (search, custom filters, cal
 
 1. **Determine save location:**
    - If inside a project: save to `reports/[slug]-report.html` (create `reports/` dir if needed)
-   - If a `notes/dashboards/` dir exists (AI Agent Teams): save there for backward compatibility
+   - If a `notes/dashboards/` dir already exists: save there for backward compatibility
    - Fallback: save to current directory as `[slug]-report.html`
 
 2. **Generate filename:** Slugify the topic. Examples:

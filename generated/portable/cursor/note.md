@@ -17,7 +17,7 @@ knowledge:
   default: personal            # vault used when --vault is not given
   vaults:
     personal:
-      path: ~/knowledge        # required; ~ is expanded
+      path: ~/notes            # required; ~ is expanded
       inbox: 00-Inbox          # where new notes land unless routed (relative to path)
       conventions: AGENTS.md   # optional: vault file to read before writing (rules, frontmatter types)
       frontmatter:             # optional: defaults merged into every note
@@ -54,7 +54,14 @@ Only `path` is required. Missing `inbox` means the vault root. Multiple vaults a
    - `# Title` H1, then the body in clean Markdown. Keep the user's meaning and voice; tighten, don't embellish. Never invent facts or add content they didn't give you.
    - `[[wikilinks]]` only to notes that actually exist — verify each target by filename or H1 in the vault first. Use the link style the conventions require. No links is fine.
    - When appending to an existing note, add a dated `##` section at the end and leave the rest of the file unchanged.
-8. **Commit (optional)** — Only if `commit: true` **and** the vault is a git repo: `git -C <vault> add -- <file> && git -C <vault> commit -m "note: <title>" -- <file>`. Scope strictly to that one file; never stage other changes, never push, never use `--no-verify`. If the vault isn't a git repo or the commit fails, report that and leave the file written.
+8. **Commit (optional)** — Only if `commit: true` **and** the vault is a git repo. Pass the message on stdin through a quoted heredoc, so a title containing quotes, backticks or `$` can't break the shell:
+   ```bash
+   git -C <vault> add -- <file>
+   git -C <vault> commit -F - -- <file> <<'EOF'
+   note: <title>
+   EOF
+   ```
+   Scope strictly to that one file; never stage other changes, never push, never use `--no-verify`. If the vault isn't a git repo or the commit fails, report that and leave the file written.
 9. **Report** — Print the full path of the note and a one-line summary (kind, vault, title, and whether it was new, appended, or committed).
 
 ## Notes

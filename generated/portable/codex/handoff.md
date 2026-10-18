@@ -65,12 +65,17 @@ This skill turns a loose task into a **Codex-ready GitHub issue**: scoped, with 
 
 6. **Show the full drafted issue and STOP for approval.** Creating a GitHub issue is an outward-facing action — never create it silently. Present the title + body and ask: "Create this issue on `<repo>`? (I'll add label `codex` and return the number.)"
 
-7. **On approval, create it:**
+7. **On approval, create it.** The body is Markdown full of backticks and `$`, so never inline it in `--body "..."`; write it to a temp file through a **quoted** heredoc and pass `--body-file`:
    ```bash
-   gh issue create --repo <nameWithOwner> --title "<title>" --body "<body>" --label codex
+   TMP="$(mktemp)"
+   cat > "$TMP" <<'EOF'
+   <the full issue body>
+   EOF
+   gh issue create --repo <nameWithOwner> --title "<title>" --body-file "$TMP" --label codex
+   rm -f "$TMP"
    ```
    - If the `codex` label doesn't exist yet, create it first: `gh label create codex --color 6f42c1 --description "Scoped for autonomous agent pickup" 2>/dev/null || true`.
-   - If the user named a different agent/label (e.g. `--cursor`), adjust the label accordingly.
+   - If the user names a different agent, use that agent's name as the label instead of `codex`.
 
 8. **Return the handoff.** Report the issue number + URL and the literal next move:
    ```
@@ -86,6 +91,6 @@ This skill turns a loose task into a **Codex-ready GitHub issue**: scoped, with 
 - **Claude Code stays the planner and the reviewer.** This skill only *emits* work; it doesn't execute it. The point of the role split is that the others run while you plan and review — review every PR (yourself or via `/pr-review`) before merge. That's the quality gate that keeps several tools from causing merge chaos.
 - **Batch handoffs:** if the user passes several tasks (or says "open issues for the plan"), create one atomic issue per task and return all numbers. Offer to add them to a tracking issue or milestone if there are 3+.
 - **Not everything should be handed off.** Coupled work that needs this conversation's full context is better kept here (subagents). Hand off the *independent, bounded* pieces — that's where async Codex pays off.
-- **No GitHub remote?** Fall back to appending a structured task block (same template) to a local `TASKS.md` so the handoff isn't lost — then the user can `gh repo create` later and migrate it.
+- **No GitHub remote?** Fall back to appending a structured task block (same template) to a local `TASKS.md` so the handoff isn't lost — then the user can `gh repo create` later and migrate it. Append it through a quoted heredoc (`cat >> TASKS.md <<'EOF'`) so backticks and `$` in the block are written literally.
 - Respect autonomy boundaries: drafting is autonomous; the `gh issue create` (external publish) needs explicit approval each run (step 6).
 - `/maestro route T-<id> codex` calls this skill to create the issue for a Maestro task; the `handoff` verb inside `/maestro` is a different thing (a comms message).
