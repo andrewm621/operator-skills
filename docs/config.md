@@ -16,11 +16,10 @@ cp ~/operator-skills/config.example.yaml ~/.config/operator-skills/config.yaml
 
 ### `owner`
 
-Who you are — used where a skill writes as you, drafts in your voice, or assigns work to you.
+Who you are — used where a skill drafts in your voice or assigns work to you.
 
 | Key | Default | Meaning | Read by |
 |-----|---------|---------|---------|
-| `owner.name` | none — skills write neutrally ("you", "the user") or ask once | Your display name | `/slack-reply`, `/email-triage` |
 | `owner.handle` | `$USER` | Handle used as task/board assignee | `/maestro` |
 | `owner.voice_guide` | none — drafts use a plain neutral voice | Path to your writing-style guide | `/slack-reply` |
 
@@ -30,9 +29,9 @@ Where things live. `~` is expanded.
 
 | Key | Default | Meaning | Read by |
 |-----|---------|---------|---------|
-| `paths.projects` | `~/Projects` | Workspace root that holds your projects (one subfolder per project) | `/switch`, `/search-all`, `/deps`, `/scaffold`, `/map`, `/roadmap`, `/parallel`, `/subagent`, `/research`, `/port-check` |
+| `paths.projects` | `~/Projects` | Workspace root that holds your projects (one subfolder per project) | `/switch`, `/search-all`, `/deps`, `/scaffold`, `/map`, `/roadmap`, `/parallel`, `/subagent`, `/research`, `/port-check`, `/ai-export`, `/maestro`, `/test-desktop-app` |
 | `paths.notes` | `~/.claude/dev-notes` | Dev-notes root. Skills create these subfolders on first use: `decisions/`, `learnings/`, `sessions/`, `freezes/`, `roadmaps/`, plus `INDEX.md` | `/log`, `/learn`, `/document`, `/freeze`, `/roadmap`, `/phases`, `/todo`, `/parallel`, `/invert`, `/pre-mortem` |
-| `paths.memory` | none | Workspace memory directory (for example Claude Code auto-memory). **When unset, steps that write memory are skipped.** | `/map`, `/log`, `/document` |
+| `paths.memory` | none | Workspace memory directory (for example Claude Code auto-memory). **When unset, steps that write memory are skipped.** | `/map`, `/log`, `/document`, `/email-triage` |
 
 `/roadmap`, `/todo` and `/phases` share one data directory, `<notes>/roadmaps/` (`INDEX.md`, one `<slug>/roadmap.md` per roadmap, and `standalone/` for freestanding todo lists), so they always see each other's data.
 
@@ -49,7 +48,7 @@ How browser-driving skills reach a browser.
 
 ### `knowledge`
 
-Your knowledge base: a local Markdown vault (Obsidian, Tolaria, Logseq, or a plain folder). Read by `/note` and `/ai-export`.
+Your knowledge base: a local Markdown vault (Obsidian, Tolaria, Logseq, or a plain folder). Read by `/note` and `/ai-export`; `/email-triage` and `/slack-ctx` / `/slack-reply` also use the default vault to locate their output folders.
 
 | Key | Default | Meaning |
 |-----|---------|---------|
@@ -94,6 +93,8 @@ Read by `/ai-export`.
 
 `/maestro`'s CLI also honors `MAESTRO_HANDLE` (overrides `owner.handle`) and `MAESTRO_PROJECTS` (overrides `paths.projects`).
 
+**Upgrading:** maestro's human handle used to be hardcoded; set `owner.handle` to your previous handle (or export `MAESTRO_HANDLE`) so existing `@`-asks still reach you. Handle matching is case-insensitive.
+
 ## No config file
 
 Everything still works; skills use the defaults:
@@ -103,7 +104,7 @@ Everything still works; skills use the defaults:
 | `paths.projects` | `~/Projects` is used. If it doesn't exist, the skill says so and asks for the folder instead of guessing another path. |
 | `paths.notes` | `~/.claude/dev-notes` is used and created on first write. |
 | `paths.memory` | Memory-writing steps are skipped. Nothing is written outside `paths.notes` or the project itself. |
-| `owner.*` | Skills use neutral wording and ask once when they need your name or voice. |
+| `owner.*` | `/maestro` assigns work to `$USER`; `/slack-reply` drafts in a plain neutral voice. |
 | `browser.*` | Headless `agent-browser`; no browser of yours is touched. |
 | `knowledge.*` | `/note` does **not** guess a vault path. It shows the example block, asks for your vault's folder, and offers to create the config file after you confirm its contents. |
 
@@ -119,4 +120,4 @@ Skills must not hardcode personal paths, names, or machine setups. If a new skil
 
    > **Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`.
 
-`node verify-adapters.mjs` fails if any file under `skills/` contains an absolute home-directory path (`/Users/...`, `-Users-...`, `/home/<name>/...`).
+`node verify-adapters.mjs` fails if any shipped text file (`skills/`, `docs/`, `README.md`, `config.example.yaml`, `.claude/CLAUDE.md`) contains an absolute home-directory path (`/Users/<name>`, `-Users-<name>`, `/home/<name>/...`).

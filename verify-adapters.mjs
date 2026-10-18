@@ -24,12 +24,15 @@
 //      must have a resolving <agents dir>/<name>/SKILL.md that lands inside this
 //      repo. Override the dir with AGENTS_SKILLS_DIR (default ~/.agents/skills).
 //      Fix with ./install-global.sh. Skipped with --skip-install or when CI is
-//      set, since a CI runner has no home-directory install.
+//      truthy (set and not "0"/"false"), since a CI runner has no
+//      home-directory install.
 //
-//   7. Portability guard: no file under skills/ may contain an absolute
-//      home-directory path (/Users/..., -Users-... as in Claude Code's
-//      project-slug dirs, or /home/<name>/...). Personal paths belong in the
-//      per-user config (docs/config.md), not in the skills.
+//   7. Portability guard: no shipped text file (skills/, docs/, README.md,
+//      CONTRIBUTING.md, config.example.yaml, .claude/CLAUDE.md) may contain an
+//      absolute home-directory path (/Users/<name>, -Users-<name> as in Claude
+//      Code's project-slug dirs, or /home/<name>/...). Personal paths belong in
+//      the per-user config (docs/config.md), not in shipped files. Bare
+//      placeholders such as "/Users/..." or "/home/<name>/" are fine.
 //
 // Frontmatter `name` must equal the folder name; generate-adapters.mjs throws on
 // a mismatch and this script reports it as a failure.
@@ -318,18 +321,28 @@ function checkAgentsSkills() {
   return { agentsDir, total: names.length, problems };
 }
 
-/** Check 7: no absolute home-directory paths anywhere under skills/. */
+// Files outside skills/ and docs/ that ship with the repo and are scanned for home paths too.
+const PORTABILITY_EXTRA_FILES = ["README.md", "CONTRIBUTING.md", "config.example.yaml", ".claude/CLAUDE.md"];
+
+/** Check 7: no absolute home-directory paths in shipped text (skills/, docs/, top-level docs). */
 function checkPortability() {
   const problems = [];
+  // A placeholder like "/Users/..." or "/home/<name>/" is documentation, not a leak:
+  // the first character after the prefix must be a real name character.
   const patterns = [
-    { label: "/Users/ path", re: /\/Users\/[^\s`"')]*/ },
-    { label: "-Users- project-slug path", re: /-Users-[A-Za-z0-9_.-]+/ },
+    { label: "/Users/ path", re: /\/Users\/[A-Za-z0-9_][^\s`"')]*/ },
+    { label: "-Users- project-slug path", re: /-Users-[A-Za-z0-9_][A-Za-z0-9_.-]*/ },
     { label: "/home/<name> path", re: /\/home\/[a-z_][a-z0-9_-]*\/[^\s`"')]*/ },
   ];
-  for (const rel of listFilesRecursive(join(REPO_ROOT, "skills"))) {
+  const targets = [];
+  for (const dir of ["skills", "docs"]) {
+    for (const rel of listFilesRecursive(join(REPO_ROOT, dir))) targets.push(join(dir, rel));
+  }
+  for (const rel of PORTABILITY_EXTRA_FILES) if (existsSync(join(REPO_ROOT, rel))) targets.push(rel);
+  for (const rel of targets) {
     if (rel.split(sep).some((part) => part === "__pycache__" || part === "node_modules")) continue;
-    const buf = readFileSync(join(REPO_ROOT, "skills", rel));
-    if (buf.includes(0)) continue; // binary (e.g. .pyc) — not skill text
+    const buf = readFileSync(join(REPO_ROOT, rel));
+    if (buf.includes(0)) continue; // binary (e.g. .pyc) — not text
     buf
       .toString("utf8")
       .replace(/\r\n/g, "\n")
@@ -337,7 +350,7 @@ function checkPortability() {
       .forEach((line, i) => {
         for (const { label, re } of patterns) {
           const m = line.match(re);
-          if (m) problems.push(`skills/${rel}:${i + 1}: ${label} "${m[0]}" — read it from the per-user config instead (docs/config.md)`);
+          if (m) problems.push(`${rel}:${i + 1}: ${label} "${m[0]}" — read it from the per-user config instead (docs/config.md)`);
         }
       });
   }
@@ -345,7 +358,9 @@ function checkPortability() {
 }
 
 function main() {
-  const skipInstall = process.argv.includes("--skip-install") || Boolean(process.env.CI);
+  // CI is "truthy" when set to anything but empty/"0"/"false" (so CI=0 / CI=false still run the install check).
+  const ciTruthy = !["", "0", "false"].includes((process.env.CI ?? "").trim().toLowerCase());
+  const skipInstall = process.argv.includes("--skip-install") || ciTruthy;
   let failed = false;
 
   /** Print one check's result; `problems` is a list of lines, empty = pass. */
@@ -379,7 +394,7 @@ function main() {
     [...checkCatalog("README.md", skills), ...checkCatalog("docs/claude-ai-project-instructions.md", skills)],
   );
   report("/help cheat sheet is inconsistent", "/help cheat sheet matches its mirror and its stated count.", checkHelp(skills));
-  report("skills/ contains hardcoded personal paths", "skills/ has no absolute home-directory paths.", checkPortability());
+  report("shipped files contain hardcoded personal paths", "skills/, docs/ and top-level docs have no absolute home-directory paths.", checkPortability());
 
   if (skipInstall) {
     console.log("- skipped ~/.agents/skills install check (--skip-install or CI).");

@@ -7,10 +7,8 @@
 # (or the whole file) is missing. Skills read only the sections they need and
 # never rewrite sections that aren't theirs. Full key reference: docs/config.md.
 
-# Who you are — used where a skill writes as you, drafts in your voice, or
-# assigns work to you.
+# Who you are — used where a skill drafts in your voice or assigns work to you.
 owner:
-  name: Your Name                # default: ask once, or write neutrally
   handle: yourname               # default: $USER — task/board assignee handle
   voice_guide:                   # optional: path to your writing-style guide
 

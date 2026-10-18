@@ -53,7 +53,7 @@ mkdir -p ~/.config/operator-skills
 cp ~/operator-skills/config.example.yaml ~/.config/operator-skills/config.yaml   # then edit the paths
 ```
 
-The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operator-skills/config.yaml` if that's set). It has four sections: `owner:` (your name/handle/voice guide), `paths:` (`projects`, `notes`, `memory`), `browser:` (headless vs. CDP for `/verify-app` and `/perf`), and `knowledge:` (one or more named vaults for `/note`). Each skill reads only the sections it needs. See [`config.example.yaml`](config.example.yaml) for the shape and [`docs/config.md`](docs/config.md) for every key, its default, which skills read it, and what happens with no config file. `/note` is the one skill that won't guess: if its `knowledge:` section is missing it shows the example and offers to create it.
+The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operator-skills/config.yaml` if that's set). Its sections are `owner:` (your handle and voice guide), `paths:` (`projects`, `notes`, `memory`), `browser:` (headless vs. CDP for `/verify-app` and `/perf`), `knowledge:` (one or more named vaults for `/note`), and per-skill blocks for `/email-triage`, `/slack-ctx` + `/slack-reply`, and `/ai-export`. Each skill reads only the sections it needs. See [`config.example.yaml`](config.example.yaml) for the shape and [`docs/config.md`](docs/config.md) for every key, its default, which skills read it, and what happens with no config file. `/note` is the one skill that won't guess: if its `knowledge:` section is missing it shows the example and offers to create it.
 
 ## Skill Catalog
 
@@ -67,14 +67,14 @@ The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operat
 | `/handoff` | Hand a bounded task to Codex (or another agent) as a well-scoped GitHub issue — acceptance criteria, file pointers, constraints | `/handoff add rate limiting to the API` |
 | `/subagent` | Dispatch a background agent to explore + implement | `/subagent add email notifications to the API` |
 | `/research` | Background research — structured findings while you keep working | `/research Drizzle ORM migration API` |
-| `/switch` | Context switch into any project with full orientation | `/switch agencyos` |
+| `/switch` | Context switch into any project with full orientation | `/switch web-app` |
 | `/freeze` | Snapshot full context for cross-thread resumption | `/freeze` to save, `/freeze thaw` to resume |
 
 ### Planning
 
 | Skill | What it does | Example |
 |-------|-------------|---------|
-| `/roadmap` | Socratic brainstorm → phased roadmap with tasks and dependencies | `/roadmap agencyos v2 launch` |
+| `/roadmap` | Socratic brainstorm → phased roadmap with tasks and dependencies | `/roadmap web-app v2 launch` |
 | `/phases` | Visual roadmap progress with phase indicators | `/phases` |
 | `/todo` | Task management — add, complete, skip, reprioritize | `/todo done 2.3` |
 | `/invert` | Red-team via 5 parallel failure-lens agents (Munger's inversion) | `/invert the checkout flow` |
@@ -146,7 +146,7 @@ This is the smart layer above the rest. `/orchestrate` decomposes the goal, pick
 ### Pattern 2: Parallel Everything
 
 ```
-/parallel research Stripe billing | check agencyos build | verify localhost:3000
+/parallel research Stripe billing | check web-app build | verify localhost:3000
 ```
 
 This spawns three independent agents simultaneously. One researches an API, one runs a build, one verifies a running app. Results come back aggregated with pass/fail status and timing. No waiting for sequential execution.
@@ -154,7 +154,7 @@ This spawns three independent agents simultaneously. One researches an API, one 
 ### Pattern 3: Plan, Execute, Track
 
 ```
-/roadmap agencyos v2 launch
+/roadmap web-app v2 launch
 ```
 
 This kicks off a Socratic brainstorming session — three rounds of structured questions that challenge assumptions and probe edges. The output is a phased roadmap with tasks, priorities, effort estimates, and unknowns.

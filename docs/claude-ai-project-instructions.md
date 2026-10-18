@@ -195,7 +195,7 @@ Research a topic in the background while the user keeps working. Returns structu
 
 Enter a multi-round Socratic brainstorming session, then generate a phased roadmap.
 
-**Usage:** `/roadmap agencyos v2 launch`
+**Usage:** `/roadmap web-app v2 launch`
 
 **Steps:**
 1. Round 1: 3-4 foundation questions (end goal, audience, starting point, timeline)

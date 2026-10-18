@@ -98,8 +98,10 @@ That one command replaces the old manual folder-count, stale-count `grep` and `/
 - a skill is missing from the `## Skill Catalog` in `README.md` or `docs/claude-ai-project-instructions.md`
 - the `/help` cheat sheet differs from its mirror in the reference doc, or its stated count differs from the commands it lists
 - a frontmatter `name` doesn't match its folder
-- a file under `skills/` contains an absolute home-directory path (`/Users/...`, `-Users-...`, `/home/<name>/...`) — use the per-user config instead (see [`docs/config.md`](docs/config.md))
-- a skill isn't symlinked into `~/.agents/skills` (run `./install-global.sh`; `node verify-adapters.mjs --skip-install` skips this one, as CI does, and `AGENTS_SKILLS_DIR` overrides the location)
+- a shipped text file (`skills/`, `docs/`, `README.md`, `CONTRIBUTING.md`, `config.example.yaml`, `.claude/CLAUDE.md`) contains an absolute home-directory path (`/Users/<name>`, `-Users-<name>`, `/home/<name>/...`) — use the per-user config instead (see [`docs/config.md`](docs/config.md)); bare placeholders like `/Users/...` are fine
+- a skill isn't symlinked into `~/.agents/skills` (run `./install-global.sh`; `node verify-adapters.mjs --skip-install` skips this one, as does a truthy `CI` env var (anything but empty, `0` or `false`), and `AGENTS_SKILLS_DIR` overrides the location)
+
+If you touch a skill that ships Python, run its tests too (CI does): `cd skills/ai-export && python3 -m unittest test_convert`, and `cd skills/test-desktop-app/harness && python3 -m unittest tests.test_harness` (macOS; it compiles the Swift helpers).
 
 Then try it live: `ln -sf "$PWD/skills" ~/.claude/skills/operator`, open a new Claude Code session and type `/<name>`.
 
@@ -141,6 +143,6 @@ These are real working commands, not demos. Keep them:
 - **Specific over generic** — name actual tools, paths, and failure modes, the way the existing skills do.
 - **Action-first** — a numbered `## Steps` spine the model can follow, not prose.
 - **Honest about scope** — in `## Notes`, say when *another* skill is the better tool.
-- **No hardcoded personal paths or names.** New skills must read locations and identity from the per-user config instead (`paths.projects`, `paths.notes`, `paths.memory`, `owner.*`, `browser.*` — see [`docs/config.md`](docs/config.md)) with a one-line **Config** note near the top and `<notes>` / `<projects>` placeholders in the body. If nothing fits, add a key to `config.example.yaml` with a default and document it in `docs/config.md`. `node verify-adapters.mjs` fails on `/Users/...`, `-Users-...` or `/home/<name>/...` paths anywhere under `skills/`.
+- **No hardcoded personal paths or names.** New skills must read locations and identity from the per-user config instead (`paths.projects`, `paths.notes`, `paths.memory`, `owner.*`, `browser.*` — see [`docs/config.md`](docs/config.md)) with a one-line **Config** note near the top and `<notes>` / `<projects>` placeholders in the body. If nothing fits, add a key to `config.example.yaml` with a default and document it in `docs/config.md`. `node verify-adapters.mjs` fails on `/Users/<name>`, `-Users-<name>` or `/home/<name>/...` paths in `skills/`, `docs/` and the top-level docs.
 
 If you're adapting one of Andrew's personal commands, strip anything tied to a private setup (specific index paths, named private agents, personal-voice references) and keep the software-project framing — that's the line this repo holds.

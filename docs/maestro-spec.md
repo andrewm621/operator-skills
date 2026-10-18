@@ -152,7 +152,7 @@ hand-edited). Rebuilt wholesale by `/maestro sync`.
 
 ```jsonl
 {"id":"acme/T-014","repo":"acme app","title":"Refactor auth to Neon Auth","status":"claimed","owner":"codex@term-2","progress":"3/12","priority":2,"updated":"2026-08-28T14:02"}
-{"id":"agencyos/T-021","repo":"agencyos","title":"Stripe webhook retries","status":"open","owner":null,"progress":"0/0","priority":1,"updated":"2026-08-28T11:10"}
+{"id":"web-app/T-021","repo":"web-app","title":"Stripe webhook retries","status":"open","owner":null,"progress":"0/0","priority":1,"updated":"2026-08-28T11:10"}
 ```
 
 ### 4.5 Registry — `<projects>/.maestro/registry.yaml`
@@ -163,9 +163,9 @@ instead of walking all 50+.
 ```yaml
 repos:
   - name: acme app
-    path: /home/you/Projects/acme app
-  - name: agencyos
-    path: /home/you/Projects/agencyos
+    path: ~/Projects/acme app
+  - name: web-app
+    path: ~/Projects/web-app
 id_prefix_from: name        # global ids namespaced by repo name
 ```
 
@@ -443,7 +443,7 @@ A repo only mirrors if its `registry.yaml` entry carries `mirror: github`:
 ```yaml
 repos:
   - name: acme app
-    path: /home/you/Projects/acme app/acme-app
+    path: ~/Projects/acme app/acme-app
     mirror: github        # opt-in — absent (the default) means mirror never touches this repo
 ```
 
@@ -479,7 +479,7 @@ then a managed footer —
 **Status:** in-progress
 **Priority:** 2
 **Progress:** 3/12
-**Local path:** /home/you/Projects/acme app/acme-app/.maestro/tasks (T-014)
+**Local path:** ~/Projects/acme app/acme-app/.maestro/tasks (T-014)
 
 <!-- maestro-task: acme app/T-014 -->
 ```
