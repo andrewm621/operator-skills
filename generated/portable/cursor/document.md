@@ -1,6 +1,6 @@
 # document
 
-Document a feature, decision, architecture, or workflow. Writes to dev-notes, Notion, or inline code docs.
+Document a feature, decision, architecture, or workflow. Writes decision records, inline code docs, or a README, and hands Notion pages to `/notion` and learnings to `/learn`.
 
 Arguments: {the text you type after the command} (what to document + optional target: "notion", "dev-note", "inline", "readme")
 
@@ -9,8 +9,8 @@ Arguments: {the text you type after the command} (what to document + optional ta
 1. **Parse the request** — From `{the text you type after the command}`, determine:
    - **Subject:** What to document (feature, decision, architecture, API, component, workflow)
    - **Target:** Where to write it (defaults based on subject type):
-     - `notion` → Create a Notion page
-     - `dev-note` → Write to dev-notes directory (decision or learning)
+     - `notion` → Create a Notion page (delegated to `/notion`)
+     - `dev-note` → Write a decision record to the dev-notes directory. If the subject is a **learning** (a gotcha, quirk, or mistake worth not repeating), delegate to `/learn` instead — see step 4
      - `inline` → Add JSDoc/comments to source files
      - `readme` → Update or create project README
      - If no target specified: use best default for the subject type
@@ -45,15 +45,7 @@ Arguments: {the text you type after the command} (what to document + optional ta
 
 3. **Draft the document** — Write it in the appropriate format:
 
-   **Notion page:**
-   ```
-   Use Notion MCP tools to create a page with:
-   - Clear title and icon
-   - Structured sections with headers
-   - Tables for comparisons, APIs, or schemas
-   - Code blocks for examples
-   - Callouts for important notes
-   ```
+   **Notion page:** draft the content as Markdown with a clear title, structured sections with headers, tables for comparisons, APIs, or schemas, code blocks for examples, and callouts for important notes. `/notion` writes it (step 4).
 
    **Dev-note decision:**
    ```markdown
@@ -74,21 +66,7 @@ Arguments: {the text you type after the command} (what to document + optional ta
    What this means going forward
    ```
 
-   **Dev-note learning:**
-   ```markdown
-   # Learning: <Title>
-   Date: YYYY-MM-DD
-   Projects: <which projects>
-
-   ## Discovery
-   What was learned
-
-   ## Details
-   Technical specifics
-
-   ## Impact
-   How this affects our work
-   ```
+   **Learning:** don't draft a separate template here. `/learn` owns the learnings format (title, category, tags, problem, solution, why it's non-obvious) and its searchable index; step 4 hands the subject to it.
 
    **Inline docs:**
    - JSDoc comments for functions and components
@@ -104,16 +82,18 @@ Arguments: {the text you type after the command} (what to document + optional ta
    - Environment variables required
 
 4. **Write the document** — Save to the appropriate location:
-   - Notion: use `mcp__claude_ai_Notion__notion-create-pages`
-   - Dev-notes: write to `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/<type>/YYYY-MM-DD-<topic>.md`
+   - Notion: run `/notion` with the drafted content (`/notion note "<title>"` for a dev note, `/notion decision "<title>"` for a decision, `/notion update <topic>` to revise an existing page) instead of calling the Notion tools directly. It resolves the project from the registry and picks the right tool
+   - Learning: run `/learn "<the learning>"` and let it extract, categorize, save, and index it; don't write a learnings file from this skill
+   - Decision record: write to `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/decisions/YYYY-MM-DD-<topic>.md`
    - Inline: edit source files with the Edit tool
    - README: write to project's `README.md`
 
-5. **Update indexes** — If writing a dev-note:
+5. **Update indexes** — If writing a decision record:
    - Update `dev-notes/INDEX.md` with the new entry
-   - If it's a decision or learning that should be remembered across sessions, suggest updating auto-memory too
+   - If it should be remembered across sessions, suggest updating auto-memory too
+   - (`/learn` maintains its own index for learnings.)
 
-6. **Present the result** — Show what was written and where. For Notion pages, include the URL.
+6. **Present the result** — Show what was written and where. For Notion pages, include the URL `/notion` returns.
 
 ## Notes
 - The user can say things like:
@@ -122,5 +102,5 @@ Arguments: {the text you type after the command} (what to document + optional ta
   - `/document this feature notion` → creates a Notion page about the current feature
   - `/document readme` → generates/updates the project README
 - When documenting code, read the actual source first — never guess at implementations
-- For Notion pages, use appropriate icons and structured formatting
+- For Notion pages, use structured formatting; `/notion` handles icons and properties
 - Keep documentation concise and useful — avoid boilerplate padding

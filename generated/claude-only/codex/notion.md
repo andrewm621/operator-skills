@@ -1,4 +1,4 @@
-Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current.
+Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current. `/notion ctx ...` manages that registry and its cached page summaries for fast, token-efficient context loading.
 
 Arguments: $ARGUMENTS (optional: action and details)
 
@@ -16,6 +16,7 @@ Arguments: $ARGUMENTS (optional: action and details)
 | `link` | Show all known Notion page URLs for the current project |
 | `scaffold <project>` | Create Notion hub + Notes DB for a project and register it |
 | `infra [tag]` | Show infrastructure context pages, optionally filtered by tag |
+| `ctx [action] ...` | Manage the context registry and cached page summaries (sync, add, load, discover, ...). See "Context registry" below |
 
 ## Tool Strategy
 
@@ -190,8 +191,8 @@ Don't guess IDs. Ask the user for the hub page URL and Notes database (data sour
    - Update workspace_parent if newly created
 
 6. **Confirm** -- Show hub URL, Notes DB URL, and suggest next steps:
-   - "Run `/notion-ctx add <project> <page-id>` to register existing pages"
-   - "Run `/notion-ctx discover <project>` to find related Notion pages"
+   - "Run `/notion ctx add <project> <page-id>` to register existing pages"
+   - "Run `/notion ctx discover <project>` to find related Notion pages"
 
 ### For `infra [tag]`
 
@@ -199,7 +200,214 @@ Don't guess IDs. Ask the user for the hub page URL and Notes database (data sour
 2. List registered pages with tags.
 3. If tag provided: filter pages to matching tag.
 4. Show `context_packs` references: "Related skills: `my-infra-context-pack:*`, `vercel-plugin:*`"
-5. Offer: "Load context with `/notion-ctx load infrastructure [--tags <tag>]`"
+5. Offer: "Load context with `/notion ctx load infrastructure [--tags <tag>]`"
+
+## Context registry (`/notion ctx`)
+
+Manages the per-project registry of relevant Notion documents and a cache of compact summaries, so a project's Notion knowledge can be loaded into a conversation cheaply instead of re-fetching whole pages. The registry is the same `registry.yaml` the actions above resolve projects from.
+
+If `$ARGUMENTS` starts with `ctx`, drop that word and treat the rest as one of the actions below. If a `<project>` argument is omitted for `sync`, `load`, `list`, or `review`, resolve it with Step 0 above.
+
+### Data location
+
+- Registry: `~/.claude/notion-context/registry.yaml`
+- Cache: `~/.claude/notion-context/cache/<project>.yaml`
+
+(Same machine-independent location and one-time migration note as in the Notion Workspace Reference above.)
+
+### Context actions
+
+| Input | Action |
+|-------|--------|
+| `ctx` | Show registry status: all projects, page counts, cache freshness |
+| `ctx sync` | Refresh ALL project caches from Notion |
+| `ctx sync <project>` | Refresh one project's cache from Notion |
+| `ctx sync <project> <slug>` | Refresh a single page's cache |
+| `ctx add <project> [page-id] [name]` | Register a new page (interactive if no page-id) |
+| `ctx remove <project> <slug>` | Remove a page from the registry and cache |
+| `ctx load <project>` | Load all cached context for a project into the conversation |
+| `ctx load <project> <slug>` | Load one page's cached context |
+| `ctx load <project> --tags <tag>` | Load pages matching a tag |
+| `ctx discover <project>` | Search Notion for pages that might be relevant to a project |
+| `ctx list <project>` | List all registered pages for a project with their slugs and tags |
+| `ctx new <project>` | Create a new empty project entry in the registry |
+| `ctx review <project>` | Show cached summaries for the user to confirm, deny, or edit |
+
+### Registry format
+
+```yaml
+workspace_parent: <page-id>   # optional: parent page for scaffolded hubs
+projects:
+  <project-key>:
+    label: Human-readable name
+    description: One-line project description
+    dir: <directory-name>      # Matched against cwd path components for auto-detection (root-agnostic); null if no local dir
+    hub: <page-id>             # Optional hub/parent page
+    notes_db: <datasource-id>  # Optional notes database
+    pages:
+      <slug>:
+        id: <notion-page-id>
+        name: Human-readable page title
+        tags: [tag1, tag2]
+```
+
+### Cache format
+
+Each project gets one cache file at `~/.claude/notion-context/cache/<project>.yaml`:
+
+```yaml
+project: <project-key>
+label: Human-readable name
+last_sync: YYYY-MM-DD
+page_count: N
+pages:
+  <slug>:
+    id: <notion-page-id>
+    name: Page title
+    synced: YYYY-MM-DD
+    stale: false
+    summary: >
+      2-4 sentence summary of the page's purpose and key content.
+    sections:
+      - "Section Title: one-line summary of that section"
+    key_facts:
+      - "Fact: concise bullet"
+    tags: [tag1, tag2]
+```
+
+### For `ctx` (status)
+
+1. Read `registry.yaml`
+2. For each project, check whether `cache/<project>.yaml` exists and, if so, its `last_sync` date
+3. Report:
+
+```
+## Notion Context Registry
+
+| Project | Pages | Last Sync | Status |
+|---------|-------|-----------|--------|
+| web-app | 15 | 2026-05-21 | Fresh (today) |
+| api-service | 3 | 2026-05-18 | Stale (3d ago) |
+| side-project | 0 | never | No cache |
+
+Total: 18 pages across 3 projects
+```
+
+### For `ctx sync`
+
+1. Read `registry.yaml` to get the target project(s) and their pages
+2. For each page to sync:
+   a. Fetch content: `ntn pages get <page-id>` (or the Notion MCP fetch if `ntn` isn't available)
+   b. **Summarize** the content into the cache format:
+      - `summary`: 2-4 sentences capturing purpose and key content
+      - `sections`: list of "Section: one-line summary" for each heading
+      - `key_facts`: the 5-10 most important specific facts (numbers, names, dates, decisions)
+   c. Preserve the page's `tags` from the registry
+3. Write the compiled cache file to `cache/<project>.yaml`
+4. Report what was synced and any pages that failed
+
+**Summarization rules:**
+- Be ruthlessly concise; these load into context and every token counts
+- Prioritize specific facts over vague descriptions ("$49/mo pricing" not "competitive pricing")
+- Include numbers, dates, names, and decisions; skip fluff
+- If a page is very long, focus on sections that contain decisions, requirements, or specs
+- Sections list should use the actual heading text from the document
+- Max ~15 key_facts per page, aim for 5-10
+
+### For `ctx add`
+
+1. Read the registry
+2. If `<page-id>` was provided:
+   a. Fetch the page: `ntn pages get <page-id>`
+   b. Extract the title from the frontmatter `Name` field
+   c. Generate a slug from the name (lowercase, hyphens, no special chars)
+   d. Ask the user for tags (suggest based on content)
+   e. Add it to the registry under the project
+3. If no `<page-id>`: ask for the Notion page URL or ID, then continue as above
+4. Write the updated registry
+5. Offer to sync the newly added page
+
+### For `ctx remove`
+
+1. Read the registry
+2. Find and remove the page entry for `<project>/<slug>`
+3. Write the updated registry
+4. If a cache exists, remove the page from the cache file too
+5. Confirm the removal
+
+### For `ctx load`
+
+1. Read `cache/<project>.yaml`
+2. If no cache exists, suggest running `ctx sync` first
+3. Filter by slug or tags if specified
+4. Output the cached context in a compact, readable format:
+
+```
+## Notion Context: <Project Label>
+Synced: <date> | Pages: <N>
+
+### <Page Name> [slug: <slug>]
+<summary>
+
+Sections: <section summaries as bullets>
+
+Key facts:
+- fact 1
+- fact 2
+
+---
+### <Next Page Name> ...
+```
+
+**Important:** The load output IS the context injection. Keep it tight. No redundant headers or metadata beyond what's useful for understanding.
+
+### For `ctx discover`
+
+1. Use `mcp__claude_ai_Notion__notion-search` with the project name and related terms
+2. Cross-reference the results against already-registered pages
+3. Show unregistered pages that look relevant:
+
+```
+## Discovered Notion Pages for <project>
+
+Already registered: 15 pages
+New candidates:
+| Title | ID | Relevance |
+|-------|-----|-----------|
+| Marketing Budget Q2 | abc123... | pricing, marketing |
+| Client Onboarding Flow | def456... | operations |
+
+Add with: /notion ctx add <project> <page-id>
+```
+
+### For `ctx list`
+
+1. Read the registry
+2. Show the project's registered pages as a table: slug, name, tags, last synced (from the cache if present)
+
+### For `ctx new`
+
+1. Read the registry
+2. Determine the project's local directory name if it has one, and set `dir` accordingly (null if no local directory)
+3. Add a new empty project entry:
+   ```yaml
+   <project>:
+     label: <ask user>
+     description: <ask user>
+     dir: <directory-name or null>
+     pages: {}
+   ```
+4. Write the updated registry
+5. Suggest `ctx discover` or `ctx add` to populate pages
+6. To create a full Notion workspace (hub + Notes DB), use `/notion scaffold <project>`
+
+### For `ctx review`
+
+1. Read `cache/<project>.yaml`
+2. For each page, display the cached summary and key facts
+3. Ask the user to confirm, edit, or flag as stale
+4. If the user provides corrections, update the cache file directly
+5. If flagged as stale, mark `stale: true` in the cache (the next sync will refresh it)
 
 ## Rules
 
@@ -220,3 +428,13 @@ Don't guess IDs. Ask the user for the hub page URL and Notes database (data sour
    ```
 10. **Project context** -- Always show `[notion: <project>]` at start of output to confirm which project was resolved.
 11. **Registry-driven** -- Never hardcode page IDs. All IDs come from the resolved project entry in registry.yaml.
+
+### Rules for `ctx`
+
+1. **Token efficiency is paramount** -- summaries must be compact. A 5000-word Notion page should compress to ~200 tokens of cache.
+2. **Fetch before summarize** -- always read the actual Notion content, never guess.
+3. **Registry is the source of truth** -- the cache can be rebuilt from registry + Notion at any time.
+4. **Slug stability** -- once a slug is assigned, don't change it. Other systems may reference it.
+5. **Non-destructive sync** -- `sync` overwrites the cache but never modifies the registry. `add`, `remove`, and `new` modify the registry.
+6. **Parallel fetching** -- when syncing multiple pages, fetch them in parallel (up to 5 concurrent `ntn` calls).
+7. **Report failures gracefully** -- if a page fetch fails (deleted, permissions), note it in the report but don't remove it from the registry.

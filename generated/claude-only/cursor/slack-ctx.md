@@ -147,5 +147,5 @@ thread URLs as `.../archives/<channel_id>/p<thread_ts with the dot removed>`. If
 - Channel ids are stable across renames; names are not. Cache the id, treat the name as a label.
 - A DM needs no channel lookup — a user's `U…` id works directly as `channel_id`.
 - `prune` is cheap and safe. Run it when `threads` gets noisy.
-- Related: `/notion-ctx` is the same registry+cache pattern for Notion docs; `/slack-reply`
+- Related: `/notion ctx` is the same registry+cache pattern for Notion docs; `/slack-reply`
   is the consumer of this registry.

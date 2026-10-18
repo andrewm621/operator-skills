@@ -3,7 +3,7 @@
 > Upload this file as a **Knowledge** document in your Claude.ai project.
 > Pair with the Project Instructions from `claude-ai-project-instructions.md`.
 
-This file contains the full prompt text for all 47 operator skills.
+This file contains the full prompt text for all 43 operator skills.
 When a user invokes a skill (e.g., `/parallel`, `/invert`), follow the
 instructions for that skill exactly.
 
@@ -767,75 +767,6 @@ sticky-forever (Path A/B/C's default) is correct there.
 
 ---
 
-## /db-status
-
-
-Database connection check and quick status. For full migration workflows, use `/migrate`.
-
-Target directory: $ARGUMENTS (default: current working directory)
-
-## Steps
-
-1. **Delegate to `/migrate status`** — This skill is a focused alias. Run the same logic as `/migrate status` but with a read-only emphasis:
-
-   **a) Detect ORM and database** — Check for these files (in parallel):
-   - `drizzle.config.ts` or `drizzle.config.js` → Drizzle ORM
-   - `prisma/schema.prisma` → Prisma
-   - `supabase/config.toml` → Supabase local
-   - Look in `package.json` dependencies for `drizzle-orm`, `@prisma/client`, `@supabase/supabase-js`
-   - Check `.env.local` or `.env` for `DATABASE_URL`, `POSTGRES_URL`, `SUPABASE_URL`
-
-   **b) Test connection:**
-   - If DATABASE_URL is set, try a simple connection test:
-     ```bash
-     node -e "const { Client } = require('pg'); const c = new Client(process.env.DATABASE_URL); c.connect().then(() => { console.log('OK'); c.end(); }).catch(e => console.error(e.message))" 2>&1
-     ```
-   - Report: connected (with latency) or error message
-
-   **c) Migration status** — Based on detected ORM, check for pending migrations and schema drift (same detection logic as `/migrate status`).
-
-   **d) Table inventory** — If connected:
-   ```sql
-   SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
-   ```
-
-2. **Report** — Present findings:
-
-   ```
-   ## Database Status: <project-name>
-   ORM: Drizzle | Provider: Neon Postgres
-   Connection: OK (us-east-2, 52ms)
-
-   | Check | Status | Details |
-   |-------|--------|---------|
-   | Connection | PASS | Connected (52ms) |
-   | Migrations | WARN | 1 pending migration |
-   | Schema drift | PASS | Schema matches migrations |
-   | Tables | INFO | 24 tables in public schema |
-
-   ### Recent Migrations
-   | Date | Name | Status |
-   |------|------|--------|
-   | 2026-05-06 | add_event_capacity | Applied |
-   | 2026-05-01 | create_announcements | Applied |
-   | 2026-04-28 | add_member_tags | PENDING |
-   ```
-
-3. **Suggest next steps** — Based on findings, point to the right skill:
-   - Pending migrations → "Run `/migrate push` to apply"
-   - Schema drift → "Run `/migrate generate` to create a migration"
-   - Connection failure → "Run `/env-check` to verify DATABASE_URL"
-   - No ORM detected → "Run `/migrate` to set one up"
-
-   **This skill is read-only.** It never applies migrations or modifies the database. For actions, use `/migrate`.
-
-## Notes
-- This is the quick diagnostic; `/migrate` is the full workflow with generate/push/rollback/seed
-- Connection test requires DATABASE_URL in environment — run `/env-check` first if connection fails
-- For Supabase projects, the local dev database (port 54321) is checked separately from production
-
----
-
 ## /deps
 
 
@@ -1005,7 +936,7 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
    **d) If the user chooses to align:**
    - Spawn parallel agents (via the Agent tool) for each project needing updates
    - Each agent: cd into project → `npm install <package>@latest` → type check → build
-   - Aggregate results like `/parallel-check`
+   - Aggregate results like `/parallel build-check`
 
    ### `check <package>`
    Same as `align` but read-only — just show where it's used and what versions. No update offers unless the user asks.
@@ -1020,7 +951,7 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
 - For monorepos, `pnpm update` at the workspace root updates all packages — warn about this scope
 - Major version updates should always be followed by type check + build + test
 - The `align` subcommand is the cross-project killer feature — it prevents version drift across 50+ projects
-- For @rebel/ui changes, prefer `/parallel-check` which also tests the build, not just the version
+- For @rebel/ui changes, prefer `/parallel build-check` (add `--dep @rebel/ui` to find the consumers), which also tests the build, not just the version
 - If `npm audit` reports vulnerabilities in devDeps only, note that these don't affect production
 - This skill pairs with `/search-all pkg:<name>` for quick lookups; `/deps` adds analysis and actions on top
 
@@ -1029,7 +960,7 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
 ## /document
 
 
-Document a feature, decision, architecture, or workflow. Writes to dev-notes, Notion, or inline code docs.
+Document a feature, decision, architecture, or workflow. Writes decision records, inline code docs, or a README, and hands Notion pages to `/notion` and learnings to `/learn`.
 
 Arguments: $ARGUMENTS (what to document + optional target: "notion", "dev-note", "inline", "readme")
 
@@ -1038,8 +969,8 @@ Arguments: $ARGUMENTS (what to document + optional target: "notion", "dev-note",
 1. **Parse the request** — From `$ARGUMENTS`, determine:
    - **Subject:** What to document (feature, decision, architecture, API, component, workflow)
    - **Target:** Where to write it (defaults based on subject type):
-     - `notion` → Create a Notion page
-     - `dev-note` → Write to dev-notes directory (decision or learning)
+     - `notion` → Create a Notion page (delegated to `/notion`)
+     - `dev-note` → Write a decision record to the dev-notes directory. If the subject is a **learning** (a gotcha, quirk, or mistake worth not repeating), delegate to `/learn` instead — see step 4
      - `inline` → Add JSDoc/comments to source files
      - `readme` → Update or create project README
      - If no target specified: use best default for the subject type
@@ -1074,15 +1005,7 @@ Arguments: $ARGUMENTS (what to document + optional target: "notion", "dev-note",
 
 3. **Draft the document** — Write it in the appropriate format:
 
-   **Notion page:**
-   ```
-   Use Notion MCP tools to create a page with:
-   - Clear title and icon
-   - Structured sections with headers
-   - Tables for comparisons, APIs, or schemas
-   - Code blocks for examples
-   - Callouts for important notes
-   ```
+   **Notion page:** draft the content as Markdown with a clear title, structured sections with headers, tables for comparisons, APIs, or schemas, code blocks for examples, and callouts for important notes. `/notion` writes it (step 4).
 
    **Dev-note decision:**
    ```markdown
@@ -1103,21 +1026,7 @@ Arguments: $ARGUMENTS (what to document + optional target: "notion", "dev-note",
    What this means going forward
    ```
 
-   **Dev-note learning:**
-   ```markdown
-   # Learning: <Title>
-   Date: YYYY-MM-DD
-   Projects: <which projects>
-
-   ## Discovery
-   What was learned
-
-   ## Details
-   Technical specifics
-
-   ## Impact
-   How this affects our work
-   ```
+   **Learning:** don't draft a separate template here. `/learn` owns the learnings format (title, category, tags, problem, solution, why it's non-obvious) and its searchable index; step 4 hands the subject to it.
 
    **Inline docs:**
    - JSDoc comments for functions and components
@@ -1133,16 +1042,18 @@ Arguments: $ARGUMENTS (what to document + optional target: "notion", "dev-note",
    - Environment variables required
 
 4. **Write the document** — Save to the appropriate location:
-   - Notion: use `mcp__claude_ai_Notion__notion-create-pages`
-   - Dev-notes: write to `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/<type>/YYYY-MM-DD-<topic>.md`
+   - Notion: run `/notion` with the drafted content (`/notion note "<title>"` for a dev note, `/notion decision "<title>"` for a decision, `/notion update <topic>` to revise an existing page) instead of calling the Notion tools directly. It resolves the project from the registry and picks the right tool
+   - Learning: run `/learn "<the learning>"` and let it extract, categorize, save, and index it; don't write a learnings file from this skill
+   - Decision record: write to `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/decisions/YYYY-MM-DD-<topic>.md`
    - Inline: edit source files with the Edit tool
    - README: write to project's `README.md`
 
-5. **Update indexes** — If writing a dev-note:
+5. **Update indexes** — If writing a decision record:
    - Update `dev-notes/INDEX.md` with the new entry
-   - If it's a decision or learning that should be remembered across sessions, suggest updating auto-memory too
+   - If it should be remembered across sessions, suggest updating auto-memory too
+   - (`/learn` maintains its own index for learnings.)
 
-6. **Present the result** — Show what was written and where. For Notion pages, include the URL.
+6. **Present the result** — Show what was written and where. For Notion pages, include the URL `/notion` returns.
 
 ## Notes
 - The user can say things like:
@@ -1151,7 +1062,7 @@ Arguments: $ARGUMENTS (what to document + optional target: "notion", "dev-note",
   - `/document this feature notion` → creates a Notion page about the current feature
   - `/document readme` → generates/updates the project README
 - When documenting code, read the actual source first — never guess at implementations
-- For Notion pages, use appropriate icons and structured formatting
+- For Notion pages, use structured formatting; `/notion` handles icons and properties
 - Keep documentation concise and useful — avoid boilerplate padding
 
 ---
@@ -1984,8 +1895,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /roadmap [topic]         Socratic brainstorm → phased roadmap with tasks
  /phases [slug]           Visual roadmap progress with phase indicators
  /todo [subcommand]       Manage tasks: add, done, skip, pri, summary
- /log [text|view|wrap]    Daily work log — incremental entries, wrap-up
- /session-notes [topic]   End-of-session snapshot (when /log wasn't used)
+ /log [text|view|wrap]    Daily work log — incremental entries, wrap-up (also one-off session notes)
  /freeze [topic|list|thaw|all] Context snapshot for cross-thread resumption
  /pre-mortem <decision>   Devil's-advocate council pre-mortem → ranked causes of death
 
@@ -1995,7 +1905,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /orchestrate <goal>      Decompose → route to specialists → gate → report
  /maestro [subcommand]    Cross-provider task board + comms: new/work/route/ask/answer/inbox/mirror
  /subagent <task>         Background agent: explore → implement → verify
- /parallel <a> | <b>      Run tasks simultaneously, aggregate results
+ /parallel <a> | <b>      Run tasks simultaneously; build-check [projects|all] for shared-package consumers
  /research <topic>        Background research → structured findings
  /invert <subject>        Inversion principle: 5 failure lenses in parallel
 
@@ -2009,7 +1919,8 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /map [project]           Architectural diagrams (Mermaid) → ARCHITECTURE.md
  /search-all <query>      Search code/files/packages across all projects
  /ai-export <plat> <url>  Export AI chat threads (ChatGPT verified) → markdown + vault
- /document <subject>      Write docs to dev-notes, Notion, inline, or README
+ /document <subject>      Write docs: decision records, inline, README (Notion/learnings handed off)
+ /learn [text|recall]     Catalog lessons learned — gotchas, quirks, searchable index
  /note <text>             Add a note to your knowledge base (local Markdown vault)
  /motion-artifact [fmt]   Animated demo scene → deterministic GIF/MP4/WebM
  /collateral-set <client> Anchor-first set of client HTML artifacts → gated publish
@@ -2027,7 +1938,6 @@ Display the following skill catalog directly. Do NOT read files or run commands 
 ═══════════════════════════════════════════════════════════════
  /project-health [dir]    One-shot: audit + deps + build + lint + types
  /env-check [dir]         Compare expected vs actual env vars (no secrets shown)
- /db-status [dir]         Database connection + migration status (read-only)
  /git-sync [dir]          Full git sync report: branches, ahead/behind, stashes
  /port-check              Show what's running on dev ports
  /perf [url|bundle]       Lighthouse + bundle size + Core Web Vitals
@@ -2038,7 +1948,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
 ═══════════════════════════════════════════════════════════════
  DATABASE
 ═══════════════════════════════════════════════════════════════
- /migrate [subcommand]    Full migration workflow: generate, push, rollback, seed
+ /migrate [subcommand]    Migrations: generate, push, rollback, seed; status = read-only DB check
 
 ═══════════════════════════════════════════════════════════════
  DEPENDENCIES
@@ -2049,17 +1959,17 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  INTEGRATIONS
 ═══════════════════════════════════════════════════════════════
  /gleap [install|api|audit] Gleap feedback SDK + REST API: wire up, query, audit
+ /notion [action|ctx ...] Sync notes/decisions to Notion; ctx = cached page-summary registry
  /slack-reply <who|url>   Draft a Slack reply in your voice → staged as a draft
  /slack-ctx [action]      Slack directory: save, find, list, sync, regen, prune
 
 ═══════════════════════════════════════════════════════════════
- @REBEL/UI DESIGN SYSTEM
+ @REBEL/UI DESIGN SYSTEM  (only if you've installed the @rebel/ui design-system skills)
 ═══════════════════════════════════════════════════════════════
  /rebel-ui                Component reference — props, patterns, themes
  /setup-rebel-ui          Wire up @rebel/ui in a consumer project
  /rebel-new-component     Scaffold new component in design system
  /rebel-add-page [pattern] Scaffold page: dashboard, settings, data-table...
- /parallel-check [all]    Check if design system changes break consumers
 
 ═══════════════════════════════════════════════════════════════
  QUICK COMBOS
@@ -2067,24 +1977,29 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  New project        /scaffold → /switch → /map
  Stand up foundation /scaffold → /foundation-loop → /switch
  Ship feature       /todo → code → /test → /pr-review → /changelog
- Debug issue        /project-health → /env-check → /db-status → /verify-app
+ Debug issue        /project-health → /env-check → /migrate status → /verify-app
  Plan work          /roadmap → /phases → /todo
- End of day         /log wrap  (or /session-notes if no log entries)
+ End of day         /log wrap
  Switch threads     /freeze → new terminal → /freeze thaw
  Pre-merge          /invert <feature> → /test → /pr-review
  Big decision        /pre-mortem <decision> → resolve Tier 1 → decide
  Status report      /report <project or topic> → opens in browser
  Client collateral  fact sheet → /collateral-set → /motion-artifact for GIFs
- Design system      /rebel-new-component → /parallel-check all
+ Design system      /rebel-new-component → /parallel build-check all
  Cross-project      /search-all → /deps align → /parallel build-check
  Wire up feedback   /gleap install → /env-check → /gleap audit
  Answer in Slack    /slack-ctx find <person> → /slack-reply <url>
 ```
 
-If `$ARGUMENTS` names a specific skill (e.g., `/help migrate`), show its full description by reading `~/.claude/commands/<skill>.md` and presenting a summary.
+If `$ARGUMENTS` names a specific skill (e.g., `/help migrate`), show its full description by reading that skill's file and presenting a summary. Check these locations in order and use the first that exists:
+1. `~/.claude/skills/operator/<skill>/SKILL.md` (the operator-skills symlink)
+2. `~/.claude/commands/<skill>.md` (the flat install)
+3. `skills/<skill>/SKILL.md` in the current directory, if you're inside the operator-skills repo
+
+If none exist, say the skill isn't installed here.
 
 ## Notes
-- This is a static reference — update it when adding new skills
+- This is a static reference — update it when adding or removing skills, and keep the count in the header equal to the number of commands actually listed (count the lines starting with ` /`)
 - The "Quick Combos" section shows common multi-skill workflows
 - For Vercel plugin skills, those are injected automatically by hooks — not listed here
 - For marketplace plugin skills (hookify, frontend-design, etc.), run `/skills` dialog
@@ -2535,7 +2450,7 @@ Each learning file can contain multiple related gotchas (like the Supabase auth 
 ## /log
 
 
-Update the daily work log — a living document that tracks progress, decisions, and context throughout the day. Creates a new log if none exists for today, or appends to the existing one.
+Update the daily work log — a living document that tracks progress, decisions, and context throughout the day. Creates a new log if none exists for today, or appends to the existing one. `/log wrap` finalizes the day (and replaces the old one-shot session note).
 
 Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a direction like "focus on auth decisions")
 
@@ -2547,7 +2462,9 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
    |-------|--------|
    | (empty) | Auto-generate an entry from recent conversation context |
    | `view` | Display today's log (read-only) |
-   | `wrap` or `wrap up` | Finalize today's log, extract learnings/decisions, update INDEX |
+   | `wrap` or `wrap up` | Finalize today's log, extract learnings/decisions, update INDEX. Works even if you never logged during the day (it reconstructs from git and the conversation) |
+   | `wrap <topic>` | Same, and also save a standalone session note named after the topic |
+   | `wrap ... notion` | Same, and also create a Notion page with the summary (via `/notion`) |
    | `"some text"` | Add a directed entry with the provided text/focus |
    | A direction like "focus on the auth refactor" | Generate an entry scoped to that topic |
 
@@ -2611,9 +2528,15 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
    - Reference roadmap task IDs if applicable (e.g., "Completes task 2.3")
    - If a decision was made, capture the rationale briefly — this feeds into dev-notes/decisions/ later
 
-5. **Wrap-up (when `$ARGUMENTS` is "wrap")** — Finalize the daily log:
+5. **Wrap-up (when `$ARGUMENTS` starts with "wrap")** — Finalize the daily log:
 
-   **a) Add a summary section** at the bottom of the log:
+   **a) Backfill if the day was under-logged.** If today's log doesn't exist or has fewer than 2 entries, reconstruct what happened before summarizing, rather than writing a thin summary:
+   - Run in parallel: `git diff --stat HEAD~10..HEAD` (adjust the range to the session), `git log --oneline --since="today"`, and `git status --short` (uncommitted work)
+   - Review the conversation for what was asked, key decisions and why, problems hit and how they were solved, and what's left
+   - Build the list of key files created, modified, or deleted from the diff and the conversation
+   - Write these as timestamped entries (step 4 format), marked as reconstructed, then continue. If several projects were touched, group by project.
+
+   **b) Add a summary section** at the bottom of the log:
    ```markdown
    ---
 
@@ -2628,6 +2551,14 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
    **Decisions made:**
    - Decision 1 (consider extracting to dev-notes/decisions/)
 
+   **Problems & solutions:**
+   - Problem encountered → how it was resolved
+
+   **Files changed:**
+   | File | Change | Notes |
+   |------|--------|-------|
+   | path/to/file.ts | Created | New component for X |
+
    **Open items:**
    - [ ] Thing that still needs doing
    - [ ] Question that needs answering
@@ -2636,14 +2567,18 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
    - Learning 1 (consider extracting to dev-notes/learnings/)
    ```
 
-   **b) Extract structured notes** — Check if the day's log contains:
+   **c) Extract structured notes** — Check if the day's log contains:
    - A significant **decision** → offer to create `dev-notes/decisions/YYYY-MM-DD-<topic>.md`
-   - A non-obvious **learning** → offer to create `dev-notes/learnings/YYYY-MM-DD-<topic>.md`
+   - A non-obvious **learning** → offer to hand it to `/learn` (it owns the learnings format and index) rather than writing a learnings file here
    - **Memory-worthy patterns** → offer to update auto-memory files
 
-   **c) Update INDEX.md** — Append today's log to `dev-notes/INDEX.md` with a one-line summary.
+   **d) Update INDEX.md** — Append today's log to `dev-notes/INDEX.md` with a one-line summary.
 
-   **d) Roadmap sync** — If there's an active roadmap, check if any tasks were completed during the day and offer to update them via `/todo done`.
+   **e) Standalone session note (only if a topic was given)** — For `wrap <topic>`, also write `dev-notes/sessions/YYYY-MM-DD-<topic>.md` using a short descriptive slug (e.g. "auth-refactor") with: Date, Project(s), What Was Done, Key Decisions, Problems & Solutions, Files Changed, What's Next (as `- [ ]` items). Add it to INDEX.md too. Skip this when no topic was given; the daily log already holds the same information.
+
+   **f) Notion (only if `notion` was passed)** — Create a Notion page with the same summary by running `/notion note` with the wrap-up content, and link it back in the log.
+
+   **g) Roadmap sync** — If there's an active roadmap, check if any tasks were completed during the day and offer to update them via `/todo done`.
 
 6. **Confirm to user** — After appending an entry, show a brief confirmation:
    ```
@@ -2653,13 +2588,14 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
    ```
 
 ## Notes
-- Unlike `/session-notes` (one-shot end-of-session snapshot), `/log` is designed to be called MULTIPLE TIMES throughout the day. Each call appends a new timestamped entry.
-- The daily log file uses the naming convention `YYYY-MM-DD-daily.md` to distinguish it from session notes which use `YYYY-MM-DD-<topic>.md`.
+- `/log` is designed to be called MULTIPLE TIMES throughout the day. Each call appends a new timestamped entry.
+- The daily log file uses the naming convention `YYYY-MM-DD-daily.md` to distinguish it from standalone session notes (`wrap <topic>`), which use `YYYY-MM-DD-<topic>.md`.
 - Call `/log` after completing a feature, making a key decision, hitting a blocker, or switching projects. The more entries, the better the wrap-up summary.
-- `/log wrap` at the end of the day produces a polished summary and extracts learnings/decisions — it's a superset of what `/session-notes` does, but built from incremental entries rather than reconstructed from memory.
+- `/log wrap` at the end of the day produces a polished summary and extracts learnings/decisions. It works best from incremental entries, but it also covers the "I forgot to log" and "short one-off session" cases by reconstructing from git and the conversation (step 5a).
 - If you forget to log during the day, `/log` with no arguments will reconstruct recent activity from conversation context — but real-time entries are always more accurate.
 - The daily log is append-only during the day. Only `/log wrap` adds the summary section.
 - This skill complements the roadmap pipeline: as you work through `/todo` tasks, `/log` captures the narrative of HOW you did them — context that task checkboxes don't preserve.
+- Related: `/learn` for a single gotcha worth keeping, `/document` for docs, `/freeze` for resuming in a new thread.
 
 ---
 
@@ -3001,7 +2937,7 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
 ## /migrate
 
 
-Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely.
+Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely. `/migrate status` is the read-only health check — connection test, migration state, schema drift, table inventory.
 
 Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "seed", "diff", or a description of schema changes)
 
@@ -3012,7 +2948,7 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
    - `prisma/schema.prisma` → Prisma
    - `supabase/config.toml` → Supabase
    - Read `package.json` for installed packages and scripts
-   - Read `.env.local` or `.env` for `DATABASE_URL`
+   - Check `.env.local` and `.env` (and the shell environment) for `DATABASE_URL`, `POSTGRES_URL`, or `SUPABASE_URL` — never assume the variable is already in `process.env`; see the connection test under `status`
 
    If no ORM detected, offer to set one up: "No database ORM found. Want to add Drizzle + Neon? (recommended)"
 
@@ -3020,7 +2956,7 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
 
    | Input | Action |
    |-------|--------|
-   | _(empty)_ or `status` | Show migration status (same as `/db-status` migration section, but more detail) |
+   | _(empty)_ or `status` | Read-only health check: connection test, migration status, schema drift, table inventory. Never changes anything |
    | `generate` or `gen` | Generate a new migration from schema changes |
    | `push` or `apply` | Apply pending migrations to the database |
    | `rollback` | Roll back the last migration (with safety checks) |
@@ -3031,7 +2967,51 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
 3. **Execute based on subcommand:**
 
    ### `status`
-   Run diagnostics (in parallel):
+   Read-only. Never applies migrations or modifies the database; for actions use the other subcommands. Run the checks below (the file-based ones in parallel).
+
+   **a) Connection test — load the env files explicitly.** A bare `new Client(process.env.DATABASE_URL)` silently falls back to `localhost` when the variable is unset (the shell does not read `.env.local`), which reports a false OK or a misleading error. Resolve the URL yourself, say where it came from, and fail loudly if there isn't one:
+
+   ```bash
+   node - <<'NODE'
+   const fs = require('fs');
+   const KEYS = ['DATABASE_URL', 'POSTGRES_URL'];
+   function parseEnv(file) {
+     const out = {};
+     let text = '';
+     try { text = fs.readFileSync(file, 'utf8'); } catch { return out; }
+     for (const line of text.split(/\r?\n/)) {
+       const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+       if (!m || m[1].startsWith('#')) continue;
+       out[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+     }
+     return out;
+   }
+   // Precedence: shell environment, then .env.local, then .env (same as Next.js).
+   const sources = [['shell environment', process.env], ['.env.local', parseEnv('.env.local')], ['.env', parseEnv('.env')]];
+   let url, key, source;
+   outer: for (const [name, env] of sources) for (const k of KEYS) if (env[k]) { url = env[k]; key = k; source = name; break outer; }
+   if (!url) {
+     console.error('FAIL: no ' + KEYS.join(' or ') + ' found in the shell environment, .env.local, or .env (cwd: ' + process.cwd() + ')');
+     process.exit(2);
+   }
+   let u;
+   try { u = new URL(url); } catch { console.error('FAIL: ' + key + ' from ' + source + ' is not a valid URL'); process.exit(2); }
+   console.log('Using ' + key + ' from ' + source + ' -> ' + u.protocol + '//' + u.host + u.pathname + ' (credentials hidden)');
+   if (['localhost', '127.0.0.1', '::1'].includes(u.hostname)) console.log('NOTE: this points at a local database');
+   let Client;
+   try { ({ Client } = require('pg')); } catch { console.error('FAIL: the "pg" package is not installed in this project. Test with: psql "$URL" -c "select 1"'); process.exit(3); }
+   const t0 = Date.now();
+   const c = new Client({ connectionString: url });
+   c.connect()
+     .then(() => c.query('select 1'))
+     .then(() => { console.log('OK connected in ' + (Date.now() - t0) + 'ms'); return c.end(); })
+     .catch(e => { console.error('FAIL: ' + (e.code ? e.code + ' ' : '') + e.message); process.exitCode = 1; });
+   NODE
+   ```
+
+   Report the variable, the source (`shell environment`, `.env.local`, or `.env`), the host and database name (never the password), and either the connected latency or the error. If no URL was found, stop here and say so; do not try the other checks against a guessed database, and point to `/env-check`. If `.env.local` and `.env` define different URLs, mention which one won and that the other was ignored. For Supabase projects, the local dev database (port 54321) is separate from production; say which one the URL targets.
+
+   **b) Migration status** — based on the detected ORM:
 
    **Drizzle:**
    ```bash
@@ -3050,10 +3030,16 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
    - List `supabase/migrations/` files
    - Run `supabase db diff` if CLI available
 
-   Report:
+   **c) Table inventory** — if connected, using the same connection as (a):
+   ```sql
+   SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
+   ```
+
+   **d) Report:**
    ```
     MIGRATE STATUS  <project-name>
     ORM: Drizzle | Schema: db/schema.ts | Migrations: drizzle/
+    Connection: OK (DATABASE_URL from .env.local, 52ms)
 
     Applied: 12 migrations (latest: 2026-05-10 — add_member_tags)
     Pending: 0
@@ -3061,6 +3047,12 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
 
     Tables (14): users, events, members, tags, ...
    ```
+
+   **e) Suggest next steps** — point to the right subcommand:
+   - Pending migrations → "Run `/migrate push` to apply"
+   - Schema drift → "Run `/migrate generate` to create a migration"
+   - Connection failure or no URL → "Run `/env-check` to verify DATABASE_URL"
+   - No ORM detected → offer to set one up (see step 1)
 
    ### `generate` / `gen`
    **a) Check for schema changes:**
@@ -3221,10 +3213,10 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
    - Offer to mark schema-related tasks as done
 
 ## Notes
-- This skill builds on `/db-status` — use `/db-status` for diagnostics, `/migrate` for actions
+- `/migrate status` is the read-only diagnostic (it absorbed the former standalone database-status skill); the other subcommands are the actions
 - **Never apply destructive migrations without explicit user confirmation**
 - For production databases, always recommend: test locally first → apply to preview branch → then production
-- If `DATABASE_URL` is not set, suggest running `/env-check` first
+- If no database URL can be found (shell, `.env.local`, `.env`), say so plainly and suggest `/env-check`; never let a connection test default to localhost
 - Drizzle is the primary ORM in this workspace — optimized for that flow
 - When making schema changes from descriptions, always show the diff before generating the migration
 - Seed scripts should be idempotent (safe to run multiple times) — use `INSERT ... ON CONFLICT DO NOTHING` or truncate+insert
@@ -4267,244 +4259,15 @@ Only `path` is required. Missing `inbox` means the vault root. Multiple vaults a
 
 - This is the generic base for capturing to a markdown vault. For expanded idea capture or project-specific stores, you may have your own skills that build on or replace it.
 - It writes into the vault only — one note per run, plus the config file when you approve creating it. It never edits other notes except to append when you choose that.
-- Related skills: `/learn` is for engineering gotchas and lessons, `/log` for the daily work log, `/document` for dev-notes decisions and project docs, `/session-notes` for end-of-session snapshots, `/ai-export` to file exported AI chats into a vault.
+- Related skills: `/learn` is for engineering gotchas and lessons, `/log` for the daily work log, `/document` for dev-notes decisions and project docs, `/log wrap` for end-of-session snapshots, `/ai-export` to file exported AI chats into a vault.
 - Vault-specific rules (required frontmatter, folder meaning, link style) belong in the vault's own conventions file, not in this skill — point `conventions` at it.
-
----
-
-## /notion-ctx
-
-
-Manage a per-project registry of relevant Notion documents with cached summaries for fast context loading. Keeps Notion knowledge fresh and token-efficient.
-
-Arguments: $ARGUMENTS (optional: action and target)
-
-## Data Location
-
-- Registry: `~/.claude/projects/-Users-andrewmiller-Projects/notion-context/registry.yaml`
-- Cache: `~/.claude/projects/-Users-andrewmiller-Projects/notion-context/cache/<project>.yaml`
-
-## Actions
-
-| Input | Action |
-|-------|--------|
-| (empty) | Show registry status — all projects, page counts, cache freshness |
-| `sync` | Refresh ALL project caches from Notion |
-| `sync <project>` | Refresh one project's cache from Notion |
-| `sync <project> <slug>` | Refresh a single page's cache |
-| `add <project> [page-id] [name]` | Register a new page (interactive if no page-id) |
-| `remove <project> <slug>` | Remove a page from registry and cache |
-| `load <project>` | Load all cached context for a project into conversation |
-| `load <project> <slug>` | Load one page's cached context |
-| `load <project> --tags <tag>` | Load pages matching a tag |
-| `discover <project>` | Search Notion for pages that might be relevant to a project |
-| `list <project>` | List all registered pages for a project with their slugs and tags |
-| `new <project>` | Create a new empty project entry in the registry |
-| `review <project>` | Show cached summaries for user to confirm/deny/edit |
-
-## Tool Strategy
-
-**Primary: `ntn` CLI** (`/usr/local/bin/ntn`) — far fewer tokens than MCP.
-- `ntn pages get <id>` — fetch page as markdown with frontmatter
-- `ntn datasources query <ds-id>` — query database pages
-
-**Fallback: Notion MCP** — only for search (ntn has no search command).
-- `mcp__claude_ai_Notion__notion-search` — full-text search
-
-## Registry Format
-
-The registry at `notion-context/registry.yaml` maps projects to their Notion pages:
-
-```yaml
-projects:
-  <project-key>:
-    label: Human-readable name
-    description: One-line project description
-    dir: <directory-name>    # Maps to ~/Projects/<dir>/ for auto-detection from cwd
-    hub: <page-id>           # Optional hub/parent page
-    notes_db: <datasource-id> # Optional notes database
-    pages:
-      <slug>:
-        id: <notion-page-id>
-        name: Human-readable page title
-        tags: [tag1, tag2]
-```
-
-## Cache Format
-
-Each project gets one cache file at `notion-context/cache/<project>.yaml`:
-
-```yaml
-project: <project-key>
-label: Human-readable name
-last_sync: YYYY-MM-DD
-page_count: N
-pages:
-  <slug>:
-    id: <notion-page-id>
-    name: Page title
-    synced: YYYY-MM-DD
-    stale: false
-    summary: >
-      2-4 sentence summary of the page's purpose and key content.
-    sections:
-      - "Section Title: one-line summary of that section"
-    key_facts:
-      - "Fact: concise bullet"
-    tags: [tag1, tag2]
-```
-
-## Steps by Action
-
-### Status (empty input)
-
-1. Read `notion-context/registry.yaml`
-2. For each project, check if `notion-context/cache/<project>.yaml` exists
-3. If cache exists, read it and check `last_sync` date
-4. Report:
-
-```
-## Notion Context Registry
-
-| Project | Pages | Last Sync | Status |
-|---------|-------|-----------|--------|
-| rebelsites | 15 | 2026-05-21 | Fresh (today) |
-| agencyos | 3 | 2026-05-18 | Stale (3d ago) |
-| taxloom | 0 | never | No cache |
-
-Total: 18 pages across 3 projects
-```
-
-### Sync
-
-1. Read `notion-context/registry.yaml` to get the target project(s) and their pages
-2. For each page to sync:
-   a. Fetch content: `ntn pages get <page-id>`
-   b. **Summarize** the content into the cache format:
-      - `summary`: 2-4 sentences capturing purpose and key content
-      - `sections`: list of "Section: one-line summary" for each heading
-      - `key_facts`: 5-10 most important specific facts (numbers, names, dates, decisions)
-   c. Preserve the page's `tags` from the registry
-3. Write the compiled cache file to `notion-context/cache/<project>.yaml`
-4. Report what was synced and any pages that failed
-
-**Summarization rules:**
-- Be ruthlessly concise — these load into context and every token counts
-- Prioritize specific facts over vague descriptions ("$49/mo pricing" not "competitive pricing")
-- Include numbers, dates, names, and decisions — skip fluff
-- If a page is very long, focus on sections that contain decisions, requirements, or specs
-- Sections list should use the actual heading text from the document
-- Max ~15 key_facts per page, aim for 5-10
-
-### Add
-
-1. Read registry
-2. If `<page-id>` provided:
-   a. Fetch the page: `ntn pages get <page-id>`
-   b. Extract the title from frontmatter `Name` field
-   c. Generate a slug from the name (lowercase, hyphens, no special chars)
-   d. Ask user for tags (suggest based on content)
-   e. Add to registry under the project
-3. If no `<page-id>`:
-   a. Ask user for the Notion page URL or ID
-   b. Continue as above
-4. Write updated registry
-5. Offer to sync the newly added page
-
-### Remove
-
-1. Read registry
-2. Find and remove the page entry for `<project>/<slug>`
-3. Write updated registry
-4. If cache exists, remove the page from the cache file too
-5. Confirm removal
-
-### Load
-
-1. Read `notion-context/cache/<project>.yaml`
-2. If no cache exists, suggest running `sync` first
-3. Filter by slug or tags if specified
-4. Output the cached context in a compact, readable format:
-
-```
-## Notion Context: <Project Label>
-Synced: <date> | Pages: <N>
-
-### <Page Name> [slug: <slug>]
-<summary>
-
-Sections: <section summaries as bullets>
-
-Key facts:
-- fact 1
-- fact 2
-
-### <Next Page Name> ...
-```
-
-**Important:** The load output IS the context injection. Keep it tight. No redundant headers or metadata beyond what's useful for understanding.
-
-### Discover
-
-1. Use `mcp__claude_ai_Notion__notion-search` with the project name and related terms
-2. Cross-reference results against already-registered pages
-3. Show unregistered pages that look relevant:
-
-```
-## Discovered Notion Pages for <project>
-
-Already registered: 15 pages
-New candidates:
-| Title | ID | Relevance |
-|-------|-----|-----------|
-| Marketing Budget Q2 | abc123... | pricing, marketing |
-| Client Onboarding Flow | def456... | operations |
-
-Add with: /notion-ctx add <project> <page-id>
-```
-
-### New
-
-1. Read registry
-2. Check if `~/Projects/<project>/` exists and set `dir` accordingly (null if no local directory)
-3. Add a new empty project entry:
-   ```yaml
-   <project>:
-     label: <ask user>
-     description: <ask user>
-     dir: <directory-name or null>
-     pages: {}
-   ```
-4. Write updated registry
-5. Suggest using `discover` or `add` to populate pages
-6. To create a full Notion workspace (hub + Notes DB), use `/notion scaffold <project>`
-
-### Review
-
-1. Read `notion-context/cache/<project>.yaml`
-2. For each page, display the cached summary and key facts
-3. Ask user to confirm, edit, or flag as stale for each page
-4. If user provides corrections, update the cache file directly
-5. If flagged as stale, mark `stale: true` in the cache (sync will refresh)
-
-## Rules
-
-1. **Token efficiency is paramount** — summaries must be compact. A 5000-word Notion page should compress to ~200 tokens of cache.
-2. **Fetch before summarize** — always read the actual Notion content, never guess.
-3. **Registry is the source of truth** — cache can be rebuilt from registry + Notion at any time.
-4. **Slug stability** — once a slug is assigned, don't change it. Other systems may reference it.
-5. **Non-destructive sync** — sync overwrites cache but never modifies the registry. Add/remove modify the registry.
-6. **Parallel fetching** — when syncing multiple pages, fetch them in parallel (up to 5 concurrent `ntn` calls).
-7. **Date format** — always ISO-8601 (YYYY-MM-DD) in YAML files.
-8. **Report failures gracefully** — if a page fetch fails (deleted, permissions), note it in the report but don't remove from registry.
-9. **Prefer `ntn` CLI** over Notion MCP for page reads — it's faster and cheaper on tokens.
 
 ---
 
 ## /notion
 
 
-Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current.
+Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current. `/notion ctx ...` manages that registry and its cached page summaries for fast, token-efficient context loading.
 
 Arguments: $ARGUMENTS (optional: action and details)
 
@@ -4522,6 +4285,7 @@ Arguments: $ARGUMENTS (optional: action and details)
 | `link` | Show all known Notion page URLs for the current project |
 | `scaffold <project>` | Create Notion hub + Notes DB for a project and register it |
 | `infra [tag]` | Show infrastructure context pages, optionally filtered by tag |
+| `ctx [action] ...` | Manage the context registry and cached page summaries (sync, add, load, discover, ...). See "Context registry" below |
 
 ## Tool Strategy
 
@@ -4696,8 +4460,8 @@ Don't guess IDs. Ask the user for the hub page URL and Notes database (data sour
    - Update workspace_parent if newly created
 
 6. **Confirm** -- Show hub URL, Notes DB URL, and suggest next steps:
-   - "Run `/notion-ctx add <project> <page-id>` to register existing pages"
-   - "Run `/notion-ctx discover <project>` to find related Notion pages"
+   - "Run `/notion ctx add <project> <page-id>` to register existing pages"
+   - "Run `/notion ctx discover <project>` to find related Notion pages"
 
 ### For `infra [tag]`
 
@@ -4705,7 +4469,214 @@ Don't guess IDs. Ask the user for the hub page URL and Notes database (data sour
 2. List registered pages with tags.
 3. If tag provided: filter pages to matching tag.
 4. Show `context_packs` references: "Related skills: `my-infra-context-pack:*`, `vercel-plugin:*`"
-5. Offer: "Load context with `/notion-ctx load infrastructure [--tags <tag>]`"
+5. Offer: "Load context with `/notion ctx load infrastructure [--tags <tag>]`"
+
+## Context registry (`/notion ctx`)
+
+Manages the per-project registry of relevant Notion documents and a cache of compact summaries, so a project's Notion knowledge can be loaded into a conversation cheaply instead of re-fetching whole pages. The registry is the same `registry.yaml` the actions above resolve projects from.
+
+If `$ARGUMENTS` starts with `ctx`, drop that word and treat the rest as one of the actions below. If a `<project>` argument is omitted for `sync`, `load`, `list`, or `review`, resolve it with Step 0 above.
+
+### Data location
+
+- Registry: `~/.claude/notion-context/registry.yaml`
+- Cache: `~/.claude/notion-context/cache/<project>.yaml`
+
+(Same machine-independent location and one-time migration note as in the Notion Workspace Reference above.)
+
+### Context actions
+
+| Input | Action |
+|-------|--------|
+| `ctx` | Show registry status: all projects, page counts, cache freshness |
+| `ctx sync` | Refresh ALL project caches from Notion |
+| `ctx sync <project>` | Refresh one project's cache from Notion |
+| `ctx sync <project> <slug>` | Refresh a single page's cache |
+| `ctx add <project> [page-id] [name]` | Register a new page (interactive if no page-id) |
+| `ctx remove <project> <slug>` | Remove a page from the registry and cache |
+| `ctx load <project>` | Load all cached context for a project into the conversation |
+| `ctx load <project> <slug>` | Load one page's cached context |
+| `ctx load <project> --tags <tag>` | Load pages matching a tag |
+| `ctx discover <project>` | Search Notion for pages that might be relevant to a project |
+| `ctx list <project>` | List all registered pages for a project with their slugs and tags |
+| `ctx new <project>` | Create a new empty project entry in the registry |
+| `ctx review <project>` | Show cached summaries for the user to confirm, deny, or edit |
+
+### Registry format
+
+```yaml
+workspace_parent: <page-id>   # optional: parent page for scaffolded hubs
+projects:
+  <project-key>:
+    label: Human-readable name
+    description: One-line project description
+    dir: <directory-name>      # Matched against cwd path components for auto-detection (root-agnostic); null if no local dir
+    hub: <page-id>             # Optional hub/parent page
+    notes_db: <datasource-id>  # Optional notes database
+    pages:
+      <slug>:
+        id: <notion-page-id>
+        name: Human-readable page title
+        tags: [tag1, tag2]
+```
+
+### Cache format
+
+Each project gets one cache file at `~/.claude/notion-context/cache/<project>.yaml`:
+
+```yaml
+project: <project-key>
+label: Human-readable name
+last_sync: YYYY-MM-DD
+page_count: N
+pages:
+  <slug>:
+    id: <notion-page-id>
+    name: Page title
+    synced: YYYY-MM-DD
+    stale: false
+    summary: >
+      2-4 sentence summary of the page's purpose and key content.
+    sections:
+      - "Section Title: one-line summary of that section"
+    key_facts:
+      - "Fact: concise bullet"
+    tags: [tag1, tag2]
+```
+
+### For `ctx` (status)
+
+1. Read `registry.yaml`
+2. For each project, check whether `cache/<project>.yaml` exists and, if so, its `last_sync` date
+3. Report:
+
+```
+## Notion Context Registry
+
+| Project | Pages | Last Sync | Status |
+|---------|-------|-----------|--------|
+| web-app | 15 | 2026-05-21 | Fresh (today) |
+| api-service | 3 | 2026-05-18 | Stale (3d ago) |
+| side-project | 0 | never | No cache |
+
+Total: 18 pages across 3 projects
+```
+
+### For `ctx sync`
+
+1. Read `registry.yaml` to get the target project(s) and their pages
+2. For each page to sync:
+   a. Fetch content: `ntn pages get <page-id>` (or the Notion MCP fetch if `ntn` isn't available)
+   b. **Summarize** the content into the cache format:
+      - `summary`: 2-4 sentences capturing purpose and key content
+      - `sections`: list of "Section: one-line summary" for each heading
+      - `key_facts`: the 5-10 most important specific facts (numbers, names, dates, decisions)
+   c. Preserve the page's `tags` from the registry
+3. Write the compiled cache file to `cache/<project>.yaml`
+4. Report what was synced and any pages that failed
+
+**Summarization rules:**
+- Be ruthlessly concise; these load into context and every token counts
+- Prioritize specific facts over vague descriptions ("$49/mo pricing" not "competitive pricing")
+- Include numbers, dates, names, and decisions; skip fluff
+- If a page is very long, focus on sections that contain decisions, requirements, or specs
+- Sections list should use the actual heading text from the document
+- Max ~15 key_facts per page, aim for 5-10
+
+### For `ctx add`
+
+1. Read the registry
+2. If `<page-id>` was provided:
+   a. Fetch the page: `ntn pages get <page-id>`
+   b. Extract the title from the frontmatter `Name` field
+   c. Generate a slug from the name (lowercase, hyphens, no special chars)
+   d. Ask the user for tags (suggest based on content)
+   e. Add it to the registry under the project
+3. If no `<page-id>`: ask for the Notion page URL or ID, then continue as above
+4. Write the updated registry
+5. Offer to sync the newly added page
+
+### For `ctx remove`
+
+1. Read the registry
+2. Find and remove the page entry for `<project>/<slug>`
+3. Write the updated registry
+4. If a cache exists, remove the page from the cache file too
+5. Confirm the removal
+
+### For `ctx load`
+
+1. Read `cache/<project>.yaml`
+2. If no cache exists, suggest running `ctx sync` first
+3. Filter by slug or tags if specified
+4. Output the cached context in a compact, readable format:
+
+```
+## Notion Context: <Project Label>
+Synced: <date> | Pages: <N>
+
+### <Page Name> [slug: <slug>]
+<summary>
+
+Sections: <section summaries as bullets>
+
+Key facts:
+- fact 1
+- fact 2
+
+---
+### <Next Page Name> ...
+```
+
+**Important:** The load output IS the context injection. Keep it tight. No redundant headers or metadata beyond what's useful for understanding.
+
+### For `ctx discover`
+
+1. Use `mcp__claude_ai_Notion__notion-search` with the project name and related terms
+2. Cross-reference the results against already-registered pages
+3. Show unregistered pages that look relevant:
+
+```
+## Discovered Notion Pages for <project>
+
+Already registered: 15 pages
+New candidates:
+| Title | ID | Relevance |
+|-------|-----|-----------|
+| Marketing Budget Q2 | abc123... | pricing, marketing |
+| Client Onboarding Flow | def456... | operations |
+
+Add with: /notion ctx add <project> <page-id>
+```
+
+### For `ctx list`
+
+1. Read the registry
+2. Show the project's registered pages as a table: slug, name, tags, last synced (from the cache if present)
+
+### For `ctx new`
+
+1. Read the registry
+2. Determine the project's local directory name if it has one, and set `dir` accordingly (null if no local directory)
+3. Add a new empty project entry:
+   ```yaml
+   <project>:
+     label: <ask user>
+     description: <ask user>
+     dir: <directory-name or null>
+     pages: {}
+   ```
+4. Write the updated registry
+5. Suggest `ctx discover` or `ctx add` to populate pages
+6. To create a full Notion workspace (hub + Notes DB), use `/notion scaffold <project>`
+
+### For `ctx review`
+
+1. Read `cache/<project>.yaml`
+2. For each page, display the cached summary and key facts
+3. Ask the user to confirm, edit, or flag as stale
+4. If the user provides corrections, update the cache file directly
+5. If flagged as stale, mark `stale: true` in the cache (the next sync will refresh it)
 
 ## Rules
 
@@ -4726,6 +4697,16 @@ Don't guess IDs. Ask the user for the hub page URL and Notes database (data sour
    ```
 10. **Project context** -- Always show `[notion: <project>]` at start of output to confirm which project was resolved.
 11. **Registry-driven** -- Never hardcode page IDs. All IDs come from the resolved project entry in registry.yaml.
+
+### Rules for `ctx`
+
+1. **Token efficiency is paramount** -- summaries must be compact. A 5000-word Notion page should compress to ~200 tokens of cache.
+2. **Fetch before summarize** -- always read the actual Notion content, never guess.
+3. **Registry is the source of truth** -- the cache can be rebuilt from registry + Notion at any time.
+4. **Slug stability** -- once a slug is assigned, don't change it. Other systems may reference it.
+5. **Non-destructive sync** -- `sync` overwrites the cache but never modifies the registry. `add`, `remove`, and `new` modify the registry.
+6. **Parallel fetching** -- when syncing multiple pages, fetch them in parallel (up to 5 concurrent `ntn` calls).
+7. **Report failures gracefully** -- if a page fetch fails (deleted, permissions), note it in the report but don't remove it from the registry.
 
 ---
 
@@ -4820,91 +4801,10 @@ Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `
 
 ---
 
-## /parallel-check
-
-
-Check if a shared dependency change breaks consumer projects. Thin wrapper around `/parallel build-check` with auto-detected consumers.
-
-Arguments: $ARGUMENTS (optional: specific projects to check, or "all" for all consumers)
-
-## Steps
-
-1. **Detect what changed and find consumers:**
-
-   **If in `~/Projects/design-system/`** (most common case):
-   - Auto-detect @rebel/ui consumers:
-     ```bash
-     grep -rl '"@rebel/ui"' ~/Projects/*/package.json 2>/dev/null
-     ```
-   - Known consumers from CLAUDE.md: agencyos, communityos, liberty-networking, helloconnect, formflow, document_engine, serviceos
-   - If `$ARGUMENTS` specifies projects, use those instead of auto-detecting
-   - If `$ARGUMENTS` is "all", check every consumer found
-
-   **If in a Turborepo `packages/` directory:**
-   - Check `turbo.json` and `package.json` workspace references to find dependents
-
-   **Otherwise:**
-   - Ask what was changed and which consumers to check
-
-2. **Ensure the shared package is built:**
-   - If in design-system: verify `pnpm build` has been run (check dist/ freshness)
-   - If dist/ is stale, run the build first
-
-3. **Delegate to `/parallel build-check`** — Construct the equivalent `/parallel` command and execute it:
-
-   This is functionally the same as running:
-   ```
-   /parallel build-check <consumer1> <consumer2> <consumer3> ...
-   ```
-
-   For each consumer project, spawn a parallel subagent that:
-   - `cd`s into the project directory
-   - Runs `npm install` or `pnpm install` (to pick up the linked changes)
-   - Runs `npx tsc --noEmit` (type check)
-   - Runs `npm run build` (build check)
-   - Reports: pass/fail with error details
-
-   **IMPORTANT:** Spawn all subagents in parallel — don't wait for one to finish before starting the next.
-
-4. **Collect and report results:**
-
-   ```
-   ## Parallel Check: @rebel/ui change
-
-   Checked N consumer projects:
-
-   | Project | Types | Build | Status |
-   |---------|-------|-------|--------|
-   | agencyos | PASS | PASS | OK |
-   | liberty-networking | PASS | PASS | OK |
-   | communityos | FAIL | - | Blocked |
-   | helloconnect | PASS | PASS | OK |
-
-   ### Failures
-   **communityos** — Type error:
-   src/components/nav.tsx:23 — Property 'variant' does not exist on type 'ButtonProps'
-
-   ### Action Items
-   - [ ] Fix communityos/src/components/nav.tsx — update prop name
-   ```
-
-5. **Offer fixes** — For each failure:
-   - Show the specific error and which change caused it
-   - Offer to fix it directly (open the file, make the change)
-   - After fixing, offer to re-run the check for that project
-
-## Notes
-- This is a convenience wrapper — it auto-detects consumers and delegates to parallel build agents
-- For general-purpose parallel checks (not @rebel/ui), use `/parallel build-check <projects>` directly
-- Builds can take 30s-2min per project — parallel execution saves significant time
-- Does NOT push or commit changes — only builds and type-checks locally
-
----
-
 ## /parallel
 
 
-Run multiple tasks in parallel using subagents. Pipe-separated tasks are spawned simultaneously and results are aggregated.
+Run multiple tasks in parallel using subagents. Pipe-separated tasks are spawned simultaneously and results are aggregated. `build-check` fans out build/type-check agents across the projects that depend on a shared package.
 
 Arguments: $ARGUMENTS
 
@@ -4924,9 +4824,10 @@ Arguments: $ARGUMENTS
    - Read the active roadmap from `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/INDEX.md`, then parse the tasks from `roadmap.md`
 
    **Build-check format:**
-   If `$ARGUMENTS` starts with "build-check", parse project names.
-   - `/parallel build-check agencyos communityos web-app`
-   - This is a generalization of `/parallel-check` — each project gets a build agent
+   If `$ARGUMENTS` starts with "build-check", resolve the list of projects to check, then give each one a build agent (see "Build-check flow" below).
+   - `/parallel build-check agencyos communityos web-app` — check exactly these projects
+   - `/parallel build-check` or `/parallel build-check all` — auto-detect every consumer of the shared package you are standing in
+   - `/parallel build-check all --dep @acme/ui` — auto-detect consumers of a named package (use when the current directory isn't the package)
 
    If only 1 task is parsed, tell the user: "Only one task found — running directly instead of spawning an agent." Then just do the task.
 
@@ -5008,11 +4909,48 @@ Arguments: $ARGUMENTS
    - If the user confirms, update the roadmap file (same write pattern as `/todo done`)
    - Check for phase boundary completion
 
+## Build-check flow
+
+Use this when `$ARGUMENTS` starts with "build-check". It covers the "did my shared-package change break its consumers?" check.
+
+1. **Resolve the consumers:**
+   - **Named projects** — use exactly those; skip detection.
+   - **`all` or empty** — detect them. First find the shared package: `--dep <name>` if given, otherwise the `name` field of the nearest `package.json` at or above the current directory.
+   - **Find consumers by grepping `package.json` files for that dependency** — never from a hardcoded list. Search the sibling projects of the current one, plus workspace packages if this is a monorepo (`turbo.json`, `pnpm-workspace.yaml`, or `workspaces` in `package.json`):
+     ```bash
+     PKG="<package-name>"
+     ROOT="$(dirname "$PWD")"        # the folder that holds sibling projects (use the repo root in a monorepo)
+     find "$ROOT" -maxdepth 4 \( -name node_modules -o -name .next -o -name dist \) -prune \
+       -o -name package.json -print0 | xargs -0 grep -lE "\"$PKG\"[[:space:]]*:"
+     ```
+     Count a project as a consumer only if the match is under `dependencies`, `devDependencies`, or `peerDependencies`, and exclude the package itself.
+   - If nothing is found, say so and ask which projects to check. If the dependency can't be inferred (no `package.json` above the cwd), ask what changed.
+2. **Make sure the shared package is built.** If it has a build output (`dist/`) and the sources are newer, run its build first (`pnpm build` / `npm run build`). Consumers that link to it (`link:`, `workspace:`, `file:`) would otherwise test stale output.
+3. **Spawn one agent per consumer, all at once** (see step 4 above). Each one:
+   - `cd`s into the project and installs if needed (`pnpm install` / `npm install`, matching its lockfile) to pick up the linked changes
+   - Runs `npx tsc --noEmit` (type check), then the project's `build` script
+   - Reports pass/fail with the first relevant error
+4. **Report** with one row per consumer (Types, Build, Status), then list each failure with the exact error and an action item:
+   ```
+    PARALLEL  build-check: @acme/ui   (N consumers)
+
+    | Project  | Types | Build | Status  |
+    |----------|-------|-------|---------|
+    | web-app  | PASS  | PASS  | OK      |
+    | admin    | FAIL  | -     | Blocked |
+
+    admin: src/components/nav.tsx:23 — Property 'variant' does not exist on type 'ButtonProps'
+   ```
+5. **Offer fixes** — for each failure, show the error and which change caused it, offer to fix it, and after fixing offer to re-run just that project.
+
+This only builds and type-checks locally. It never commits or pushes.
+
 ## Notes
 - The key value of this skill is TRUE parallelism — all agents spawn at once. Never spawn them sequentially.
 - Each agent is isolated — they don't share context or depend on each other's output. If tasks are dependent, tell the user: "Tasks X and Y depend on each other — running them sequentially instead."
 - If an agent fails, the others continue. No fail-fast behavior.
-- For build-check tasks, this skill generalizes `/parallel-check` to work with any projects, not just @rebel/ui consumers
+- `build-check` works for any shared package (a design system, an SDK, a monorepo library) — consumers are detected from `package.json`, not from a fixed list.
+- Builds can take 30s-2min per project; parallel execution saves most of that.
 - Agents run in the foreground by default so results are available immediately. For long-running tasks (builds), consider using `run_in_background: true` and telling the user to continue working.
 - This skill pairs with the auto-parallel behavioral instruction in CLAUDE.md — this is the explicit version, the CLAUDE.md instruction is the implicit default.
 - Maximum recommended parallel agents: 5. Beyond that, the aggregated results become hard to parse and system resources may be strained.
@@ -7198,91 +7136,6 @@ Query: $ARGUMENTS
 
 ---
 
-## /session-notes
-
-
-Write up a structured session note capturing what was done, decisions made, and what's next. Saves to dev-notes.
-
-Arguments: $ARGUMENTS (optional: topic override or "notion" to also create a Notion page)
-
-## Steps
-
-1. **Check for daily log** — Before reconstructing from scratch, check if `/log` was used today:
-   - Look for `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/sessions/YYYY-MM-DD-daily.md` (today's date)
-   - If it exists AND has 2+ entries, suggest: "You have a daily log with N entries. Run `/log wrap` instead — it produces a richer summary from your incremental entries."
-   - If the user still wants a session note (or no daily log exists), continue below.
-
-2. **Gather session context** — Collect information about what happened this session:
-
-   **a) Git changes** — Run in parallel:
-   - `git diff --stat HEAD~10..HEAD` — files changed recently (adjust range based on session)
-   - `git log --oneline --since="today"` or recent commits — what was committed
-   - `git status --short` — any uncommitted work
-
-   **b) Conversation review** — Analyze the current conversation for:
-   - What the user asked to do
-   - Key decisions made and why
-   - Problems encountered and how they were solved
-   - Tools/patterns/approaches used
-   - What's left to do or follow up on
-
-   **c) Files touched** — From git diff and conversation context, build a list of key files that were created, modified, or deleted.
-
-3. **Determine the topic** — If `$ARGUMENTS` provides a topic, use it. Otherwise, infer from the session:
-   - What was the main task or feature?
-   - Use a short, descriptive slug (e.g., "claude-code-skills", "event-capacity", "auth-refactor")
-
-4. **Write the session note** — Create a structured markdown file:
-
-   ```markdown
-   # Session: <Topic>
-   Date: YYYY-MM-DD
-   Project(s): <which projects were worked on>
-
-   ## What Was Done
-   - Bullet point summary of completed work
-   - Each item specific and concrete
-
-   ## Key Decisions
-   - Decision 1: what was chosen and why
-   - Decision 2: what was chosen and why
-
-   ## Problems & Solutions
-   - Problem encountered → how it was resolved
-
-   ## Files Changed
-   | File | Change | Notes |
-   |------|--------|-------|
-   | path/to/file.ts | Created | New component for X |
-   | path/to/other.ts | Modified | Added Y method |
-
-   ## What's Next
-   - [ ] Follow-up task 1
-   - [ ] Follow-up task 2
-   - [ ] Open question that needs resolution
-   ```
-
-5. **Save the note** — Write to `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/sessions/YYYY-MM-DD-<topic>.md`
-
-6. **Update the index** — Read `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/INDEX.md` and append the new entry with date, topic, and one-line summary.
-
-7. **Optionally create Notion page** — If `$ARGUMENTS` includes "notion":
-   - Create a Notion page with the same content using the Notion MCP tools
-   - Link it back in the session note
-
-8. **Check for learnings or decisions to extract** — If the session included:
-   - A non-obvious technical learning → suggest saving to `dev-notes/learnings/`
-   - An architecture decision → suggest saving to `dev-notes/decisions/`
-   - A memory-worthy pattern → suggest updating auto-memory
-
-## Notes
-- **Use `/log wrap` instead if you've been logging throughout the day** — it produces a richer summary from incremental entries. This skill is for when you forgot to log or only had a short session.
-- The conversation review step works by analyzing what was discussed — it has full context
-- If multiple projects were touched, organize by project in the "What Was Done" section
-- Session notes are append-only historical records — they supplement memory (what's true now) with context (what happened and why)
-
----
-
 ## /slack-ctx
 
 
@@ -7433,7 +7286,7 @@ thread URLs as `.../archives/<channel_id>/p<thread_ts with the dot removed>`. If
 - Channel ids are stable across renames; names are not. Cache the id, treat the name as a label.
 - A DM needs no channel lookup — a user's `U…` id works directly as `channel_id`.
 - `prune` is cheap and safe. Run it when `threads` gets noisy.
-- Related: `/notion-ctx` is the same registry+cache pattern for Notion docs; `/slack-reply`
+- Related: `/notion ctx` is the same registry+cache pattern for Notion docs; `/slack-reply`
   is the consumer of this registry.
 
 ---
@@ -7574,7 +7427,7 @@ entry with `status: replied`. Keep `threads` at 30 entries max, dropping least-r
   all search and is unambiguous about which thread.
 - For a *new* message rather than a reply, this still works — resolve the channel, omit
   `thread_ts`. But say so explicitly, since replies are the default assumption.
-- Related: `/notion-ctx` is the same registry+cache pattern for Notion docs.
+- Related: `/notion ctx` is the same registry+cache pattern for Notion docs.
 
 ---
 

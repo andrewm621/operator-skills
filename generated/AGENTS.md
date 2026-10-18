@@ -32,7 +32,7 @@ reads this file.
 
 - **/phases** — Display the current roadmap progress with visual phase indicators. Reads from /roadmap data or any roadmap file.
 - **/todo** — Manage tasks within the current roadmap phase or as a standalone list. Add, complete, skip, reprioritize, and view tasks.
-- **/log** — Update the daily work log — a living document that tracks progress, decisions, and context throughout the day. Creates a new log if none exists for today, or appends to the existing one.
+- **/log** — Update the daily work log — a living document that tracks progress, decisions, and context throughout the day. Creates a new log if none exists for today, or appends to the existing one. `/log wrap` finalizes the day (and replaces the old one-shot session note).
 
 ### Code Quality
 
@@ -52,8 +52,7 @@ reads this file.
 - **/git-sync** — Full git sync report for the current repository. Shows local vs remote status, all branches, uncommitted changes, stashes, and potential conflicts. Optional: pass a project directory as argument.
 - **/changelog** — Generate a changelog from git commits since the last tag or a custom starting point.
 - **/env-check** — Compare expected vs actual environment variables and flag mismatches. Never displays secret values.
-- **/db-status** — Database connection check and quick status. For full migration workflows, use `/migrate`.
-- **/migrate** — Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely.
+- **/migrate** — Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely. `/migrate status` is the read-only health check — connection test, migration state, schema drift, table inventory.
 - **/test-desktop-app** — Test a local macOS desktop app (Tauri first; Electron and native later) without stealing focus from the person using the machine — picks the most background layer that can verify the claim, enforces the focus policy and guardrails, and reports what was verified live, what wasn't, and what is left for a human.
 - **/gleap** — Work with Gleap (in-app feedback, support inbox, surveys, product tours) — install the widget, query the server REST API, or debug an existing integration. Covers the two-key auth model, the inconsistent response envelopes, and the query syntax.
 
@@ -61,8 +60,7 @@ reads this file.
 
 - **/learn** — Extract, catalog, and recall lessons learned — mistakes, gotchas, surprising behaviors, and solutions. Builds a searchable knowledge base from real work sessions so the same problems don't bite twice.
 - **/note** — Add a note to your personal knowledge base (second brain) — a local Markdown vault such as Obsidian, Tolaria, Logseq, or a plain folder. Reads the vault location from a per-user config outside the repo, follows the vault's own conventions, routes the note to the right folder, avoids duplicates, and never overwrites.
-- **/session-notes** — Write up a structured session note capturing what was done, decisions made, and what's next. Saves to dev-notes.
-- **/document** — Document a feature, decision, architecture, or workflow. Writes to dev-notes, Notion, or inline code docs.
+- **/document** — Document a feature, decision, architecture, or workflow. Writes decision records, inline code docs, or a README, and hands Notion pages to `/notion` and learnings to `/learn`.
 - **/search-all** — Search across all ~/Projects/* directories for a pattern. Finds packages, code references, and files across 50+ projects.
 - **/help** — Show a categorized cheat sheet of all available custom slash commands with one-line descriptions.
 
@@ -91,7 +89,6 @@ that underlying Claude-specific tooling or MCP server is also present.
 ### Code Quality
 
 - **/perf** — Performance audit for web apps. Runs Lighthouse via Dia Browser, analyzes bundle size, checks Core Web Vitals, and suggests optimizations.
-- **/parallel-check** — Check if a shared dependency change breaks consumer projects. Thin wrapper around `/parallel build-check` with auto-detected consumers.
 
 ### Scaffolding & Architecture
 
@@ -109,7 +106,6 @@ that underlying Claude-specific tooling or MCP server is also present.
 
 - **/ai-export** — Export AI chat threads (ChatGPT verified; Claude.ai and Grok unverified) from your logged-in browser through the app's own JSON API, convert them locally to markdown, archive the raw JSON, and file the notes into your knowledge vault.
 - **/email-triage** — Triage Andrew's Gmail inbox into a two-axis urgency × context report — read-only, never touches labels, archive state, drafts, or sends.
-- **/notion** — Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current.
-- **/notion-ctx** — Manage a per-project registry of relevant Notion documents with cached summaries for fast context loading. Keeps Notion knowledge fresh and token-efficient.
+- **/notion** — Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current. `/notion ctx ...` manages that registry and its cached page summaries for fast, token-efficient context loading.
 - **/slack-reply** — Draft a reply to a Slack message or thread in Andrew's voice. Resolves the target from a pasted URL, the local Slack directory, or search; reads the thread for context; stages the reply as a Slack draft for approval. Never sends.
 - **/slack-ctx** — Manage the local Slack directory — the cached map of people, channels, and threads that makes /slack-reply resolve a target without searching. Save, find, list, sync, prune, and regenerate the vault mirror.

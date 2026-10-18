@@ -59,5 +59,5 @@ Only `path` is required. Missing `inbox` means the vault root. Multiple vaults a
 
 - This is the generic base for capturing to a markdown vault. For expanded idea capture or project-specific stores, you may have your own skills that build on or replace it.
 - It writes into the vault only — one note per run, plus the config file when you approve creating it. It never edits other notes except to append when you choose that.
-- Related skills: `/learn` is for engineering gotchas and lessons, `/log` for the daily work log, `/document` for dev-notes decisions and project docs, `/session-notes` for end-of-session snapshots, `/ai-export` to file exported AI chats into a vault.
+- Related skills: `/learn` is for engineering gotchas and lessons, `/log` for the daily work log, `/document` for dev-notes decisions and project docs, `/log wrap` for end-of-session snapshots, `/ai-export` to file exported AI chats into a vault.
 - Vault-specific rules (required frontmatter, folder meaning, link style) belong in the vault's own conventions file, not in this skill — point `conventions` at it.

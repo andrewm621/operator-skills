@@ -164,7 +164,7 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
    **d) If the user chooses to align:**
    - Spawn parallel agents (via the Agent tool) for each project needing updates
    - Each agent: cd into project → `npm install <package>@latest` → type check → build
-   - Aggregate results like `/parallel-check`
+   - Aggregate results like `/parallel build-check`
 
    ### `check <package>`
    Same as `align` but read-only — just show where it's used and what versions. No update offers unless the user asks.
@@ -179,6 +179,6 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
 - For monorepos, `pnpm update` at the workspace root updates all packages — warn about this scope
 - Major version updates should always be followed by type check + build + test
 - The `align` subcommand is the cross-project killer feature — it prevents version drift across 50+ projects
-- For @rebel/ui changes, prefer `/parallel-check` which also tests the build, not just the version
+- For @rebel/ui changes, prefer `/parallel build-check` (add `--dep @rebel/ui` to find the consumers), which also tests the build, not just the version
 - If `npm audit` reports vulnerabilities in devDeps only, note that these don't affect production
 - This skill pairs with `/search-all pkg:<name>` for quick lookups; `/deps` adds analysis and actions on top

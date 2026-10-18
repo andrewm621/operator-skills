@@ -22,10 +22,10 @@ This workspace contains multiple independent projects. Each subdirectory has its
 Use subagents aggressively for multi-project work:
 
 - **Cross-project searches** ("Where do I use Stripe?", "Which projects use Supabase Auth?"): Always use `/research` or `/search-all` — don't manually grep across directories.
-- **Changing shared code**: After editing a shared package, spawn parallel build-check agents for consumer projects with `/parallel-check`.
+- **Changing shared code**: After editing a shared package, spawn parallel build-check agents for consumer projects with `/parallel build-check`.
 - **Research while coding**: When implementing a third-party integration, spawn `/research` in the background while scaffolding. The research runs in parallel with your coding.
 - **Complex features**: Use `/roadmap` first for features spanning 3+ files or involving schema changes, auth changes, or new API routes.
-- **Debugging production issues**: Use `/env-check` and `/db-status` before guessing. Check deployment logs if available.
+- **Debugging production issues**: Use `/env-check` and `/migrate status` before guessing. Check deployment logs if available.
 
 ## Auto-Parallel Behavior
 
@@ -79,7 +79,7 @@ Memory files at `~/.claude/projects/<your-project-path>/memory/` store current p
 
 Skills that interact with memory:
 - `/learn` writes to `dev-notes/learnings/` and suggests memory updates for recurring patterns
-- `/log wrap` and `/session-notes` extract decisions and learnings from the day's work
+- `/log wrap` extracts decisions and learnings from the day's work
 - `/freeze` captures everything needed to resume in a new thread
 - `/document` writes to dev-notes, Notion, or inline docs depending on the target
 
@@ -108,7 +108,7 @@ Skills are designed to call each other. Key composition patterns:
 ```
 /project-health        → One-shot health check
 /env-check             → Environment variable audit
-/db-status             → Database connection + migration check
+/migrate status        → Database connection + migration check
 /verify-app            → Browser verification
 ```
 
@@ -117,7 +117,6 @@ Skills are designed to call each other. Key composition patterns:
 /log                   → Incremental daily entries
 /log wrap              → End-of-day summary with extracted decisions/learnings
 /learn                 → Capture specific gotchas and quirks
-/session-notes         → One-shot session snapshot
 /freeze                → Full context preservation for thread switching
 ```
 

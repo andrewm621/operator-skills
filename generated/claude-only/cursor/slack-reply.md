@@ -133,4 +133,4 @@ entry with `status: replied`. Keep `threads` at 30 entries max, dropping least-r
   all search and is unambiguous about which thread.
 - For a *new* message rather than a reply, this still works — resolve the channel, omit
   `thread_ts`. But say so explicitly, since replies are the default assumption.
-- Related: `/notion-ctx` is the same registry+cache pattern for Notion docs.
+- Related: `/notion ctx` is the same registry+cache pattern for Notion docs.

@@ -2,7 +2,7 @@
 
 **Claude slash commands for people who build things.**
 
-47 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
+43 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
 
 They started as one-off prompts, became reusable slash commands, then became a system where skills call other skills — roadmaps feed into phases, phases feed into todos, todos feed into parallel agents, and everything gets logged. This is that system, open-sourced.
 
@@ -23,7 +23,7 @@ Open Cowork and send this message:
 
 > Clone https://github.com/andrewm621/operator-skills.git to ~/operator-skills and symlink the skills directory to ~/.claude/skills/operator
 
-Claude runs the commands for you. Type `/` to see all 47 skills in autocomplete.
+Claude runs the commands for you. Type `/` to see all 43 skills in autocomplete.
 
 See [`docs/cowork-setup-guide.md`](docs/cowork-setup-guide.md) for manual install and optional Global Instructions.
 
@@ -34,7 +34,7 @@ git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
 ln -s ~/operator-skills/skills ~/.claude/skills/operator
 ```
 
-Type `/` in a new session to see all 47 skills.
+Type `/` in a new session to see all 43 skills.
 
 ### Every agent at once (Claude Code, Codex, Cursor, Grok)
 
@@ -63,7 +63,7 @@ The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operat
 |-------|-------------|---------|
 | `/orchestrate` | Decompose a goal, route each piece to the best specialist, run parallel/pipeline, gate, report | `/orchestrate ship the billing page: research, build, review` |
 | `/maestro` | Cross-provider command deck — durable task board (create, claim, sync) any terminal or provider can pick up | `/maestro new "Refactor auth" --repo web-app` |
-| `/parallel` | Run tasks simultaneously, aggregate results | `/parallel research Stripe billing \| check build \| verify localhost:3000` |
+| `/parallel` | Run tasks simultaneously, aggregate results; `build-check` fans out build/type-check agents over every consumer of a shared package | `/parallel research Stripe billing \| check build \| verify localhost:3000` |
 | `/subagent` | Dispatch a background agent to explore + implement | `/subagent add email notifications to the API` |
 | `/research` | Background research — structured findings while you keep working | `/research Drizzle ORM migration API` |
 | `/switch` | Context switch into any project with full orientation | `/switch agencyos` |
@@ -78,7 +78,7 @@ The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operat
 | `/todo` | Task management — add, complete, skip, reprioritize | `/todo done 2.3` |
 | `/invert` | Red-team via 5 parallel failure-lens agents (Munger's inversion) | `/invert the checkout flow` |
 | `/pre-mortem` | Devil's-advocate council pre-mortem on a decision — ranked causes of death | `/pre-mortem should I sign this client` |
-| `/log` | Daily work log — timestamped entries + end-of-day wrap-up | `/log` or `/log wrap` |
+| `/log` | Daily work log — timestamped entries + end-of-day wrap-up (also covers one-off session notes) | `/log` or `/log wrap` |
 
 ### Code Quality
 
@@ -89,7 +89,6 @@ The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operat
 | `/deps` | Audit vulns, update packages, align versions across projects | `/deps align stripe` |
 | `/perf` | Lighthouse + bundle size + Core Web Vitals | `/perf` |
 | `/project-health` | One-shot audit: security + deps + build + lint + types | `/project-health` |
-| `/parallel-check` | Verify a shared dependency change doesn't break consumers | `/parallel-check all` |
 
 ### Scaffolding & Architecture
 
@@ -110,8 +109,7 @@ The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operat
 | `/git-sync` | Full git report — branches, ahead/behind, stashes, conflicts | `/git-sync` |
 | `/changelog` | Categorized changelog from git commits since a tag | `/changelog v1.2.0` |
 | `/env-check` | Compare expected vs actual env vars (never displays secrets) | `/env-check` |
-| `/db-status` | Database connection, migration status, table inventory | `/db-status` |
-| `/migrate` | Full migration workflow — generate, review, apply, rollback | `/migrate generate` |
+| `/migrate` | Full migration workflow — generate, review, apply, rollback; `status` is the read-only connection + migration check | `/migrate generate` |
 | `/port-check` | What's running on dev ports + project identification | `/port-check` |
 | `/verify-app` | Browser-based app verification via CDP — screenshots + errors | `/verify-app` |
 | `/test-desktop-app` | Test a local macOS desktop app (Tauri first) without stealing focus — layered ladder, focus policy, guardrails, reporting | `/test-desktop-app the unsaved-changes modal focuses Cancel` |
@@ -123,14 +121,12 @@ The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operat
 |-------|-------------|---------|
 | `/learn` | Catalog lessons learned — gotchas, quirks, searchable index | `/learn recall supabase auth` |
 | `/note` | Add a note to your knowledge base (local Markdown vault) — follows the vault's conventions, routes, dedupes, never overwrites | `/note ref: Postgres advisory locks cheat sheet` |
-| `/session-notes` | End-of-session snapshot — what was done, decisions, next steps | `/session-notes` |
 | `/document` | Write to dev-notes, Notion, inline docs, or README | `/document decision: why we chose Drizzle` |
 | `/search-all` | Cross-project search for code, files, or packages | `/search-all pkg:stripe` |
 | `/ai-export` | Export AI chat threads (ChatGPT verified; Claude.ai/Grok unverified) from your logged-in browser to markdown, archive the raw JSON, file into your vault | `/ai-export chatgpt <project URL> --since 2026-10-13` |
 | `/email-triage` | Triage Gmail into a two-axis urgency × context report — read-only, never labels/archives/sends | `/email-triage 30d` |
 | `/help` | Cheat sheet of all skills with quick combos | `/help` |
-| `/notion` | Sync notes and decisions to a Notion workspace | `/notion note "Shipped auth flow"` |
-| `/notion-ctx` | Per-project Notion doc registry with cached summaries | `/notion-ctx sync` |
+| `/notion` | Sync notes and decisions to a Notion workspace; `/notion ctx` keeps a registry of cached page summaries | `/notion note "Shipped auth flow"` |
 | `/slack-reply` | Draft a Slack reply in your voice — resolves the thread, stages a draft | `/slack-reply jane re: the Acme timeline` |
 | `/slack-ctx` | Local Slack directory — people, channels, threads, cached ids | `/slack-ctx save <url> jane` |
 
@@ -197,7 +193,7 @@ The [`.claude/CLAUDE.md`](.claude/CLAUDE.md) template shows how skills wire toge
 ## Customization
 
 - **Paths** — Several skills reference `~/Projects/`. Adapt to your directory structure.
-- **Notion** — `/notion` and `/notion-ctx` need a Notion MCP server. Skip them if you don't use Notion.
+- **Notion** — `/notion` (including `/notion ctx`) needs a Notion MCP server. Skip it if you don't use Notion.
 - **Browser tools** — `/verify-app` and `/perf` use Chrome DevTools Protocol (any Chromium browser on port 9222). These are Claude Code-specific.
 - **`/scaffold`** — Opinionated toward my stack (Next.js, Neon, Drizzle). Fork the templates for yours.
 
@@ -211,7 +207,7 @@ Adding or editing a skill? See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short v
 
 | Feature | Code (CLI) | Cowork (Desktop) | Claude.ai (Web) |
 |---------|-----------|-----------------|-----------------|
-| All 47 skills | Full | Full | Full |
+| All 43 skills | Full | Full | Full |
 | `/` autocomplete | Native | Native | Manual invoke |
 | Subagent spawning | Full | Full | Simulated |
 | File system access | Full | Full | Via Knowledge files |
