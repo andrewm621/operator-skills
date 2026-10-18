@@ -402,7 +402,7 @@ Storage convention used everywhere: key `theme`, values `"light"` | `"dark"`, an
 
 ---
 
-### Path A — Next.js + next-themes
+## Path A — Next.js + next-themes
 
 next-themes handles persistence, system detection, live updates, and the no-flash script. Configure it correctly and add the toggle UI.
 
@@ -495,7 +495,7 @@ next-themes handles persistence, system detection, live updates, and the no-flas
 
 ---
 
-### Path B — Vite / React (no next-themes)
+## Path B — Vite / React (no next-themes)
 
 Hand-roll a small provider. next-themes is Next-specific — don't pull it in here.
 
@@ -595,7 +595,7 @@ Hand-roll a small provider. next-themes is Next-specific — don't pull it in he
 
 ---
 
-### Path C — Plain HTML / CSS (no framework)
+## Path C — Plain HTML / CSS (no framework)
 
 1. **No-flash script** — first element in `<head>`, plus the meta tag (same script as Path B step 1).
 
@@ -657,7 +657,7 @@ Hand-roll a small provider. next-themes is Next-specific — don't pull it in he
    </script>
    ```
 
-#### Path C alternate — TTL-persisted, body-class toggle (Webflow / CMS reference pattern)
+### Path C alternate — TTL-persisted, body-class toggle (Webflow / CMS reference pattern)
 
 Reverse-engineered from a production Webflow site (wellscollins.com) with a well-regarded
 toggle. Reach for this **instead of** the 3-way `radiogroup` above when:
@@ -1423,7 +1423,6 @@ Task: $ARGUMENTS
 
 ## /freeze
 
-
 Preserve full conversation context for cross-thread resumption. Dumps everything Claude currently knows into a machine-loadable file that a future Claude instance can ingest to pick up exactly where you left off.
 
 Arguments: $ARGUMENTS (optional: topic slug, "list", "thaw", "thaw <slug>", or "all")
@@ -1441,6 +1440,7 @@ Parse `$ARGUMENTS` to determine the action:
 | `all` | **Shutdown** — generate per-thread freeze commands for all active work |
 | `"some text"` | **Save** — use as the topic slug |
 
+---
 
 ## Save Flow
 
@@ -1500,10 +1500,12 @@ Branch: <branch> (<clean|dirty>) | Last commit: <hash> <message>
 > To resume: start a new session and run `/freeze thaw <slug>`
 > Or say: "Load context from ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/<filename>"
 
+---
 
 ## Compacted Context
 <!-- Verbatim compaction summary if present, or "No compaction — full context available at freeze time." -->
 
+---
 
 ## Active Task
 <What was being worked on — the specific thing to resume. Be concrete.>
@@ -1528,6 +1530,7 @@ Branch: <branch> (<clean|dirty>) | Last commit: <hash> <message>
 ## Open Threads
 - <Unanswered questions, deferred items, things to come back to>
 
+---
 
 ## Environment State
 - **Uncommitted changes:** <git status summary or "clean">
@@ -1536,6 +1539,7 @@ Branch: <branch> (<clean|dirty>) | Last commit: <hash> <message>
 - **Active roadmap:** <slug + current phase, or "none">
 - **Today's log entries:** <count or "no log today">
 
+---
 
 ## Resumption Prompt
 > Continue with: <the most logical next action, written as an instruction>
@@ -1575,6 +1579,7 @@ To resume in a new thread:
   /freeze thaw <slug>
 ```
 
+---
 
 ## Thaw Flow
 
@@ -1637,6 +1642,7 @@ If the freeze lists files with status "In-progress" or "Needs work", proactively
 
 Suggest the resumption prompt action and ask if the user wants to proceed with it or do something else.
 
+---
 
 ## Shutdown Flow (all)
 
@@ -1695,6 +1701,7 @@ threads on this project. Freeze each thread with a distinct slug:
   /freeze rebelsites-suggestion-chips
 ```
 
+---
 
 ## List Flow
 
@@ -1714,6 +1721,7 @@ Thaw one with: /freeze thaw <slug>
 
 Parse the topic from the `# Context Freeze:` header line and project from the `Project(s):` line.
 
+---
 
 ## Key Principles
 

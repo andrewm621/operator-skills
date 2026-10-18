@@ -18,18 +18,20 @@ node generate-adapters.mjs --out D  # generate into an arbitrary dir (used by th
 node verify-adapters.mjs            # regenerate into a temp dir and diff vs committed generated/; exit 1 on drift
 ```
 
-`verify-adapters.mjs` is the closest thing to a test suite. Run it before every commit that touches `skills/`.
+`verify-adapters.mjs` is the closest thing to a test suite, and CI runs it. Run it before every commit that touches `skills/` or `docs/`. It exits 1 with a line per problem on any of:
 
-The other four pre-commit checks are manual (from `CONTRIBUTING.md`):
+- `generated/` out of sync with `skills/*/SKILL.md`
+- a skill body that differs from its `## /name` section in `docs/claude-ai-skill-reference.md` (or a missing or orphan section)
+- a "N skills" claim in `README.md` or the three `docs/` files that differs from the number of `skills/*/` folders
+- a skill missing from the `## Skill Catalog` in `README.md` or `docs/claude-ai-project-instructions.md`
+- the `/help` cheat sheet differing from its mirror in the reference doc, or its stated count differing from the commands it lists
+- a frontmatter `name` that doesn't match its folder
+- a skill not symlinked into `~/.agents/skills` (skip with `node verify-adapters.mjs --skip-install`, which CI uses; `AGENTS_SKILLS_DIR` moves the location)
+
+Nothing is hardcoded: all counts are derived from the `skills/` folders. The only manual step left is trying a skill live:
 
 ```bash
-ls -d skills/*/ | wc -l                              # must match the README's claimed count
-grep -rn "all 3[0-9] skill\|3[0-9] custom\|3[0-9] operator" README.md docs/   # stale counts
-
-# /help cheat sheet must be byte-identical to its mirror in the Claude.ai reference
-awk '/^ SKILL CATALOG/{f=1} f{print} /Cross-project/{if(f)exit}' skills/help/SKILL.md > /tmp/a
-awk '/^ SKILL CATALOG/{f=1} f{print} /Cross-project/{if(f)exit}' docs/claude-ai-skill-reference.md > /tmp/b
-diff /tmp/a /tmp/b && echo "IDENTICAL"
+ln -sf "$PWD/skills" ~/.claude/skills/operator   # then open a new session and type /<name>
 ```
 
 To exercise a skill for real, symlink and open a new session — `/`-command definitions are read at session start, so edits never apply to the current session.
@@ -52,8 +54,8 @@ The first five are hand-maintained; `generated/` is machine-produced and `~/.age
 
 ### The three traps
 
-1. **`docs/claude-ai-skill-reference.md` is a verbatim mirror of every skill body.** Claude.ai web can't read the folder, so all 40 bodies are flattened into one uploadable Knowledge file. Editing a skill means editing its copy there too. Subtle case: the `/help` skill's own catalog lives *inside* that mirror, so a `/help` edit must be duplicated there or the two `/help`s drift (the `diff` check above catches exactly this).
-2. **There are two different skill counts and they are not the same number.** `README.md` counts folders in `skills/` (currently 40). The `/help` cheat sheet keeps its own count on a different basis — it omits some skills and includes `@rebel/ui` skills absent from the README catalog (currently 39). Do not "fix" one to match the other; bump each within its own world.
+1. **`docs/claude-ai-skill-reference.md` is a verbatim mirror of every skill body.** Claude.ai web can't read the folder, so every body is flattened into one uploadable Knowledge file. Editing a skill means editing its copy there too. Subtle case: the `/help` skill's own catalog lives *inside* that mirror, so a `/help` edit must be duplicated there or the two `/help`s drift. `node verify-adapters.mjs` catches both.
+2. **There are two different skill counts and they are not the same number.** `README.md` and the docs count folders in `skills/`. The `/help` cheat sheet keeps its own count on a different basis — it can omit some skills and include `@rebel/ui` skills that have no folder here — and the verifier checks that count against the commands the cheat sheet actually lists. Do not "fix" one to match the other; bump each within its own world.
 3. **`.claude/CLAUDE.md` is shipped template content, not repo instructions.** See the warning above.
 
 ### Portable vs Claude-only

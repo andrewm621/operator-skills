@@ -1,8 +1,9 @@
 name: checks
 
-# The two things CONTRIBUTING says drift silently — the generated/ adapters and
-# the scenes copied out of SKILL.md — plus the motion scenes themselves. All of
-# it is `node <script>` with no dependencies, matching the repo's no-build rule.
+# The things CONTRIBUTING says drift silently — the generated/ adapters, the
+# claude-ai-skill-reference.md mirror, skill counts, the catalogs and the /help
+# cheat sheet (all in verify-adapters.mjs) — plus the motion scenes themselves.
+# All of it is `node <script>` with no dependencies, matching the repo's no-build rule.
 
 on:
   push:
@@ -18,7 +19,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node verify-adapters.mjs
+      # A CI runner has no ~/.agents/skills install, so skip that one check.
+      - run: node verify-adapters.mjs --skip-install
 
   scenes:
     name: motion scenes
