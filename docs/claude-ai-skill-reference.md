@@ -5369,24 +5369,25 @@ Show what's running on common development ports. Identifies projects and offers 
 
 ## /pr-review
 
-
 Structured code review of a pull request. Checks security, logic, patterns, and breaking changes.
 
-Arguments: $ARGUMENTS (PR number, branch name, or empty for current branch vs main)
+Arguments: $ARGUMENTS (PR number, branch name, or empty for current branch vs the default branch)
 
 ## Steps
 
-1. **Determine what to review** —
-   - If `$ARGUMENTS` is a number: fetch PR diff with `gh pr diff $ARGUMENTS`
-   - If `$ARGUMENTS` is a branch name: diff against main with `git diff main...$ARGUMENTS`
-   - If empty: diff current branch against main with `git diff main...HEAD`
-   - Also get the list of changed files: `git diff --name-only main...HEAD`
+1. **Determine what to review** — Resolve the base branch and the diff range first; every later step reuses them. Never assume the base is `main`.
+   - **Default branch** (`DEFAULT`): `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`; without `gh`, `git symbolic-ref --short refs/remotes/origin/HEAD` (strip the `origin/`); if both fail, whichever of `main` / `master` exists
+   - If `$ARGUMENTS` is a number (PR): `gh pr view $ARGUMENTS --json title,body,labels,baseRefName,headRefName,files,commits`. Base = `baseRefName`, head = `headRefName`. Diff with `gh pr diff $ARGUMENTS`. Changed files come from the `files` JSON. To read files in full without touching the working tree, run `git fetch origin pull/$ARGUMENTS/head` and use `git show FETCH_HEAD:<path>` (or read them directly if the PR branch is already checked out)
+   - If `$ARGUMENTS` is a branch name: base = `DEFAULT`, head = that branch. Range = `<base>...<branch>`. If the branch only exists on the remote, use `origin/<branch>`
+   - If empty: base = `DEFAULT`, head = current branch (`git branch --show-current`). Range = `<base>...HEAD`. If the current branch *is* the default branch (or the range is empty), say there is nothing to review and ask for a PR number or branch
+   - Prefer `origin/<base>` over the local `<base>` when it exists, since a stale local base inflates the diff
+   - For branch/empty modes: diff with `git diff <range>`, changed files with `git diff --name-only <range>`
 
 2. **Gather context** — Run in parallel:
-   - `git diff --stat main...HEAD` — summary of changes (files, insertions, deletions)
-   - `git log --oneline main...HEAD` — commits in the PR
+   - `git diff --stat <range>` — summary of changes (files, insertions, deletions). For a PR number, use the `files` JSON (`additions`/`deletions`) instead
+   - `git log --oneline <range>` — commits in the PR. For a PR number, use the `commits` JSON
    - Read all changed files fully (not just the diff) for complete context
-   - If PR number given: `gh pr view $ARGUMENTS --json title,body,labels` for PR metadata
+   - PR metadata (title, body, labels) comes from the `gh pr view` call in step 1 when a PR number was given
 
 3. **Review categories** — Analyze the diff for each category:
 
@@ -5426,7 +5427,7 @@ Arguments: $ARGUMENTS (PR number, branch name, or empty for current branch vs ma
 
    ```
    ## PR Review: #47 — Add event capacity limits
-   Branch: feature/event-capacity → main
+   Branch: feature/event-capacity → <base>
    Files changed: 8 | +245 / -32 | 5 commits
 
    ### Issues
@@ -5682,14 +5683,13 @@ Decision: $ARGUMENTS (a decision, plan, or commitment — e.g. a new client, a h
 
 ## /project-health
 
-
 One-shot health check for the current project. Delegates to specialized skills where possible and aggregates results.
 
-Target directory: $ARGUMENTS (default: current working directory)
+Arguments: $ARGUMENTS (optional `--skip-build` flag and optional target directory; default: current working directory)
 
 ## Steps
 
-1. **Detect project** — If `$ARGUMENTS` is provided, `cd` to that directory. Verify `package.json` exists. Detect package manager (pnpm-lock.yaml = pnpm, package-lock.json = npm).
+1. **Parse arguments and detect project** — Pull flags out of `$ARGUMENTS` first: `--skip-build` skips check 2c (report Build as SKIP). Whatever remains, if anything, is the target directory: `cd` to it; if nothing remains, stay in the current working directory. Verify `package.json` exists. Detect package manager (pnpm-lock.yaml = pnpm, package-lock.json = npm).
 
 2. **Run checks in parallel** — Use parallel bash calls for speed:
 
@@ -5702,6 +5702,7 @@ Target directory: $ARGUMENTS (default: current working directory)
    - Categorize: major (breaking), minor, patch updates
 
    **c) Build check:**
+   - Skip this check if `--skip-build` was passed
    - Run `npm run build 2>&1` or `pnpm build 2>&1`
    - Capture exit code and any error output
    - Time the build
@@ -5751,8 +5752,8 @@ Target directory: $ARGUMENTS (default: current working directory)
 
 ## Notes
 - This is the "run everything and summarize" skill — it surfaces issues, specialized skills fix them
-- The build step can be slow (30s-2min) — consider skipping with `/project-health --skip-build` argument
-- This skill does NOT modify any files — it only reports
+- The build step can be slow (30s-2min) — skip it with `/project-health --skip-build`, optionally with a directory: `/project-health ../app --skip-build`
+- This skill makes no source changes — it only reports. The build and type check can write artifacts (`.next/`, `dist/`, `*.tsbuildinfo`)
 - For a narrower check, use the individual skills directly: `/deps`, `/test`, `/env-check`, `/db-status`
 
 ---
@@ -7097,7 +7098,6 @@ Arguments: $ARGUMENTS (project name + optional template: "next", "vite", "api", 
 
 ## /search-all
 
-
 Search across all ~/Projects/* directories for a pattern. Finds packages, code references, and files across 50+ projects.
 
 Query: $ARGUMENTS
@@ -7105,7 +7105,7 @@ Query: $ARGUMENTS
 ## Steps
 
 1. **Classify the search** — Based on `$ARGUMENTS`, determine search mode:
-   - If query looks like a package name (e.g., "stripe", "drizzle-orm", "@supabase/supabase-js"): **package search**
+   - If query looks like a package name (e.g., "stripe", "drizzle-orm", "@supabase/supabase-js", or a glob like "@supabase/*"): **package search**
    - If query looks like a filename or glob (e.g., "proxy.ts", "*.config.ts"): **file search**
    - Otherwise: **code search**
    - The user can also prefix: `pkg:stripe`, `file:proxy.ts`, `code:useSession`
@@ -7113,11 +7113,26 @@ Query: $ARGUMENTS
 2. **Execute search** — Based on mode:
 
    **Package search:**
+   Strip a leading `pkg:` first (`QUERY="${QUERY#pkg:}"`), then match **exact dependency names** (a `grep` for `react` would also hit `react-dom`, `preact` and any description or script that mentions it). Look through every `package.json` up to four levels deep, so monorepo workspaces (`~/Projects/app/packages/*/package.json`) are included, and skip `node_modules`/build output. A `*` in the query switches to glob matching (`@supabase/*`, `drizzle-*`); without one it is an exact name.
    ```bash
-   # Search all package.json files for the dependency
-   grep -rl "$QUERY" ~/Projects/*/package.json 2>/dev/null | head -20
+   QUERY="${QUERY#pkg:}"
+   find ~/Projects -maxdepth 4 -name package.json \
+     -not -path "*/node_modules/*" -not -path "*/.next/*" -not -path "*/dist/*" -not -path "*/.git/*" -print0 2>/dev/null |
+   xargs -0 node -e '
+     const fs = require("fs");
+     const [q, ...files] = process.argv.slice(1);
+     const esc = (s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+     const re = q.includes("*") ? new RegExp("^" + q.split("*").map(esc).join(".*") + "$") : null;
+     const fields = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
+     for (const f of files) {
+       let pkg;
+       try { pkg = JSON.parse(fs.readFileSync(f, "utf8")); } catch { continue; }
+       for (const field of fields)
+         for (const [name, version] of Object.entries(pkg[field] || {}))
+           if (re ? re.test(name) : name === q) console.log([f, name, version, field].join("\t"));
+     }' "$QUERY"
    ```
-   Then for each match, extract the package version from the package.json.
+   Each output row is `path<TAB>package<TAB>version<TAB>field`. The project is the first directory under `~/Projects/`; `Dev?` is "yes" when the field is `devDependencies`, and note `peerDependencies` rows as peer. A project can match more than once (workspaces, or the same package in two fields) — keep every row, but count the project once.
 
    **File search:**
    ```bash
