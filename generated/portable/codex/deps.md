@@ -2,6 +2,8 @@ Dependency management across projects. Audit vulnerabilities, update packages, a
 
 Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>", "outdated", or a package name to investigate)
 
+**Config:** `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`) — see `docs/config.md`. `<projects>` below is that directory (expand `~` before using it in Bash); a missing file or key means the default.
+
 ## Steps
 
 1. **Parse the subcommand** — From `$ARGUMENTS`:
@@ -134,7 +136,7 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
    ### `align <package>`
    **a) Find all projects using the package:**
    ```bash
-   grep -rl "\"<package>\"" ~/Projects/*/package.json 2>/dev/null
+   grep -rl "\"<package>\"" <projects>/*/package.json 2>/dev/null
    ```
 
    **b) Extract versions:**
@@ -142,18 +144,18 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
 
    **c) Report:**
    ```
-    DEPS ALIGN  stripe across ~/Projects
+    DEPS ALIGN  stripe across <projects>
 
     | Project | Version | Status |
     |---------|---------|--------|
-    | agencyos | ^14.2.0 | latest |
-    | communityos | ^14.1.0 | minor behind |
-    | pay-copilot | ^14.2.0 | latest |
+    | dashboard | ^14.2.0 | latest |
+    | community-app | ^14.1.0 | minor behind |
+    | billing-app | ^14.2.0 | latest |
     | web-app | ^13.9.0 | MAJOR behind |
-    | strata | ^14.2.0 | latest |
+    | admin-portal | ^14.2.0 | latest |
 
     Latest: 14.2.0
-    Behind: 2 projects (communityos: minor, web-app: major)
+    Behind: 2 projects (community-app: minor, web-app: major)
 
     Options:
     1. Update all to ^14.2.0 (spawns parallel agents per project)
@@ -179,6 +181,6 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
 - For monorepos, `pnpm update` at the workspace root updates all packages — warn about this scope
 - Major version updates should always be followed by type check + build + test
 - The `align` subcommand is the cross-project killer feature — it prevents version drift across 50+ projects
-- For @rebel/ui changes, prefer `/parallel build-check` (add `--dep @rebel/ui` to find the consumers), which also tests the build, not just the version
+- For shared-package changes (a design system, SDK), prefer `/parallel build-check` (add `--dep @acme/ui` to find the consumers), which also tests the build, not just the version
 - If `npm audit` reports vulnerabilities in devDeps only, note that these don't affect production
 - This skill pairs with `/search-all pkg:<name>` for quick lookups; `/deps` adds analysis and actions on top

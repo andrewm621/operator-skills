@@ -26,7 +26,7 @@ reads this file.
 ### Orchestration
 
 - **/maestro** — Standing cross-provider command deck for the Maestro task board — create, claim, work, route, and message across tasks/providers (Claude, Codex, Cursor, Grok Build), persisting across sessions and terminals via markdown + git so any agent can pick up where another left off, and ask/answer questions along the way.
-- **/switch** — Fast context switch into any project with full orientation. Fuzzy matches project names against ~/Projects/*.
+- **/switch** — Fast context switch into any project with full orientation. Fuzzy matches project names against the directories in your projects folder.
 
 ### Planning
 
@@ -53,6 +53,7 @@ reads this file.
 - **/changelog** — Generate a changelog from git commits since the last tag or a custom starting point.
 - **/env-check** — Compare expected vs actual environment variables and flag mismatches. Never displays secret values.
 - **/migrate** — Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely. `/migrate status` is the read-only health check — connection test, migration state, schema drift, table inventory.
+- **/port-check** — Show what's running on common development ports. Identifies projects and offers to kill stale processes.
 - **/test-desktop-app** — Test a local macOS desktop app (Tauri first; Electron and native later) without stealing focus from the person using the machine — picks the most background layer that can verify the claim, enforces the focus policy and guardrails, and reports what was verified live, what wasn't, and what is left for a human.
 - **/gleap** — Work with Gleap (in-app feedback, support inbox, surveys, product tours) — install the widget, query the server REST API, or debug an existing integration. Covers the two-key auth model, the inconsistent response envelopes, and the query syntax.
 
@@ -61,7 +62,7 @@ reads this file.
 - **/learn** — Extract, catalog, and recall lessons learned — mistakes, gotchas, surprising behaviors, and solutions. Builds a searchable knowledge base from real work sessions so the same problems don't bite twice.
 - **/note** — Add a note to your personal knowledge base (second brain) — a local Markdown vault such as Obsidian, Tolaria, Logseq, or a plain folder. Reads the vault location from a per-user config outside the repo, follows the vault's own conventions, routes the note to the right folder, avoids duplicates, and never overwrites.
 - **/document** — Document a feature, decision, architecture, or workflow. Writes decision records, inline code docs, or a README, and hands Notion pages to `/notion` and learnings to `/learn`.
-- **/search-all** — Search across all ~/Projects/* directories for a pattern. Finds packages, code references, and files across 50+ projects.
+- **/search-all** — Search across every project directory in your workspace for a pattern. Finds packages, code references, and files across 50+ projects.
 - **/help** — Show a categorized cheat sheet of all available custom slash commands with one-line descriptions.
 
 ## Claude Code-specific (needs Anthropic tooling/MCP)
@@ -92,14 +93,13 @@ that underlying Claude-specific tooling or MCP server is also present.
 
 ### Scaffolding & Architecture
 
-- **/scaffold** — Create a new project from templates tuned to your stack conventions. Scaffolds full project structure with framework, database, auth, and design system pre-wired.
+- **/scaffold** — Create a new project from templates tuned to your stack conventions. Scaffolds full project structure with framework, database, auth, and UI kit pre-wired.
 - **/foundation-loop** — Drive a fresh or near-fresh app from generated skeleton to a working foundation — auth wired, one core data flow proven end-to-end, clean build — through bounded implement/verify/critique rounds with a real stop condition and a hard round ceiling, cutting the back-and-forth of babysitting early build-out.
 - **/map** — Generate or update an architectural map of a project — folder structure, dependencies, data flow, and component relationships — with Mermaid diagrams.
 - **/collateral-set** — Produce a cohesive set of client-facing HTML artifacts (explainers, pitch, landing page, calculator, case study, playbook) in one sitting — build one anchor by hand to lock the design system, fan the rest out to parallel subagents, gate every page for accuracy and cohesion, and publish them centrally as live Artifacts.
 
 ### Git & Infrastructure
 
-- **/port-check** — Show what's running on common development ports. Identifies projects and offers to kill stale processes.
 - **/verify-app** — Verify a running web app in Dia Browser via CDP. URL defaults to http://localhost:3000 unless specified.
 
 ### Knowledge

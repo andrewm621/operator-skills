@@ -2,6 +2,8 @@ Update the daily work log — a living document that tracks progress, decisions,
 
 Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a direction like "focus on auth decisions")
 
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
+
 ## Steps
 
 1. **Parse the intent** — Determine what the user wants from `$ARGUMENTS`:
@@ -18,7 +20,7 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
 
 2. **Find or create today's log** — Check for an existing daily log:
 
-   - Look for: `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/sessions/YYYY-MM-DD-daily.md`
+   - Look for: `<notes>/sessions/YYYY-MM-DD-daily.md`
    - If it exists, read it — we'll append to it
    - If it doesn't exist, create it with the initial structure:
 
@@ -74,7 +76,7 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
    - Keep entries concise — 3-6 bullet points max
    - Reference file paths when specific files were changed
    - Reference roadmap task IDs if applicable (e.g., "Completes task 2.3")
-   - If a decision was made, capture the rationale briefly — this feeds into dev-notes/decisions/ later
+   - If a decision was made, capture the rationale briefly — this feeds into `<notes>/decisions/` later
 
 5. **Wrap-up (when `$ARGUMENTS` starts with "wrap")** — Finalize the daily log:
 
@@ -97,7 +99,7 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
    - Accomplishment 2
 
    **Decisions made:**
-   - Decision 1 (consider extracting to dev-notes/decisions/)
+   - Decision 1 (consider extracting to <notes>/decisions/)
 
    **Problems & solutions:**
    - Problem encountered → how it was resolved
@@ -112,17 +114,17 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
    - [ ] Question that needs answering
 
    **Learnings:**
-   - Learning 1 (consider extracting to dev-notes/learnings/)
+   - Learning 1 (consider extracting to <notes>/learnings/)
    ```
 
    **c) Extract structured notes** — Check if the day's log contains:
-   - A significant **decision** → offer to create `dev-notes/decisions/YYYY-MM-DD-<topic>.md`
+   - A significant **decision** → offer to create `<notes>/decisions/YYYY-MM-DD-<topic>.md`
    - A non-obvious **learning** → offer to hand it to `/learn` (it owns the learnings format and index) rather than writing a learnings file here
-   - **Memory-worthy patterns** → offer to update auto-memory files
+   - **Memory-worthy patterns** → offer to update auto-memory files (only if `paths.memory` is set in the config; otherwise skip)
 
-   **d) Update INDEX.md** — Append today's log to `dev-notes/INDEX.md` with a one-line summary.
+   **d) Update INDEX.md** — Append today's log to `<notes>/INDEX.md` (create it with a heading if missing) with a one-line summary.
 
-   **e) Standalone session note (only if a topic was given)** — For `wrap <topic>`, also write `dev-notes/sessions/YYYY-MM-DD-<topic>.md` using a short descriptive slug (e.g. "auth-refactor") with: Date, Project(s), What Was Done, Key Decisions, Problems & Solutions, Files Changed, What's Next (as `- [ ]` items). Add it to INDEX.md too. Skip this when no topic was given; the daily log already holds the same information.
+   **e) Standalone session note (only if a topic was given)** — For `wrap <topic>`, also write `<notes>/sessions/YYYY-MM-DD-<topic>.md` using a short descriptive slug (e.g. "auth-refactor") with: Date, Project(s), What Was Done, Key Decisions, Problems & Solutions, Files Changed, What's Next (as `- [ ]` items). Add it to INDEX.md too. Skip this when no topic was given; the daily log already holds the same information.
 
    **f) Notion (only if `notion` was passed)** — Create a Notion page with the same summary by running `/notion note` with the wrap-up content, and link it back in the log.
 

@@ -13,11 +13,13 @@ Arguments: $ARGUMENTS (optional: action and details)
 | `review [n]` | Review the last N learnings (default 5) for patterns or staleness |
 | `stats` | Show learning categories, counts, most-referenced projects |
 
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
+
 ## Data Location
 
-- Learnings: `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/learnings/YYYY-MM-DD-<slug>.md`
-- Index: `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/learnings/INDEX.yaml`
-- Also tracked in: `dev-notes/INDEX.md` (Learnings table)
+- Learnings: `<notes>/learnings/YYYY-MM-DD-<slug>.md`
+- Index: `<notes>/learnings/INDEX.yaml`
+- Also tracked in: `<notes>/INDEX.md` (Learnings table)
 
 ## Steps
 
@@ -74,11 +76,11 @@ Arguments: $ARGUMENTS (optional: action and details)
 
 This is the **most important action** — it surfaces past lessons before you repeat mistakes.
 
-1. **Read the index** at `dev-notes/learnings/INDEX.yaml`
+1. **Read the index** at `<notes>/learnings/INDEX.yaml`
 
 2. **Search** against the topic using multiple strategies:
    - Exact tag match (e.g., `recall supabase` matches tag `supabase`)
-   - Project match (e.g., `recall agencyos` matches project `agencyos`)
+   - Project match (e.g., `recall web-app` matches project `web-app`)
    - Category match (e.g., `recall security` matches category `security`)
    - Fuzzy keyword match against titles and summaries
    - Broad technology match (e.g., `recall auth` matches tags containing `auth`, `supabase-auth`, `entra`, `clerk`, `otp`)
@@ -89,20 +91,20 @@ This is the **most important action** — it surfaces past lessons before you re
 
    ### Direct matches (3)
 
-   1. **Supabase + Resend + Custom OTP Auth Gotchas** (2026-04-22, agencyos)
+   1. **Supabase + Resend + Custom OTP Auth Gotchas** (2026-04-22, web-app)
       - Supabase-Resend integration key is scoped — use separate Resend API key for direct sends
       - createUser before generateLink — "Signups not allowed" if user doesn't exist
       - Custom OTP pattern: generate OTP → send via Resend → verify via admin.generateLink
-      [Full: dev-notes/learnings/2026-04-22-supabase-resend-auth-gotchas.md]
+      [Full: <notes>/learnings/2026-04-22-supabase-resend-auth-gotchas.md]
 
    2. **Supabase RLS Security Audit** (2026-04-29, all)
       - SECURITY DEFINER functions callable by anon
       - mutable search_path vulnerability
-      [Full: dev-notes/learnings/2026-04-29-supabase-rls-security-definer-audit.md]
+      [Full: <notes>/learnings/2026-04-29-supabase-rls-security-definer-audit.md]
 
    ### Tangential matches (1)
 
-   3. **CF Workers: Use Web Crypto API** (2026-04-22, agencyos)
+   3. **CF Workers: Use Web Crypto API** (2026-04-22, web-app)
       - No Node.js crypto in Workers — use crypto.subtle
    ```
 
@@ -149,7 +151,7 @@ This is the **most important action** — it surfaces past lessons before you re
 
 ## Index Format
 
-The index at `dev-notes/learnings/INDEX.yaml` is a compact lookup table:
+The index at `<notes>/learnings/INDEX.yaml` is a compact lookup table:
 
 ```yaml
 # Learning Index — auto-maintained by /learn skill
@@ -160,7 +162,7 @@ entries:
     title: Supabase + Resend + Custom OTP Auth Gotchas
     category: api-quirks
     tags: [supabase, resend, auth, otp, cloudflare-workers]
-    projects: [agencyos]
+    projects: [web-app]
     summary: Scoped integration key vs full API key; createUser before generateLink; Web Crypto in CF Workers
     date: 2026-04-22
 
@@ -175,7 +177,7 @@ entries:
 
 ## Learning File Format
 
-Follow the existing format in `dev-notes/learnings/`:
+Follow the existing format in `<notes>/learnings/`:
 
 ```markdown
 # Learning: <Title>
@@ -202,7 +204,12 @@ Each learning file can contain multiple related gotchas (like the Supabase auth 
 3. **Tags are for machine search** — use lowercase, specific terms. Prefer `supabase-auth` over `authentication`. Include the tool/service name.
 4. **Update, don't duplicate** — if a learning already exists for the same topic, update the existing file with new gotchas rather than creating a new one.
 5. **Always update INDEX.yaml** — every new or modified learning must be reflected in the index.
-6. **Always update INDEX.md** — add the entry to the Learnings table in `dev-notes/INDEX.md`.
-7. **Cross-reference** — if a learning would prevent a bug in a specific project, mention it. "If you're touching AgencyOS auth, read this first."
+6. **Always update INDEX.md** — add the entry to the Learnings table in `<notes>/INDEX.md`.
+7. **Cross-reference** — if a learning would prevent a bug in a specific project, mention it. "If you're touching the auth module, read this first."
 8. **Don't capture obvious things** — "you need to install dependencies before building" is not a learning. Focus on things that are genuinely surprising or that caused real debugging time.
 9. **Recall is the default suggestion** — when a user starts work on a topic that has past learnings, proactively suggest: "There are N learnings related to <topic>. Run `/learn recall <topic>` first?"
+
+## Notes
+
+- Create `<notes>/learnings/` (and `INDEX.yaml` / `INDEX.md` with a heading) the first time you save, if they don't exist yet. Never write outside `<notes>`.
+- Related skills: `/log wrap` extracts learnings from a day's work, `/document` records decisions, `/note` captures general notes to your knowledge-base vault, and `/freeze` preserves session context for resumption.

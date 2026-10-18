@@ -62,7 +62,6 @@ const CLAUDE_ONLY = new Set([
   "freeze",
   "perf",
   "verify-app",
-  "port-check",
   "notion",
   "slack-reply",
   "slack-ctx",

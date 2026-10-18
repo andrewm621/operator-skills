@@ -2,24 +2,26 @@ Run multiple tasks in parallel using subagents. Pipe-separated tasks are spawned
 
 Arguments: $ARGUMENTS
 
+**Config:** `paths.notes` (default `~/.claude/dev-notes`) and `paths.projects` (default `~/Projects`) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. `<notes>` and `<projects>` below are those directories; a missing file or key means the default.
+
 ## Steps
 
 1. **Parse tasks** — Extract individual tasks from `$ARGUMENTS`:
 
    **Pipe-separated format:**
    Split `$ARGUMENTS` on `|` (pipe character) and trim whitespace from each segment.
-   Example: `research Stripe billing | check agencyos build | verify localhost:3000`
-   → 3 tasks: ["research Stripe billing", "check agencyos build", "verify localhost:3000"]
+   Example: `research Stripe billing | check web-app build | verify localhost:3000`
+   → 3 tasks: ["research Stripe billing", "check web-app build", "verify localhost:3000"]
 
    **Phase reference format:**
    If `$ARGUMENTS` starts with "phase", parse the phase number and optional task IDs.
    - `/parallel phase 2` → all pending tasks in Phase 2 of the active roadmap
    - `/parallel phase 2 tasks 2.3 2.4 2.5` → specific tasks from Phase 2
-   - Read the active roadmap from `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/INDEX.md`, then parse the tasks from `roadmap.md`
+   - Read the active roadmap from `<notes>/roadmaps/INDEX.md`, then parse the tasks from `roadmap.md`
 
    **Build-check format:**
    If `$ARGUMENTS` starts with "build-check", resolve the list of projects to check, then give each one a build agent (see "Build-check flow" below).
-   - `/parallel build-check agencyos communityos web-app` — check exactly these projects
+   - `/parallel build-check web-app dashboard api-service` — check exactly these projects
    - `/parallel build-check` or `/parallel build-check all` — auto-detect every consumer of the shared package you are standing in
    - `/parallel build-check all --dep @acme/ui` — auto-detect consumers of a named package (use when the current directory isn't the package)
 
@@ -48,10 +50,10 @@ Arguments: $ARGUMENTS
     PARALLEL  Spawning 3 agents...
 
     [1] Research: Stripe metered billing API
-        Type: Explore | Dir: ~/Projects
+        Type: Explore | Dir: <projects>
 
-    [2] Build check: agencyos
-        Type: Build | Dir: ~/Projects/agencyos
+    [2] Build check: web-app
+        Type: Build | Dir: <projects>/web-app
 
     [3] Verify: localhost:3000
         Type: Browser | Dir: current
@@ -76,7 +78,7 @@ Arguments: $ARGUMENTS
         Found 3 relevant endpoints. Usage records API supports
         metered billing with monthly invoicing. See @stripe/stripe-node.
 
-    [2] Build check: agencyos                   FAIL  92s
+    [2] Build check: web-app                   FAIL  92s
         Type error in src/components/invoice.tsx:42
         Property 'amount' missing on type 'InvoiceProps'
 
@@ -85,7 +87,7 @@ Arguments: $ARGUMENTS
         No console errors.
 
     Summary: 2 passed, 1 failed
-    Action needed: Fix agencyos build error
+    Action needed: Fix web-app build error
    ```
 
    **Report conventions:**

@@ -4,6 +4,8 @@ Dispatch a task to a background agent that explores the codebase, plans the impl
 
 Task: {the text you type after the command}
 
+**Config:** `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`) — see `docs/config.md`. `<projects>` below is that directory; a missing file or key means the default.
+
 ## Steps
 
 1. **Parse the task** — From `{the text you type after the command}`, determine:
@@ -12,10 +14,10 @@ Task: {the text you type after the command}
    - A feature to implement ("add email notifications to web-app")
    - A bug to fix ("fix the timezone issue in the cron jobs")
    - A refactor ("convert the auth middleware to use proxy.ts")
-   - A setup/config task ("add Stripe webhook handler to agencyos")
+   - A setup/config task ("add Stripe webhook handler to web-app")
 
    **b) Target project:** Infer the project directory from the task description:
-   - If a project name is mentioned, map it to `~/Projects/<dir>`
+   - If a project name is mentioned, map it to `<projects>/<dir>`
    - If already cd'd into a project, use the current directory
    - If ambiguous, the agent should check the codebase to determine the right location
 
@@ -56,7 +58,7 @@ Task: {the text you type after the command}
 
    ```
     SUBAGENT  Dispatched: <task summary>
-    Working in: ~/Projects/<project>
+    Working in: <projects>/<project>
     Agent will: explore → plan → implement → verify
     You'll be notified when it completes. Keep working.
    ```

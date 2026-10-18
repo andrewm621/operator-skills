@@ -4,12 +4,14 @@ Research a topic in the background using a subagent while you keep working. Retu
 
 Topic: {the text you type after the command}
 
+**Config:** `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`) — see `docs/config.md`. `<projects>` below is that directory; a missing file or key means the default.
+
 ## Steps
 
 1. **Classify the research type** — Based on `{the text you type after the command}`, determine the best approach:
    - **Codebase research** (e.g., "how does auth work in web-app", "find all Stripe webhook handlers"): Use an Explore subagent scoped to the relevant project directory
    - **Documentation research** (e.g., "Drizzle ORM migration API", "Next.js 16 proxy.ts"): Use an Explore subagent to read local docs, or use Firecrawl/WebFetch to pull official docs
-   - **Cross-project research** (e.g., "how do we handle cron jobs across projects"): Use an Explore subagent across ~/Projects
+   - **Cross-project research** (e.g., "how do we handle cron jobs across projects"): Use an Explore subagent across `<projects>`
    - **External research** (e.g., "Stripe metered billing API", "Neon branching best practices"): Use web search and doc fetching tools
 
 2. **Spawn the subagent** — Use the Agent tool with `subagent_type=Explore` (or a task agent for longer work). Give it a focused, specific prompt:

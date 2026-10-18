@@ -2,17 +2,19 @@ Enter a multi-round Socratic brainstorming session to deeply explore a project i
 
 Topic: $ARGUMENTS
 
+**Config:** `paths.notes` (default `~/.claude/dev-notes`) and `paths.projects` (default `~/Projects`) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. `<notes>` and `<projects>` below are those directories; a missing file or key means the default.
+
 ## Steps
 
 1. **Initialize context** — Gather background before brainstorming:
 
    **a) Project detection:**
-   - If `$ARGUMENTS` names a known project in `~/Projects/`, read its `CLAUDE.md` and `package.json` to understand the current state, stack, and existing features
+   - If `$ARGUMENTS` names a known project in `<projects>/`, read its `CLAUDE.md` and `package.json` to understand the current state, stack, and existing features
    - If `$ARGUMENTS` is a feature within the current project (already cd'd into one), gather context from schema files, existing routes, components
    - If `$ARGUMENTS` is a greenfield idea, note that and skip codebase reading
 
    **b) Existing roadmaps:**
-   - Check `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/INDEX.md`
+   - Check `<notes>/roadmaps/INDEX.md`
    - If a roadmap already exists for this topic, tell the user and offer: revise the existing one, or create a new one
 
 2. **Round 1 — Foundation questions (3-4 questions)**
@@ -117,10 +119,10 @@ Topic: $ARGUMENTS
    Capture the key Q&A from all 3 rounds as `brainstorm.md` in the same directory.
 
 6. **Save and index** — Write the files:
-   - Create directory: `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/<slug>/`
+   - Create directory: `<notes>/roadmaps/<slug>/` (create `<notes>/roadmaps/` and its `INDEX.md` if missing)
    - Write `roadmap.md` (the roadmap)
    - Write `brainstorm.md` (the Q&A transcript)
-   - Update `roadmaps/INDEX.md` — append a row: `| slug | project | active | 1/N | date | [roadmap](slug/roadmap.md) |`
+   - Update `<notes>/roadmaps/INDEX.md` — append a row: `| slug | project | active | 1/N | date | [roadmap](slug/roadmap.md) |`
 
 7. **Present the roadmap** — Show the completed roadmap in a formatted view (similar to what `/phases` would render).
 

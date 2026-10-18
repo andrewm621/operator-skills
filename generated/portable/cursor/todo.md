@@ -4,6 +4,8 @@ Manage tasks within the current roadmap phase or as a standalone list. Add, comp
 
 Arguments: {the text you type after the command}
 
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
+
 ## Steps
 
 1. **Parse the subcommand** — Determine what action to take from `{the text you type after the command}`:
@@ -23,13 +25,13 @@ Arguments: {the text you type after the command}
 2. **Find the data source** — Determine where to read/write tasks:
 
    **For roadmap-connected tasks:**
-   - Read `~/.claude/projects/<your-project-path>/dev-notes/roadmaps/INDEX.md`
+   - Read `<notes>/roadmaps/INDEX.md`
    - Find the active roadmap (status: active)
    - If exactly one, use it. If multiple, ask the user to pick. If none, fall through to standalone.
    - Read the roadmap's `roadmap.md` and locate the current phase (from `current_phase` in frontmatter)
 
    **For standalone tasks:**
-   - If `{the text you type after the command}` starts with "standalone", use `roadmaps/standalone/` directory
+   - If `{the text you type after the command}` starts with "standalone", use the `<notes>/roadmaps/standalone/` directory
    - If a name is provided (e.g., `standalone quick-tasks`), use `todo-YYYY-MM-DD-<name>.md`
    - If no name, use `todo-YYYY-MM-DD.md` (today's date)
    - If the file doesn't exist, create it with frontmatter:
@@ -49,7 +51,7 @@ Arguments: {the text you type after the command}
 
      ```
       TODO  Phase 2: Core Features (2/6)
-      Roadmap: agencyos-v2-launch
+      Roadmap: web-app-v2-launch
 
       x  2.1 Client dashboard layout         high  M   done
       x  2.2 Project list with status         high  M   done
@@ -84,7 +86,7 @@ Arguments: {the text you type after the command}
      - Announce: "Phase N complete! All tasks done."
      - If there's a next phase, ask: "Ready to start Phase N+1: <Name>?"
      - If yes: update `current_phase` in frontmatter, set next phase `status: in-progress`, add `started: YYYY-MM-DD`
-     - Update INDEX.md with new phase progress
+     - Update `<notes>/roadmaps/INDEX.md` with new phase progress
    - Show the updated task list
 
    **`skip <id>`:**
@@ -120,7 +122,7 @@ Arguments: {the text you type after the command}
    - Parse all phases in the active roadmap
    - Display:
      ```
-      SUMMARY  agencyos-v2-launch
+      SUMMARY  web-app-v2-launch
       Phases: 1 completed, 1 in-progress, 2 pending
       Tasks: 7/18 done (39%)
       Effort remaining: ~3L + 2M + 1S
@@ -131,8 +133,8 @@ Arguments: {the text you type after the command}
 
 ## Notes
 - All writes go back to the same `roadmap.md` file that `/roadmap` created and `/phases` reads — they share the same data
-- For standalone lists, writes go to `roadmaps/standalone/todo-*.md`
+- For standalone lists, writes go to `<notes>/roadmaps/standalone/todo-*.md`
 - The `>` marker in the display always points to the first uncompleted task, preferring higher-priority tasks (high > medium > low)
-- Phase boundary transitions update both the roadmap file and INDEX.md, keeping `/phases` in sync
+- Phase boundary transitions update both the roadmap file and `<notes>/roadmaps/INDEX.md`, keeping `/phases` in sync
 - If no roadmap is active and the user runs `/todo` without "standalone", suggest: "No active roadmap. Run `/todo standalone <name>` for a quick list, or `/roadmap` to plan a project."
 - Task IDs are stable — completing or skipping a task doesn't renumber others (only `/todo move` renumbers)

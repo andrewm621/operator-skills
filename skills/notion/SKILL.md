@@ -58,8 +58,8 @@ Arguments: $ARGUMENTS (optional: action and details)
 3. Match by walking cwd from the deepest component upward: for each path
    component (starting at the basename), check if it equals any project's `dir`.
    The first match wins. This is root-agnostic — it works whether projects live
-   under `~/Projects/<dir>/`, `~/<dir>/`, or anywhere else.
-   - e.g. `/Users/jane/Projects/myapp/v2/src/` -> tries `src`, `v2`,
+   under a projects folder, `~/<dir>/`, or anywhere else.
+   - e.g. `~/code/myapp/v2/src/` -> tries `src`, `v2`,
      `myapp` -> matches `myapp`
    - e.g. `C:\Users\Jane\notes` -> tries `notes` -> matches `notes`
 4. Fuzzy fallback: normalize both sides (lowercase, strip spaces/hyphens), compare each cwd component against project keys

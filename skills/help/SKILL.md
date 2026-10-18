@@ -39,7 +39,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
 ═══════════════════════════════════════════════════════════════
  PROJECT MANAGEMENT
 ═══════════════════════════════════════════════════════════════
- /switch <project>        Context-switch into any ~/Projects/* project
+ /switch <project>        Context-switch into any project in your projects folder
  /scaffold <name> [tmpl]  New project from templates (next/vite/api/monorepo)
  /foundation-loop <dir>   Bounded harness: skeleton → working foundation (auth + 1 core flow)
  /dark-mode [where]       Light/Dark/System toggle — OS default, no-flash
@@ -68,7 +68,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /git-sync [dir]          Full git sync report: branches, ahead/behind, stashes
  /port-check              Show what's running on dev ports
  /perf [url|bundle]       Lighthouse + bundle size + Core Web Vitals
- /verify-app [url]        Verify running app via Dia Browser + CDP
+ /verify-app [url]        Verify a running app in a real browser (headless or CDP)
  /test-desktop-app <what> Test a local macOS app without stealing focus
  /report [topic]          Generate polished interactive HTML report/dashboard
 

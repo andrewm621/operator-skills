@@ -404,4 +404,4 @@ sticky-forever (Path A/B/C's default) is correct there.
 - Setting `color-scheme` (not just the `.dark` class) is what themes native scrollbars, form controls, and `<input>` widgets. A class-only toggle leaves those light.
 - On a project with no dark styles at all, this wires the *mechanism* but can't invent your palette — it scaffolds starter tokens and flags them to refine.
 - **TTL-persisted overrides (Path C alternate) are opt-in, not the default.** Default to the indefinite 3-way pattern (Path A/B/C) unless the site is a no-build CMS embed and the client explicitly wants a 2-way switch that forgets stale choices — see Path C's alternate section for the tradeoff.
-- Related: `/setup-rebel-ui` already wires a `next-themes` provider for design-system projects (run it first, then this adds the toggle); `/scaffold` for new projects; `/verify-app` to confirm no-flash behavior in a browser.
+- Related: if you use the `@rebel/ui` design system and have its `/setup-rebel-ui` skill installed, that already wires a `next-themes` provider (run it first, then this adds the toggle); `/scaffold` for new projects; `/verify-app` to confirm no-flash behavior in a browser.

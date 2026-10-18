@@ -2,13 +2,15 @@ Document a feature, decision, architecture, or workflow. Writes decision records
 
 Arguments: $ARGUMENTS (what to document + optional target: "notion", "dev-note", "inline", "readme")
 
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
+
 ## Steps
 
 1. **Parse the request** — From `$ARGUMENTS`, determine:
    - **Subject:** What to document (feature, decision, architecture, API, component, workflow)
    - **Target:** Where to write it (defaults based on subject type):
      - `notion` → Create a Notion page (delegated to `/notion`)
-     - `dev-note` → Write a decision record to the dev-notes directory. If the subject is a **learning** (a gotcha, quirk, or mistake worth not repeating), delegate to `/learn` instead — see step 4
+     - `dev-note` → Write a decision record to `<notes>/decisions/`. If the subject is a **learning** (a gotcha, quirk, or mistake worth not repeating), delegate to `/learn` instead — see step 4
      - `inline` → Add JSDoc/comments to source files
      - `readme` → Update or create project README
      - If no target specified: use best default for the subject type
@@ -82,13 +84,13 @@ Arguments: $ARGUMENTS (what to document + optional target: "notion", "dev-note",
 4. **Write the document** — Save to the appropriate location:
    - Notion: run `/notion` with the drafted content (`/notion note "<title>"` for a dev note, `/notion decision "<title>"` for a decision, `/notion update <topic>` to revise an existing page) instead of calling the Notion tools directly. It resolves the project from the registry and picks the right tool
    - Learning: run `/learn "<the learning>"` and let it extract, categorize, save, and index it; don't write a learnings file from this skill
-   - Decision record: write to `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/decisions/YYYY-MM-DD-<topic>.md`
+   - Decision record: write to `<notes>/decisions/YYYY-MM-DD-<topic>.md` (create the directory if needed)
    - Inline: edit source files with the Edit tool
    - README: write to project's `README.md`
 
 5. **Update indexes** — If writing a decision record:
-   - Update `dev-notes/INDEX.md` with the new entry
-   - If it should be remembered across sessions, suggest updating auto-memory too
+   - Update `<notes>/INDEX.md` with the new entry (create it with a heading if missing)
+   - If it should be remembered across sessions, suggest updating auto-memory too (only if `paths.memory` is set in the config; otherwise skip)
    - (`/learn` maintains its own index for learnings.)
 
 6. **Present the result** — Show what was written and where. For Notion pages, include the URL `/notion` returns.

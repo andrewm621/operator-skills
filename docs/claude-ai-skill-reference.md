@@ -365,7 +365,6 @@ OUTPUT
 
 ## /dark-mode
 
-
 Add a production-grade Light / Dark / System theme toggle to the app in the current directory. $ARGUMENTS
 
 The toggle is 3-way — **Light**, **Dark**, **System** — where **System** is the default on first visit (follows the OS `prefers-color-scheme` and live-updates if the OS theme changes), and an explicit Light/Dark click is remembered across reloads.
@@ -763,16 +762,16 @@ sticky-forever (Path A/B/C's default) is correct there.
 - Setting `color-scheme` (not just the `.dark` class) is what themes native scrollbars, form controls, and `<input>` widgets. A class-only toggle leaves those light.
 - On a project with no dark styles at all, this wires the *mechanism* but can't invent your palette — it scaffolds starter tokens and flags them to refine.
 - **TTL-persisted overrides (Path C alternate) are opt-in, not the default.** Default to the indefinite 3-way pattern (Path A/B/C) unless the site is a no-build CMS embed and the client explicitly wants a 2-way switch that forgets stale choices — see Path C's alternate section for the tradeoff.
-- Related: `/setup-rebel-ui` already wires a `next-themes` provider for design-system projects (run it first, then this adds the toggle); `/scaffold` for new projects; `/verify-app` to confirm no-flash behavior in a browser.
-
+- Related: if you use the `@rebel/ui` design system and have its `/setup-rebel-ui` skill installed, that already wires a `next-themes` provider (run it first, then this adds the toggle); `/scaffold` for new projects; `/verify-app` to confirm no-flash behavior in a browser.
 ---
 
 ## /deps
 
-
 Dependency management across projects. Audit vulnerabilities, update packages, and align versions across the workspace.
 
 Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>", "outdated", or a package name to investigate)
+
+**Config:** `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`) — see `docs/config.md`. `<projects>` below is that directory (expand `~` before using it in Bash); a missing file or key means the default.
 
 ## Steps
 
@@ -906,7 +905,7 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
    ### `align <package>`
    **a) Find all projects using the package:**
    ```bash
-   grep -rl "\"<package>\"" ~/Projects/*/package.json 2>/dev/null
+   grep -rl "\"<package>\"" <projects>/*/package.json 2>/dev/null
    ```
 
    **b) Extract versions:**
@@ -914,18 +913,18 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
 
    **c) Report:**
    ```
-    DEPS ALIGN  stripe across ~/Projects
+    DEPS ALIGN  stripe across <projects>
 
     | Project | Version | Status |
     |---------|---------|--------|
-    | agencyos | ^14.2.0 | latest |
-    | communityos | ^14.1.0 | minor behind |
-    | pay-copilot | ^14.2.0 | latest |
+    | dashboard | ^14.2.0 | latest |
+    | community-app | ^14.1.0 | minor behind |
+    | billing-app | ^14.2.0 | latest |
     | web-app | ^13.9.0 | MAJOR behind |
-    | strata | ^14.2.0 | latest |
+    | admin-portal | ^14.2.0 | latest |
 
     Latest: 14.2.0
-    Behind: 2 projects (communityos: minor, web-app: major)
+    Behind: 2 projects (community-app: minor, web-app: major)
 
     Options:
     1. Update all to ^14.2.0 (spawns parallel agents per project)
@@ -951,18 +950,18 @@ Arguments: $ARGUMENTS (subcommand: "audit", "update", "align", "check <package>"
 - For monorepos, `pnpm update` at the workspace root updates all packages — warn about this scope
 - Major version updates should always be followed by type check + build + test
 - The `align` subcommand is the cross-project killer feature — it prevents version drift across 50+ projects
-- For @rebel/ui changes, prefer `/parallel build-check` (add `--dep @rebel/ui` to find the consumers), which also tests the build, not just the version
+- For shared-package changes (a design system, SDK), prefer `/parallel build-check` (add `--dep @acme/ui` to find the consumers), which also tests the build, not just the version
 - If `npm audit` reports vulnerabilities in devDeps only, note that these don't affect production
 - This skill pairs with `/search-all pkg:<name>` for quick lookups; `/deps` adds analysis and actions on top
-
 ---
 
 ## /document
 
-
 Document a feature, decision, architecture, or workflow. Writes decision records, inline code docs, or a README, and hands Notion pages to `/notion` and learnings to `/learn`.
 
 Arguments: $ARGUMENTS (what to document + optional target: "notion", "dev-note", "inline", "readme")
+
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
 
 ## Steps
 
@@ -970,7 +969,7 @@ Arguments: $ARGUMENTS (what to document + optional target: "notion", "dev-note",
    - **Subject:** What to document (feature, decision, architecture, API, component, workflow)
    - **Target:** Where to write it (defaults based on subject type):
      - `notion` → Create a Notion page (delegated to `/notion`)
-     - `dev-note` → Write a decision record to the dev-notes directory. If the subject is a **learning** (a gotcha, quirk, or mistake worth not repeating), delegate to `/learn` instead — see step 4
+     - `dev-note` → Write a decision record to `<notes>/decisions/`. If the subject is a **learning** (a gotcha, quirk, or mistake worth not repeating), delegate to `/learn` instead — see step 4
      - `inline` → Add JSDoc/comments to source files
      - `readme` → Update or create project README
      - If no target specified: use best default for the subject type
@@ -1044,13 +1043,13 @@ Arguments: $ARGUMENTS (what to document + optional target: "notion", "dev-note",
 4. **Write the document** — Save to the appropriate location:
    - Notion: run `/notion` with the drafted content (`/notion note "<title>"` for a dev note, `/notion decision "<title>"` for a decision, `/notion update <topic>` to revise an existing page) instead of calling the Notion tools directly. It resolves the project from the registry and picks the right tool
    - Learning: run `/learn "<the learning>"` and let it extract, categorize, save, and index it; don't write a learnings file from this skill
-   - Decision record: write to `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/decisions/YYYY-MM-DD-<topic>.md`
+   - Decision record: write to `<notes>/decisions/YYYY-MM-DD-<topic>.md` (create the directory if needed)
    - Inline: edit source files with the Edit tool
    - README: write to project's `README.md`
 
 5. **Update indexes** — If writing a decision record:
-   - Update `dev-notes/INDEX.md` with the new entry
-   - If it should be remembered across sessions, suggest updating auto-memory too
+   - Update `<notes>/INDEX.md` with the new entry (create it with a heading if missing)
+   - If it should be remembered across sessions, suggest updating auto-memory too (only if `paths.memory` is set in the config; otherwise skip)
    - (`/learn` maintains its own index for learnings.)
 
 6. **Present the result** — Show what was written and where. For Notion pages, include the URL `/notion` returns.
@@ -1064,7 +1063,6 @@ Arguments: $ARGUMENTS (what to document + optional target: "notion", "dev-note",
 - When documenting code, read the actual source first — never guess at implementations
 - For Notion pages, use structured formatting; `/notion` handles icons and properties
 - Keep documentation concise and useful — avoid boilerplate padding
-
 ---
 
 ## /email-triage
@@ -1262,14 +1260,13 @@ Target directory: $ARGUMENTS (default: current working directory)
 
 ## /foundation-loop
 
-
 Drive a fresh or near-fresh app from skeleton to a working foundation with minimal check-ins per round — not by looping forever, by stopping at a real, verified "done."
 
 Task: $ARGUMENTS
 
 ## Steps
 
-1. **Scope check — is this the right job for this skill.** `/foundation-loop` is for **standing up the boring, repetitive part of a new small app**: a fresh or near-fresh codebase (typically just out of `/scaffold`, or early enough that "the foundation" hasn't been proven yet) going from generated skeleton to a *working foundation* — nothing more. "Working foundation" means, concretely: the build/type-check/lint pipeline is clean, auth is wired end-to-end (signup or login → session persists → a protected route actually blocks the unauthenticated case), and **exactly one** core CRUD/data flow works end-to-end through the real stack (UI → API/server action → DB → back to UI). That's the whole bar — not a second feature, not visual polish, not test coverage beyond the smoke path. If the ask is a feature on a mature app, general open-ended building, or anything games-related, say so and point at `/orchestrate` (features) or `gauntlet-loop` (games) instead of stretching this skill to fit.
+1. **Scope check — is this the right job for this skill.** `/foundation-loop` is for **standing up the boring, repetitive part of a new small app**: a fresh or near-fresh codebase (typically just out of `/scaffold`, or early enough that "the foundation" hasn't been proven yet) going from generated skeleton to a *working foundation* — nothing more. "Working foundation" means, concretely: the build/type-check/lint pipeline is clean, auth is wired end-to-end (signup or login → session persists → a protected route actually blocks the unauthenticated case), and **exactly one** core CRUD/data flow works end-to-end through the real stack (UI → API/server action → DB → back to UI). That's the whole bar — not a second feature, not visual polish, not test coverage beyond the smoke path. If the ask is a feature on a mature app, general open-ended building, or anything games-related, say so and point at `/orchestrate` (features) or a game-building loop skill such as `gauntlet-loop`, if you have one installed (games), instead of stretching this skill to fit.
 
 2. **Gather the brief.** From `$ARGUMENTS` and the repo:
    - Confirm the app directory. If no skeleton exists yet, stop and say so — this skill picks up *after* `/scaffold`, it doesn't generate the skeleton itself.
@@ -1294,17 +1291,17 @@ Task: $ARGUMENTS
    - Lint, if the project has it wired.
    - The core flow and auth, **run**, not read — start the dev server (or use what's already running), hit the actual routes/actions, and confirm data really lands in and comes back from the DB. Reading the diff and concluding "this should work" does not satisfy this step.
 
-6. **The adversarial critic tries to break it.** Borrowed from `gauntlet-loop`'s harsh-separate-critic mechanic, but bounded to functional correctness instead of open-ended visual polish. A separate `reviewer`-flavored agent, blind to how proud the implementer is of the diff, actually attempts (live, not hypothetically):
+6. **The adversarial critic tries to break it.** The harsh-separate-critic mechanic (as in a `gauntlet-loop` skill, if you have one installed), but bounded to functional correctness instead of open-ended visual polish. A separate `reviewer`-flavored agent (or `general-purpose` with a reviewer brief if no `reviewer` type exists), blind to how proud the implementer is of the diff, actually attempts (live, not hypothetically):
    - Bad/missing input on the core flow's entry point (empty required field, wrong type, an ID that doesn't exist) — does it fail gracefully or 500/crash?
    - A missing or blank required env var (comment one out from `.env.local`, restart) — does it fail with a clear error or die silently/cryptically?
    - Cold start — kill the dev server and bring it back up (or a fresh `.env` from `.env.example`) — does auth and the core flow still work without hand-holding?
    The critic reports pass/fail per attack, not a vibe. A "graceful, logged failure" on an edge case can be accepted as a known follow-up; a crash or silent data corruption cannot.
 
-7. **Stop condition and hard ceiling — the anti-`gauntlet-loop` rule.** Unlike `gauntlet-loop`'s intentionally unreachable bar ("it will not finish by its own definition"), this skill is *supposed* to finish:
+7. **Stop condition and hard ceiling — no open-ended loops.** Unlike open-ended polish loops whose bar is intentionally unreachable, this skill is *supposed* to finish:
    - **Pass bar (the real "done"):** build/type-check/lint all green; auth demonstrably works end-to-end (session persists, protected route blocks unauth'd access); the one core flow demonstrably works end-to-end via an actual run; the critic's attacks are all either handled gracefully or explicitly accepted as a logged follow-up.
    - **Hard ceiling:** a real, finite `max_iterations` (default **5 rounds**, override via `$ARGUMENTS` or ask if unclear) and a turn/token budget per round. Hitting the ceiling without passing is a **stop, not a reason to keep going** — report exactly what's still failing and hand back a concrete gap list for a human decision. Never quietly extend the ceiling mid-run.
 
-8. **Check-ins stay minimal by design.** Surface to Andrew only: at kickoff (confirm the one flow + the ceiling, and get `Workflow` opt-in if using it), if genuinely blocked on something only he can decide (a missing secret, an ambiguous requirement, a real external dependency), and at the end (passed, or ceiling hit). Do not report round-by-round — that reintroduces the exact back-and-forth this skill exists to remove.
+8. **Check-ins stay minimal by design.** Surface to the user only: at kickoff (confirm the one flow + the ceiling, and get `Workflow` opt-in if using it), if genuinely blocked on something only they can decide (a missing secret, an ambiguous requirement, a real external dependency), and at the end (passed, or ceiling hit). Do not report round-by-round — that reintroduces the exact back-and-forth this skill exists to remove.
 
 9. **Report.**
 
@@ -1326,11 +1323,10 @@ Task: $ARGUMENTS
 ## Notes
 - Picks up **right after `/scaffold`** — `/scaffold` stops once the skeleton exists (it doesn't iterate, build, test, or fix); `/foundation-loop` is what takes that skeleton the rest of the way to a proven foundation. For a scaffold that's already fully wired, this skill is a no-op — say so rather than manufacturing rounds.
 - This is the **pre-built, bounded harness for the one case `/orchestrate`'s own shape table (step 2) would otherwise send to an ad-hoc `Workflow` script** — reach for `/foundation-loop` directly instead of re-deriving the loop/verify/critique shape from scratch every time the job is "stand up a new app's foundation." For everything else that's loop-shaped but isn't this specific pattern (feature work, general fan-out), stay with `/orchestrate`'s graduation rule.
-- Spiritual sibling of `gauntlet-loop`, deliberately inverted on the one axis that matters: `gauntlet-loop` is pure-prompt, games-only, and its bar is intentionally unreachable ("the human is the brake"); `/foundation-loop` is a genuine harness (`Workflow`-backed by default), scoped to apps, with a real pass bar *and* a hard ceiling so it stops on its own.
-- Not for: feature work on a mature app (`/orchestrate`), visual/design polish (a `designer` pass, or `/invert` for red-teaming a flow), games (`gauntlet-loop`), or a single trivial fix (just do it — don't spin up a harness for one line).
+- If you use an open-ended, human-braked polish loop such as `gauntlet-loop` (optional, not required), this is its deliberate inverse on the one axis that matters: that kind of loop has an intentionally unreachable bar; `/foundation-loop` is a genuine harness (`Workflow`-backed by default), scoped to apps, with a real pass bar *and* a hard ceiling so it stops on its own.
+- Not for: feature work on a mature app (`/orchestrate`), visual/design polish (a `designer` pass, or `/invert` for red-teaming a flow), games (an optional `gauntlet-loop`-style skill, if you have one), or a single trivial fix (just do it — don't spin up a harness for one line).
 - If the work should persist across sessions (e.g., handed off mid-loop, or run overnight), cross-reference `/maestro` the way `/orchestrate` does — persist the loop as a standing task rather than losing round history when the session ends.
 - Load the `workflow-authoring` skill before writing the actual Workflow script (step 3) — this skill defines the harness shape, not the script syntax.
-
 ---
 
 ## /freeze
@@ -1339,7 +1335,9 @@ Preserve full conversation context for cross-thread resumption. Dumps everything
 
 Arguments: $ARGUMENTS (optional: topic slug, "list", "thaw", "thaw <slug>", or "all")
 
-## Instructions
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory (expand `~` before using it in Bash); a missing file or key means the default.
+
+## Steps
 
 Parse `$ARGUMENTS` to determine the action:
 
@@ -1378,10 +1376,10 @@ git stash list
 lsof -ti :3000,3001,3002,3003,3004,3005 2>/dev/null | head -20
 
 # Today's daily log
-ls -la ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/sessions/$(date +%Y-%m-%d)*.md 2>/dev/null
+ls -la <notes>/sessions/$(date +%Y-%m-%d)*.md 2>/dev/null
 
 # Active roadmap
-ls ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/*/roadmap.md 2>/dev/null | head -5
+ls <notes>/roadmaps/*/roadmap.md 2>/dev/null | head -5
 ```
 
 ### 3. Analyze conversation context
@@ -1398,7 +1396,7 @@ Extract from the current conversation (or post-compaction portion if compacted):
 ### 4. Determine slug
 
 If `$ARGUMENTS` is non-empty and isn't a subcommand, use it as the slug.
-Otherwise, generate a short descriptive slug from the active task (e.g., `freeze-skill-implementation`, `agencyos-auth-refactor`).
+Otherwise, generate a short descriptive slug from the active task (e.g., `freeze-skill-implementation`, `web-app-auth-refactor`).
 
 ### 5. Compose freeze file
 
@@ -1410,7 +1408,7 @@ Frozen: YYYY-MM-DD HH:MM | Project(s): <list> | CWD: <path>
 Branch: <branch> (<clean|dirty>) | Last commit: <hash> <message>
 
 > To resume: start a new session and run `/freeze thaw <slug>`
-> Or say: "Load context from ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/<filename>"
+> Or say: "Load context from <notes>/freezes/<filename>"
 
 ---
 
@@ -1459,13 +1457,13 @@ Branch: <branch> (<clean|dirty>) | Last commit: <hash> <message>
 
 ### 6. Save the file
 
-Write to: `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/YYYY-MM-DD-HHmm-<slug>.md`
+Write to: `<notes>/freezes/YYYY-MM-DD-HHmm-<slug>.md`
 
 Create the `freezes/` directory if it doesn't exist (use Bash: `mkdir -p`).
 
 ### 7. Update INDEX.md
 
-Read `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/INDEX.md`.
+Read `<notes>/INDEX.md` (create it with a `# Dev Notes Index` heading if it doesn't exist).
 
 If there's no `## Freezes` section, add one after the last existing section (before any blank trailing lines):
 
@@ -1518,9 +1516,9 @@ Compare current state against the freeze:
 Check for other freezes from the same project or same day:
 ```bash
 # Same project
-grep -l "Project(s):.*<project>" ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/*.md 2>/dev/null
+grep -l "Project(s):.*<project>" <notes>/freezes/*.md 2>/dev/null
 # Same day
-ls ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/<YYYY-MM-DD>*.md 2>/dev/null
+ls <notes>/freezes/<YYYY-MM-DD>*.md 2>/dev/null
 ```
 
 If related freezes exist, show them after the main context:
@@ -1546,11 +1544,11 @@ Progress: <completed> done, <in-progress> in flight, <blocked> blocked
 Next action: <resumption prompt>
 ```
 
-### 7. Read key files
+### 6. Read key files
 
 If the freeze lists files with status "In-progress" or "Needs work", proactively read them to rebuild context.
 
-### 8. Ask to continue
+### 7. Ask to continue
 
 Suggest the resumption prompt action and ask if the user wants to proceed with it or do something else.
 
@@ -1569,11 +1567,11 @@ Run the normal Save flow (steps 1-8 above) for this thread's context.
 ### 2. Detect other active work
 
 Scan for signals of other active threads:
-- Check today's freezes already saved: `ls ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/$(date +%Y-%m-%d)*.md`
+- Check today's freezes already saved: `ls <notes>/freezes/$(date +%Y-%m-%d)*.md`
 - Check git status across likely active projects (look at today's session logs for project names):
   ```bash
   # Parse project names from today's session files
-  grep -l "$(date +%Y-%m-%d)" ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/sessions/$(date +%Y-%m-%d)*.md 2>/dev/null
+  grep -l "$(date +%Y-%m-%d)" <notes>/sessions/$(date +%Y-%m-%d)*.md 2>/dev/null
   ```
 - Check running dev servers on common ports to identify active projects
 
@@ -1594,7 +1592,7 @@ Other active projects today:
      -> In that terminal, run: /freeze desktop-<inferred-topic>
 
 Already frozen today:
-  - 2026-05-12 14:30  agencyos-auth-refactor
+  - 2026-05-12 14:30  web-app-auth-refactor
 
 All done? Your freezes will be waiting:
   /freeze list
@@ -1619,11 +1617,11 @@ threads on this project. Freeze each thread with a distinct slug:
 
 When `$ARGUMENTS` is `list`:
 
-Glob for `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/*.md` and show the 10 most recent:
+Glob for `<notes>/freezes/*.md` and show the 10 most recent:
 
 ```
 Recent freezes:
-  1. 2026-05-12 14:30  agencyos-auth-refactor     (agencyos)
+  1. 2026-05-12 14:30  web-app-auth-refactor     (web-app)
   2. 2026-05-12 09:15  freeze-skill-implementation (skills)
   3. 2026-05-11 16:45  cron-debugging              (web-app)
   ...
@@ -1635,14 +1633,13 @@ Parse the topic from the `# Context Freeze:` header line and project from the `P
 
 ---
 
-## Key Principles
+## Notes
 
 - **Optimize for Claude, not humans.** The freeze file should let a future Claude instance rebuild full working context in one read. Structure > prose.
 - **Preserve the compaction summary verbatim.** This is irreplaceable compressed context. Never paraphrase it.
 - **Be specific in the active task.** "Implementing X" is better than "working on the project." Include what step you're on.
 - **Cap code snippets.** 3-5 blocks, <50 lines each. Only include what's needed to resume — not full file contents.
 - **The resumption prompt is the most important line.** It should be a clear, actionable instruction that a future Claude can execute immediately.
-
 ---
 
 ## /git-sync
@@ -1876,7 +1873,6 @@ Any single page also serves clean markdown by appending `.md`:
 
 ## /help
 
-
 Show a categorized cheat sheet of all available custom slash commands with one-line descriptions.
 
 Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list)
@@ -1911,7 +1907,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
 ═══════════════════════════════════════════════════════════════
  PROJECT MANAGEMENT
 ═══════════════════════════════════════════════════════════════
- /switch <project>        Context-switch into any ~/Projects/* project
+ /switch <project>        Context-switch into any project in your projects folder
  /scaffold <name> [tmpl]  New project from templates (next/vite/api/monorepo)
  /foundation-loop <dir>   Bounded harness: skeleton → working foundation (auth + 1 core flow)
  /dark-mode [where]       Light/Dark/System toggle — OS default, no-flash
@@ -1940,7 +1936,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /git-sync [dir]          Full git sync report: branches, ahead/behind, stashes
  /port-check              Show what's running on dev ports
  /perf [url|bundle]       Lighthouse + bundle size + Core Web Vitals
- /verify-app [url]        Verify running app via Dia Browser + CDP
+ /verify-app [url]        Verify a running app in a real browser (headless or CDP)
  /test-desktop-app <what> Test a local macOS app without stealing focus
  /report [topic]          Generate polished interactive HTML report/dashboard
 
@@ -2002,15 +1998,15 @@ If none exist, say the skill isn't installed here.
 - The "Quick Combos" section shows common multi-skill workflows
 - For Vercel plugin skills, those are injected automatically by hooks — not listed here
 - For marketplace plugin skills (hookify, frontend-design, etc.), run `/skills` dialog
-
 ---
 
 ## /invert
 
-
 Apply the inversion principle to stress-test a feature, process, or system. Instead of asking "how do we make this succeed?", spawns independent subagents that each ask "how would this fail?" from a different lens. Aggregates weaknesses into a prioritized risk report.
 
 Subject: $ARGUMENTS (a feature, workflow, system, codebase area, or business process)
+
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
 
 ## Steps
 
@@ -2021,11 +2017,11 @@ Subject: $ARGUMENTS (a feature, workflow, system, codebase area, or business pro
    - A system (e.g., "our auth architecture", "the cron job pipeline")
    - A process (e.g., "our deploy workflow", "onboarding new users")
    - A codebase area (e.g., "the Stripe integration", "the database schema")
-   - A plan or proposal (e.g., "the roadmap for agencyos v2")
+   - A plan or proposal (e.g., "the roadmap for the v2 launch")
 
    **b) Scope the investigation:**
    - If the subject names a project or feature, identify the relevant project directory
-   - If it references a roadmap, find it in `dev-notes/roadmaps/`
+   - If it references a roadmap, find it in `<notes>/roadmaps/`
    - If it's abstract (a process, a business model), note that — agents will reason rather than read code
 
 2. **Select the failure lenses** — Choose 4-5 lenses based on the subject type. Not all lenses apply to every subject — pick the most relevant ones:
@@ -2215,7 +2211,7 @@ Subject: $ARGUMENTS (a feature, workflow, system, codebase area, or business pro
 
    - "Fix tier 1 issues now? I can start with the race condition." → dispatch `/subagent`
    - "Create roadmap tasks for tiers 2-3?" → integrate with `/todo add`
-   - "Save this report?" → write to `dev-notes/decisions/YYYY-MM-DD-inversion-<subject>.md`
+   - "Save this report?" → write to `<notes>/decisions/YYYY-MM-DD-inversion-<subject>.md`
    - "Run `/invert` again after fixes to verify?" → re-run scoped to fixed areas
    - "Deep-dive a specific finding?" → spawn focused research agent
 
@@ -2229,11 +2225,9 @@ Subject: $ARGUMENTS (a feature, workflow, system, codebase area, or business pro
 - The report should feel like a red team exercise — the agents are adversaries trying to break the system, not consultants being polite about risks.
 - This pairs naturally with: `/pr-review` (inversion before merge), `/roadmap` (inversion on a plan), `/project-health` (inversion adds the "why" to the diagnostic "what").
 - Can be re-run after fixes to verify improvements — the report becomes a living audit trail.
-
 ---
 
 ## /learn
-
 
 Extract, catalog, and recall lessons learned — mistakes, gotchas, surprising behaviors, and solutions. Builds a searchable knowledge base from real work sessions so the same problems don't bite twice.
 
@@ -2250,11 +2244,13 @@ Arguments: $ARGUMENTS (optional: action and details)
 | `review [n]` | Review the last N learnings (default 5) for patterns or staleness |
 | `stats` | Show learning categories, counts, most-referenced projects |
 
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
+
 ## Data Location
 
-- Learnings: `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/learnings/YYYY-MM-DD-<slug>.md`
-- Index: `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/learnings/INDEX.yaml`
-- Also tracked in: `dev-notes/INDEX.md` (Learnings table)
+- Learnings: `<notes>/learnings/YYYY-MM-DD-<slug>.md`
+- Index: `<notes>/learnings/INDEX.yaml`
+- Also tracked in: `<notes>/INDEX.md` (Learnings table)
 
 ## Steps
 
@@ -2311,11 +2307,11 @@ Arguments: $ARGUMENTS (optional: action and details)
 
 This is the **most important action** — it surfaces past lessons before you repeat mistakes.
 
-1. **Read the index** at `dev-notes/learnings/INDEX.yaml`
+1. **Read the index** at `<notes>/learnings/INDEX.yaml`
 
 2. **Search** against the topic using multiple strategies:
    - Exact tag match (e.g., `recall supabase` matches tag `supabase`)
-   - Project match (e.g., `recall agencyos` matches project `agencyos`)
+   - Project match (e.g., `recall web-app` matches project `web-app`)
    - Category match (e.g., `recall security` matches category `security`)
    - Fuzzy keyword match against titles and summaries
    - Broad technology match (e.g., `recall auth` matches tags containing `auth`, `supabase-auth`, `entra`, `clerk`, `otp`)
@@ -2326,20 +2322,20 @@ This is the **most important action** — it surfaces past lessons before you re
 
    ### Direct matches (3)
 
-   1. **Supabase + Resend + Custom OTP Auth Gotchas** (2026-04-22, agencyos)
+   1. **Supabase + Resend + Custom OTP Auth Gotchas** (2026-04-22, web-app)
       - Supabase-Resend integration key is scoped — use separate Resend API key for direct sends
       - createUser before generateLink — "Signups not allowed" if user doesn't exist
       - Custom OTP pattern: generate OTP → send via Resend → verify via admin.generateLink
-      [Full: dev-notes/learnings/2026-04-22-supabase-resend-auth-gotchas.md]
+      [Full: <notes>/learnings/2026-04-22-supabase-resend-auth-gotchas.md]
 
    2. **Supabase RLS Security Audit** (2026-04-29, all)
       - SECURITY DEFINER functions callable by anon
       - mutable search_path vulnerability
-      [Full: dev-notes/learnings/2026-04-29-supabase-rls-security-definer-audit.md]
+      [Full: <notes>/learnings/2026-04-29-supabase-rls-security-definer-audit.md]
 
    ### Tangential matches (1)
 
-   3. **CF Workers: Use Web Crypto API** (2026-04-22, agencyos)
+   3. **CF Workers: Use Web Crypto API** (2026-04-22, web-app)
       - No Node.js crypto in Workers — use crypto.subtle
    ```
 
@@ -2386,7 +2382,7 @@ This is the **most important action** — it surfaces past lessons before you re
 
 ## Index Format
 
-The index at `dev-notes/learnings/INDEX.yaml` is a compact lookup table:
+The index at `<notes>/learnings/INDEX.yaml` is a compact lookup table:
 
 ```yaml
 # Learning Index — auto-maintained by /learn skill
@@ -2397,7 +2393,7 @@ entries:
     title: Supabase + Resend + Custom OTP Auth Gotchas
     category: api-quirks
     tags: [supabase, resend, auth, otp, cloudflare-workers]
-    projects: [agencyos]
+    projects: [web-app]
     summary: Scoped integration key vs full API key; createUser before generateLink; Web Crypto in CF Workers
     date: 2026-04-22
 
@@ -2412,7 +2408,7 @@ entries:
 
 ## Learning File Format
 
-Follow the existing format in `dev-notes/learnings/`:
+Follow the existing format in `<notes>/learnings/`:
 
 ```markdown
 # Learning: <Title>
@@ -2439,19 +2435,24 @@ Each learning file can contain multiple related gotchas (like the Supabase auth 
 3. **Tags are for machine search** — use lowercase, specific terms. Prefer `supabase-auth` over `authentication`. Include the tool/service name.
 4. **Update, don't duplicate** — if a learning already exists for the same topic, update the existing file with new gotchas rather than creating a new one.
 5. **Always update INDEX.yaml** — every new or modified learning must be reflected in the index.
-6. **Always update INDEX.md** — add the entry to the Learnings table in `dev-notes/INDEX.md`.
-7. **Cross-reference** — if a learning would prevent a bug in a specific project, mention it. "If you're touching AgencyOS auth, read this first."
+6. **Always update INDEX.md** — add the entry to the Learnings table in `<notes>/INDEX.md`.
+7. **Cross-reference** — if a learning would prevent a bug in a specific project, mention it. "If you're touching the auth module, read this first."
 8. **Don't capture obvious things** — "you need to install dependencies before building" is not a learning. Focus on things that are genuinely surprising or that caused real debugging time.
 9. **Recall is the default suggestion** — when a user starts work on a topic that has past learnings, proactively suggest: "There are N learnings related to <topic>. Run `/learn recall <topic>` first?"
 
+## Notes
+
+- Create `<notes>/learnings/` (and `INDEX.yaml` / `INDEX.md` with a heading) the first time you save, if they don't exist yet. Never write outside `<notes>`.
+- Related skills: `/log wrap` extracts learnings from a day's work, `/document` records decisions, `/note` captures general notes to your knowledge-base vault, and `/freeze` preserves session context for resumption.
 ---
 
 ## /log
 
-
 Update the daily work log — a living document that tracks progress, decisions, and context throughout the day. Creates a new log if none exists for today, or appends to the existing one. `/log wrap` finalizes the day (and replaces the old one-shot session note).
 
 Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a direction like "focus on auth decisions")
+
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
 
 ## Steps
 
@@ -2469,7 +2470,7 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
 
 2. **Find or create today's log** — Check for an existing daily log:
 
-   - Look for: `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/sessions/YYYY-MM-DD-daily.md`
+   - Look for: `<notes>/sessions/YYYY-MM-DD-daily.md`
    - If it exists, read it — we'll append to it
    - If it doesn't exist, create it with the initial structure:
 
@@ -2525,7 +2526,7 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
    - Keep entries concise — 3-6 bullet points max
    - Reference file paths when specific files were changed
    - Reference roadmap task IDs if applicable (e.g., "Completes task 2.3")
-   - If a decision was made, capture the rationale briefly — this feeds into dev-notes/decisions/ later
+   - If a decision was made, capture the rationale briefly — this feeds into `<notes>/decisions/` later
 
 5. **Wrap-up (when `$ARGUMENTS` starts with "wrap")** — Finalize the daily log:
 
@@ -2548,7 +2549,7 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
    - Accomplishment 2
 
    **Decisions made:**
-   - Decision 1 (consider extracting to dev-notes/decisions/)
+   - Decision 1 (consider extracting to <notes>/decisions/)
 
    **Problems & solutions:**
    - Problem encountered → how it was resolved
@@ -2563,17 +2564,17 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
    - [ ] Question that needs answering
 
    **Learnings:**
-   - Learning 1 (consider extracting to dev-notes/learnings/)
+   - Learning 1 (consider extracting to <notes>/learnings/)
    ```
 
    **c) Extract structured notes** — Check if the day's log contains:
-   - A significant **decision** → offer to create `dev-notes/decisions/YYYY-MM-DD-<topic>.md`
+   - A significant **decision** → offer to create `<notes>/decisions/YYYY-MM-DD-<topic>.md`
    - A non-obvious **learning** → offer to hand it to `/learn` (it owns the learnings format and index) rather than writing a learnings file here
-   - **Memory-worthy patterns** → offer to update auto-memory files
+   - **Memory-worthy patterns** → offer to update auto-memory files (only if `paths.memory` is set in the config; otherwise skip)
 
-   **d) Update INDEX.md** — Append today's log to `dev-notes/INDEX.md` with a one-line summary.
+   **d) Update INDEX.md** — Append today's log to `<notes>/INDEX.md` (create it with a heading if missing) with a one-line summary.
 
-   **e) Standalone session note (only if a topic was given)** — For `wrap <topic>`, also write `dev-notes/sessions/YYYY-MM-DD-<topic>.md` using a short descriptive slug (e.g. "auth-refactor") with: Date, Project(s), What Was Done, Key Decisions, Problems & Solutions, Files Changed, What's Next (as `- [ ]` items). Add it to INDEX.md too. Skip this when no topic was given; the daily log already holds the same information.
+   **e) Standalone session note (only if a topic was given)** — For `wrap <topic>`, also write `<notes>/sessions/YYYY-MM-DD-<topic>.md` using a short descriptive slug (e.g. "auth-refactor") with: Date, Project(s), What Was Done, Key Decisions, Problems & Solutions, Files Changed, What's Next (as `- [ ]` items). Add it to INDEX.md too. Skip this when no topic was given; the daily log already holds the same information.
 
    **f) Notion (only if `notion` was passed)** — Create a Notion page with the same summary by running `/notion note` with the wrap-up content, and link it back in the log.
 
@@ -2595,7 +2596,6 @@ Arguments: $ARGUMENTS (optional: entry text, "view", "wrap" to finalize, or a di
 - The daily log is append-only during the day. Only `/log wrap` adds the summary section.
 - This skill complements the roadmap pipeline: as you work through `/todo` tasks, `/log` captures the narrative of HOW you did them — context that task checkboxes don't preserve.
 - Related: `/learn` for a single gotcha worth keeping, `/document` for docs, `/freeze` for resuming in a new thread.
-
 ---
 
 ## /maestro
@@ -2688,25 +2688,26 @@ All state lives under `~/Projects/.maestro/` (global, derived — never hand-edi
 
 ## /map
 
-
 Generate or update an architectural map of a project — folder structure, dependencies, data flow, and component relationships — with Mermaid diagrams.
 
-Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Projects overview)
+Target: $ARGUMENTS (project name, directory, or "workspace" for the full projects-directory overview)
+
+**Config:** `paths.projects` (default `~/Projects`) and `paths.memory` (optional) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. `<projects>` and `<memory>` below are those directories; a missing `paths.projects` means the default, a missing `paths.memory` means skip the memory-writing steps (5 workspace map, 6).
 
 ## Steps
 
 1. **Determine scope** — From `$ARGUMENTS`:
 
-   - If a project name is given (e.g., "agencyos", "web-app"), resolve to `~/Projects/<dir>`
-   - If "workspace" or "all", map the full `~/Projects/` workspace at a high level
+   - If a project name is given (e.g., "dashboard", "web-app"), resolve to `<projects>/<dir>`
+   - If "workspace" or "all", map the full `<projects>/` workspace at a high level
    - If empty, use the current working directory
    - If a subdirectory path is given (e.g., "app/api"), map just that subtree in detail
 
-2. **Establish the CLAUDE.md/AGENTS.md pairing** — Skip this step for workspace-level maps (`/map workspace`). For a project directory, `AGENTS.md` is canonical and `CLAUDE.md` is a symlink to it (`CLAUDE.md -> AGENTS.md`). Check the project root and reconcile:
+2. **Offer the CLAUDE.md/AGENTS.md pairing (optional)** — Skip this step for workspace-level maps (`/map workspace`), and skip it silently if neither file exists or they are already paired. Some repos keep `AGENTS.md` canonical with `CLAUDE.md` as a symlink to it (`CLAUDE.md -> AGENTS.md`) so Claude Code and other agents read the same file. This **moves files in the user's repo, so it is opt-in**: if the project root needs reconciling, say what you would do and ask before touching anything; if the user declines (or doesn't answer), skip the step and continue mapping. Cases:
 
    - Both exist and `CLAUDE.md` already symlinks to `AGENTS.md` — no-op.
-   - Only `CLAUDE.md` exists, as a real file — `mv CLAUDE.md AGENTS.md && ln -s AGENTS.md CLAUDE.md` (preserves content, `AGENTS.md` becomes canonical).
-   - Only `AGENTS.md` exists — `ln -s AGENTS.md CLAUDE.md`.
+   - Only `CLAUDE.md` exists, as a real file — with approval, `mv CLAUDE.md AGENTS.md && ln -s AGENTS.md CLAUDE.md` (preserves content, `AGENTS.md` becomes canonical).
+   - Only `AGENTS.md` exists — with approval, `ln -s AGENTS.md CLAUDE.md`.
    - Neither exists — leave it; that's `/init`'s job, not `/map`'s. Don't create empty files.
    - Both exist as separate real files (diverged) — don't silently merge or overwrite either one. Flag it in the final output ("CLAUDE.md and AGENTS.md both exist as separate real files — reconcile manually, then re-run /map") and skip the symlink step.
    - `CLAUDE.md` is a symlink pointing somewhere other than `AGENTS.md` (a custom convention) — leave it alone, just note it's using a custom target.
@@ -2714,7 +2715,7 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
 3. **Explore the project** — Spawn an Explore subagent (or do directly for small projects) to gather:
 
    **a) Structure:**
-   - Run `find <dir> -type f -name "*.ts" -o -name "*.tsx" -o -name "*.py" -o -name "*.json" | head -200` to understand the file tree
+   - Run `find <dir> \( -name node_modules -o -name .git -o -name dist -o -name .next \) -prune -o -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.py" -o -name "*.json" \) -print | head -200` to understand the file tree
    - Read `package.json` (dependencies, scripts, workspaces)
    - Read `CLAUDE.md` if it exists
    - Check for monorepo indicators: `turbo.json`, `pnpm-workspace.yaml`, workspace `packages/`
@@ -2730,7 +2731,7 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
    **c) Dependencies:**
    - Parse `package.json` for key external deps (not devDeps boilerplate)
    - For monorepos: map inter-package dependencies
-   - For `@rebel/ui` consumers: note the design system link
+   - For consumers of a shared design-system package (e.g. `@acme/ui`): note the link
 
 4. **Generate the architectural map** — Produce a comprehensive markdown document with Mermaid diagrams:
 
@@ -2752,7 +2753,7 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
 
    ```mermaid
    graph TD
-       ROOT["agencyos/"] --> APP["app/"]
+       ROOT["web-app/"] --> APP["app/"]
        ROOT --> LIB["lib/"]
        ROOT --> COMP["components/"]
        ROOT --> DB["db/"]
@@ -2808,7 +2809,7 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
    ```mermaid
    graph TD
        APP["@app/web"] --> SHARED["@app/shared"]
-       APP --> UI["@rebel/ui"]
+       APP --> UI["@acme/ui"]
        APP --> DB["@app/db"]
        API["@app/api"] --> SHARED
        API --> DB
@@ -2885,17 +2886,17 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
    - If the project has a CLAUDE.md, add a brief mention: "See ARCHITECTURE.md for visual diagrams"
 
    **For workspace-level maps:**
-   - Save to `~/.claude/projects/-Users-andrewmiller-Projects/memory/workspace_architecture.md`
+   - Save to `<memory>/workspace_architecture.md`. If `paths.memory` is not set, don't save — just present the map in step 7 (and offer to write it wherever the user prefers)
 
    **For updating an existing map:**
    - Read the existing file first
    - Update only the sections that have changed
    - Update the "Generated" date
 
-6. **Update the knowledge map** — If this is a new project being mapped for the first time:
-   - Check if it exists in `memory/project_knowledge_map.md`
+6. **Update the knowledge map** — Only if `paths.memory` is set. If this is a new project being mapped for the first time:
+   - Check if it exists in `<memory>/project_knowledge_map.md`
    - If not, add it to the appropriate category
-   - If the project has enough complexity, suggest creating a dedicated `memory/project_<name>.md`
+   - If the project has enough complexity, suggest creating a dedicated `<memory>/project_<name>.md`
 
 7. **Present the results** — Display the complete architecture map. Since Mermaid renders in markdown viewers, also offer:
    - "View in GitHub/VS Code for rendered diagrams"
@@ -2928,9 +2929,8 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
 - Mermaid diagrams render natively in GitHub, VS Code preview, Notion, and most markdown viewers
 - When updating an existing map, diff against the current code to catch new routes, tables, or packages
 - The workspace-level map (`/map workspace`) shows how projects relate to each other — shared deps, design system consumers, deployment targets
-- If a project uses @rebel/ui, always show it in the dependency graph
+- If a project uses a shared design-system or component package, always show it in the dependency graph
 - For AI projects, include the model/provider flow (which AI SDK, which models, tool calling patterns)
-
 ---
 
 ## /migrate
@@ -4265,7 +4265,6 @@ Only `path` is required. Missing `inbox` means the vault root. Multiple vaults a
 
 ## /notion
 
-
 Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current. `/notion ctx ...` manages that registry and its cached page summaries for fast, token-efficient context loading.
 
 Arguments: $ARGUMENTS (optional: action and details)
@@ -4319,8 +4318,8 @@ Arguments: $ARGUMENTS (optional: action and details)
 3. Match by walking cwd from the deepest component upward: for each path
    component (starting at the basename), check if it equals any project's `dir`.
    The first match wins. This is root-agnostic — it works whether projects live
-   under `~/Projects/<dir>/`, `~/<dir>/`, or anywhere else.
-   - e.g. `/Users/jane/Projects/myapp/v2/src/` -> tries `src`, `v2`,
+   under a projects folder, `~/<dir>/`, or anywhere else.
+   - e.g. `~/code/myapp/v2/src/` -> tries `src`, `v2`,
      `myapp` -> matches `myapp`
    - e.g. `C:\Users\Jane\notes` -> tries `notes` -> matches `notes`
 4. Fuzzy fallback: normalize both sides (lowercase, strip spaces/hyphens), compare each cwd component against project keys
@@ -4706,11 +4705,9 @@ Add with: /notion ctx add <project> <page-id>
 5. **Non-destructive sync** -- `sync` overwrites the cache but never modifies the registry. `add`, `remove`, and `new` modify the registry.
 6. **Parallel fetching** -- when syncing multiple pages, fetch them in parallel (up to 5 concurrent `ntn` calls).
 7. **Report failures gracefully** -- if a page fetch fails (deleted, permissions), note it in the report but don't remove it from the registry.
-
 ---
 
 ## /orchestrate
-
 
 Orchestrate a goal end-to-end: decompose it, route each piece to the best specialist agent, run pieces in parallel or as a pipeline, gate quality, and report. The smart layer above `/parallel` and `/subagent`.
 
@@ -4738,7 +4735,7 @@ Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `
 
    **If the row says `Workflow`, stop and author a Workflow script instead** (see the Workflow tool). Note that the Workflow tool requires explicit opt-in — if the user hasn't opted in, briefly describe the workflow you'd run and ask. Do not silently downgrade a Workflow-grade job into a fragile flat fan-out.
 
-3. **Route each task to a specialist** — Match the task to the richest-fit named agent, not a generic one. Named specialists carry their own system prompts and conventions — they beat `general-purpose` on quality.
+3. **Route each task to a specialist** — Match the task to the richest-fit named agent, not a generic one. Named specialists carry their own system prompts and conventions — when they exist they beat `general-purpose` on quality. The names below are conventions, not guarantees: **if an agent type isn't available in your setup, use `general-purpose` (or `Explore` for read-only search, `Plan` for planning) with the same brief** — same task, same context pointers, same output format.
 
    | Task is about… | `agentType` | Notes |
    |---|---|---|
@@ -4791,21 +4788,21 @@ Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `
 ## Notes
 - This skill is orchestration made explicit. Reach for it whenever the work is substantive and multi-step; use `/parallel` for a quick flat fan-out you've already scoped, and `/subagent` for a single fire-and-forget change.
 - The graduation rule (step 2) is the point of this skill: don't force loops, conditionals, large pipelines, or resume/budget needs through prose orchestration — that's what the `Workflow` tool exists for. And don't reach for `Workflow` on a 3-task fan-out — that's over-engineering.
-- Specialist routing (step 3) is the quality lever. The named agents exist precisely so we stop spawning blank `general-purpose` agents for work that has a better-fit owner.
+- Specialist routing (step 3) is the quality lever. Named agents, where you have them, exist so you stop spawning blank `general-purpose` agents for work that has a better-fit owner; where you don't, the fallback keeps the same brief and the routing still works.
 - Respect autonomy boundaries: research/read is autonomous; anything that sends, publishes, spends, deploys, or is hard to reverse needs the user's approval — even when a subagent could technically do it.
 - Max ~5 agents per *visible* fan-out (rollup legibility, not a system limit). Need more concurrent units than that? That's a `Workflow` (its real cap is ~14 concurrent, 1000 lifetime).
 - Hand every agent context pointers (step 5). This is non-negotiable and is the most common reason a delegation comes back shallow.
 - Step 8 is the only regression risk in this evolution — it must stay a no-op for quick jobs. Don't persist a task to the board just because `/orchestrate` ran; persist only when the work is explicitly standing/cross-session or explicitly headed to another provider. When in doubt, ask rather than silently seeding the board.
 - Once persisted, `/maestro work`/`/maestro route` are what actually turn a board row into active work (worktree, `PROMPT.md`, provider launch string) — `/orchestrate` only seeds the row.
-
 ---
 
 ## /parallel
 
-
 Run multiple tasks in parallel using subagents. Pipe-separated tasks are spawned simultaneously and results are aggregated. `build-check` fans out build/type-check agents across the projects that depend on a shared package.
 
 Arguments: $ARGUMENTS
+
+**Config:** `paths.notes` (default `~/.claude/dev-notes`) and `paths.projects` (default `~/Projects`) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. `<notes>` and `<projects>` below are those directories; a missing file or key means the default.
 
 ## Steps
 
@@ -4813,18 +4810,18 @@ Arguments: $ARGUMENTS
 
    **Pipe-separated format:**
    Split `$ARGUMENTS` on `|` (pipe character) and trim whitespace from each segment.
-   Example: `research Stripe billing | check agencyos build | verify localhost:3000`
-   → 3 tasks: ["research Stripe billing", "check agencyos build", "verify localhost:3000"]
+   Example: `research Stripe billing | check web-app build | verify localhost:3000`
+   → 3 tasks: ["research Stripe billing", "check web-app build", "verify localhost:3000"]
 
    **Phase reference format:**
    If `$ARGUMENTS` starts with "phase", parse the phase number and optional task IDs.
    - `/parallel phase 2` → all pending tasks in Phase 2 of the active roadmap
    - `/parallel phase 2 tasks 2.3 2.4 2.5` → specific tasks from Phase 2
-   - Read the active roadmap from `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/INDEX.md`, then parse the tasks from `roadmap.md`
+   - Read the active roadmap from `<notes>/roadmaps/INDEX.md`, then parse the tasks from `roadmap.md`
 
    **Build-check format:**
    If `$ARGUMENTS` starts with "build-check", resolve the list of projects to check, then give each one a build agent (see "Build-check flow" below).
-   - `/parallel build-check agencyos communityos web-app` — check exactly these projects
+   - `/parallel build-check web-app dashboard api-service` — check exactly these projects
    - `/parallel build-check` or `/parallel build-check all` — auto-detect every consumer of the shared package you are standing in
    - `/parallel build-check all --dep @acme/ui` — auto-detect consumers of a named package (use when the current directory isn't the package)
 
@@ -4853,10 +4850,10 @@ Arguments: $ARGUMENTS
     PARALLEL  Spawning 3 agents...
 
     [1] Research: Stripe metered billing API
-        Type: Explore | Dir: ~/Projects
+        Type: Explore | Dir: <projects>
 
-    [2] Build check: agencyos
-        Type: Build | Dir: ~/Projects/agencyos
+    [2] Build check: web-app
+        Type: Build | Dir: <projects>/web-app
 
     [3] Verify: localhost:3000
         Type: Browser | Dir: current
@@ -4881,7 +4878,7 @@ Arguments: $ARGUMENTS
         Found 3 relevant endpoints. Usage records API supports
         metered billing with monthly invoicing. See @stripe/stripe-node.
 
-    [2] Build check: agencyos                   FAIL  92s
+    [2] Build check: web-app                   FAIL  92s
         Type error in src/components/invoice.tsx:42
         Property 'amount' missing on type 'InvoiceProps'
 
@@ -4890,7 +4887,7 @@ Arguments: $ARGUMENTS
         No console errors.
 
     Summary: 2 passed, 1 failed
-    Action needed: Fix agencyos build error
+    Action needed: Fix web-app build error
    ```
 
    **Report conventions:**
@@ -4953,7 +4950,6 @@ This only builds and type-checks locally. It never commits or pushes.
 - Agents run in the foreground by default so results are available immediately. For long-running tasks (builds), consider using `run_in_background: true` and telling the user to continue working.
 - This skill pairs with the auto-parallel behavioral instruction in CLAUDE.md — this is the explicit version, the CLAUDE.md instruction is the implicit default.
 - Maximum recommended parallel agents: 5. Beyond that, the aggregated results become hard to parse and system resources may be strained.
-
 ---
 
 ## /perf
@@ -5168,19 +5164,20 @@ Arguments: $ARGUMENTS (optional: URL, "bundle", "vitals", or a specific area lik
 
 ## /phases
 
-
 Display the current roadmap progress with visual phase indicators. Reads from /roadmap data or any roadmap file.
 
 Arguments: $ARGUMENTS (optional: roadmap slug, "list", "update <phase> <status>", or "next")
+
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
 
 ## Steps
 
 1. **Find the roadmap** — Determine which roadmap to display:
 
-   - If `$ARGUMENTS` provides a slug (e.g., `agencyos-v2-launch`), look for `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/<slug>/roadmap.md`
-   - If `$ARGUMENTS` is "list", read `roadmaps/INDEX.md` and display all roadmaps as a table, then stop
+   - If `$ARGUMENTS` provides a slug (e.g., `web-app-v2-launch`), look for `<notes>/roadmaps/<slug>/roadmap.md`
+   - If `$ARGUMENTS` is "list", read `<notes>/roadmaps/INDEX.md` and display all roadmaps as a table, then stop
    - If `$ARGUMENTS` is empty:
-     - Read `roadmaps/INDEX.md` and find roadmaps with `status: active`
+     - Read `<notes>/roadmaps/INDEX.md` and find roadmaps with `status: active`
      - If exactly one active roadmap, use it
      - If multiple active, list them and ask the user to pick
      - If none, tell the user: "No active roadmaps. Run `/roadmap <topic>` to create one."
@@ -5240,7 +5237,7 @@ Arguments: $ARGUMENTS (optional: roadmap slug, "list", "update <phase> <status>"
      - Set `started: YYYY-MM-DD` on the new phase
    - If all phases are completed, set frontmatter `status: completed`
    - Update `updated:` date in frontmatter
-   - Update `INDEX.md` with new phase progress
+   - Update `<notes>/roadmaps/INDEX.md` with new phase progress
    - Re-render the display after updating
 
 5. **Phase boundary detection** — After rendering, check:
@@ -5258,13 +5255,13 @@ Arguments: $ARGUMENTS (optional: roadmap slug, "list", "update <phase> <status>"
 - Pairs naturally with `/todo` for task-level management and `/roadmap` for creating new roadmaps
 - If the roadmap file has formatting issues, try to parse gracefully rather than failing
 - The `<--` marker always points to the first uncompleted task in the current phase, prioritizing high-priority tasks
-
 ---
 
 ## /port-check
 
-
 Show what's running on common development ports. Identifies projects and offers to kill stale processes.
+
+**Config:** `paths.projects` (default `~/Projects`) and `browser.cdp_port` (default `9222`) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. `<projects>` below is the projects directory; a missing file or key means the default.
 
 ## Steps
 
@@ -5275,13 +5272,13 @@ Show what's running on common development ports. Identifies projects and offers 
    - 5432 (PostgreSQL)
    - 54321-54322 (Supabase local)
    - 8080, 8787, 8788 (Express, Wrangler/CF Workers)
-   - 9222 (Dia/Chrome DevTools Protocol)
+   - `browser.cdp_port`, default 9222 (Chrome DevTools Protocol for a browser-automation session)
    - Also show any other ports with node/next/vite/python/ruby/postgres processes
 
 2. **Identify projects** — For each process:
    - Get the PID and process name
    - Run `lsof -p <PID> | grep cwd` or `ps -p <PID> -o args=` to determine the working directory
-   - Match working directory to a `~/Projects/*` subdirectory
+   - Match working directory to a `<projects>/*` subdirectory
    - Calculate uptime from process start time: `ps -p <PID> -o etime=`
 
 3. **Detect conflicts** — Check if multiple dev servers are trying to use the same port range, or if a port is occupied by a zombie process.
@@ -5293,10 +5290,10 @@ Show what's running on common development ports. Identifies projects and offers 
 
    | Port | Process | PID | Project | Uptime |
    |------|---------|-----|---------|--------|
-   | 3000 | next-server | 12345 | agencyos | 2h 15m |
+   | 3000 | next-server | 12345 | dashboard | 2h 15m |
    | 3001 | next-server | 12346 | web-app | 45m |
    | 5432 | postgres | 789 | (system) | 3d |
-   | 9222 | Dia | 456 | (browser) | 1h 10m |
+   | 9222 | Chrome | 456 | (browser) | 1h 10m |
 
    2 dev servers running. No conflicts.
    ```
@@ -5310,7 +5307,6 @@ Show what's running on common development ports. Identifies projects and offers 
 - Read-only scan by default — only kills processes with explicit user confirmation
 - Useful before starting a new dev server to avoid EADDRINUSE errors
 - Works on macOS (uses lsof)
-
 ---
 
 ## /pr-review
@@ -5414,10 +5410,11 @@ Arguments: $ARGUMENTS (PR number, branch name, or empty for current branch vs th
 
 ## /pre-mortem
 
-
 Run a pre-mortem: assume the decision has already failed, then work backward to find out why. Instead of weighing pros and cons, spawn independent advisor subagents that each argue ONLY how this specific decision kills you — from a different domain lens. Aggregate into a ranked "Causes of Death" report with concrete conditions to avoid each one.
 
 Decision: $ARGUMENTS (a decision, plan, or commitment — e.g. a new client, a hire, a financial commitment, a restructure, a kill/keep call)
+
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
 
 ## Steps
 
@@ -5439,7 +5436,7 @@ Decision: $ARGUMENTS (a decision, plan, or commitment — e.g. a new client, a h
    | Advisor | Domain Lens | Kill Question | Best For |
    |---------|-------------|----------------|----------|
    | **The Steward** | Burnout, human limits, relationship spillover | "How does this cost you your health, your household, or your team's trust before it costs you money?" | Big commitments, hires, anything that eats hours you don't have |
-   | **Tommy (the Operator)** | Execution capacity, delivery triage | "What existing commitment quietly breaks because you said yes to this one?" | New clients, new projects, anything added to an already-full plate |
+   | **The Operator** | Execution capacity, delivery triage | "What existing commitment quietly breaks because you said yes to this one?" | New clients, new projects, anything added to an already-full plate |
    | **Naval** | Leverage, opportunity cost, single-front focus | "What's the one compounding thing this distracts you from?" | Anything that splits focus across fronts |
    | **Jeff Bezos** | Long-term regret, irreversibility | "In three years, which choice do you regret — and can you even undo this one?" | One-way-door decisions: restructures, kills, hires, partnerships |
    | **Hormozi** | Cash velocity, margin, unit economics | "Where does cash actually stop flowing, and how fast do you find out?" | Deals, pricing changes, hires, anything with a burn rate |
@@ -5450,11 +5447,11 @@ Decision: $ARGUMENTS (a decision, plan, or commitment — e.g. a new client, a h
    | **The Distributor** | Market exposure, GTM, reputation | "Who finds out you overcommitted, and what does it cost you with them?" | Public commitments, launches, anything visible outside the building |
 
    **Selection heuristic:**
-   - New client / deal → Hormozi, Tommy, Tyrion, The Craftsman, The Steward
-   - Hire / people decision → The Steward, Tommy, Hormozi, The Historian, Jeff Bezos
+   - New client / deal → Hormozi, The Operator, Tyrion, The Craftsman, The Steward
+   - Hire / people decision → The Steward, The Operator, Hormozi, The Historian, Jeff Bezos
    - Kill/keep a project → Naval, Jeff Bezos, Hormozi, The Questioner, The Historian
    - Restructure / pricing / structural change → Tyrion, Hormozi, Naval, The Distributor, Jeff Bezos
-   - Big financial or time commitment → The Steward, Hormozi, Tommy, The Questioner, Jeff Bezos
+   - Big financial or time commitment → The Steward, Hormozi, The Operator, The Questioner, Jeff Bezos
 
 3. **Display the analysis plan** — Before spawning agents:
 
@@ -5466,7 +5463,7 @@ Decision: $ARGUMENTS (a decision, plan, or commitment — e.g. a new client, a h
     Spawning 6 advisors in parallel, each arguing ONLY how this kills you:
 
     [1] The Steward — "How does this cost you your health or household first?"
-    [2] Tommy — "What existing commitment breaks because you said yes?"
+    [2] The Operator — "What existing commitment breaks because you said yes?"
     [3] Hormozi — "Where does cash stop flowing, and how fast do you find out?"
     [4] Tyrion — "Which term has no exit ramp if this goes wrong?"
     [5] The Craftsman — "What ships broken because you're stretched thin?"
@@ -5537,7 +5534,7 @@ Decision: $ARGUMENTS (a decision, plan, or commitment — e.g. a new client, a h
 
    **When the decision is abstract:** direct the agent to reason from the decision as stated and any conversation context — it should still stay in-voice and concrete, not vague.
 
-5. **Aggregate results** — As advisors complete, merge all findings into a unified report. De-duplicate overlapping causes of death across advisors (e.g., if both Hormozi and Tommy flag the same capacity/cash-flow collision, merge them and note both caught it — that's a severity amplifier, not redundancy).
+5. **Aggregate results** — As advisors complete, merge all findings into a unified report. De-duplicate overlapping causes of death across advisors (e.g., if both Hormozi and The Operator flag the same capacity/cash-flow collision, merge them and note both caught it — that's a severity amplifier, not redundancy).
 
    **Ranking algorithm:**
    - FATAL + likely = Tier 1 (do not proceed without resolving this first)
@@ -5566,7 +5563,7 @@ Decision: $ARGUMENTS (a decision, plan, or commitment — e.g. a new client, a h
                              before signing.
 
     2. [FATAL] Capacity collision with an existing committed deadline
-       Advisors: Tommy
+       Advisors: The Operator
        Scenario: Taking this on means someone already promised elsewhere
                  gets bumped without being told, and finds out from a missed
                  deadline instead of a conversation.
@@ -5612,19 +5609,18 @@ Decision: $ARGUMENTS (a decision, plan, or commitment — e.g. a new client, a h
 7. **Offer follow-up actions:**
 
    - "Resolve the Tier 1 findings before deciding?" → work through each kill-condition concretely
-   - "Save this as a decision record?" → write to `dev-notes/decisions/YYYY-MM-DD-pre-mortem-<subject>.md`
+   - "Save this as a decision record?" → write to `<notes>/decisions/YYYY-MM-DD-pre-mortem-<subject>.md`
    - "Re-run after terms change?" → re-run scoped to what changed (new contract terms, new capacity numbers)
    - "Run `/invert` too?" → if the decision has a technical/build component, pair a code-level inversion with this decision-level one
 
 ## Notes
 - This is `/invert`'s sibling for decisions instead of code: same inversion principle (Munger's "invert, always invert"), same parallel-subagent structure, same tiered-severity report — but the subject is a decision/plan/commitment, not a codebase, and the advisors argue in first-person persona voice rather than as anonymous technical lenses. Use `/invert` when the thing being stress-tested is a feature, system, or process; use `/pre-mortem` when it's a decision, deal, hire, or commitment.
-- This deliberately does **not** run a balanced multi-perspective deliberation. Andrew separately runs a council format for business/strategy decisions where a roster of named advisors each gives a genuine take (pros and cons both) and a chair synthesizes a recommendation — that's for "what should I do." `/pre-mortem` is single-purpose devil's advocate: every advisor argues only the failure case, on purpose, so the blind spots surface before the decision does. If you want the balanced version of this conversation, that's a different exercise — don't ask this skill to be both.
+- This deliberately does **not** run a balanced multi-perspective deliberation. A separate council format (if you run one) suits business/strategy decisions where a roster of named advisors each gives a genuine take (pros and cons both) and a chair synthesizes a recommendation — that's for "what should I do." `/pre-mortem` is single-purpose devil's advocate: every advisor argues only the failure case, on purpose, so the blind spots surface before the decision does. If you want the balanced version of this conversation, that's a different exercise — don't ask this skill to be both.
 - Named advisors are a fixed voice roster, not a debate — each one stays in their lane (their domain lens) and doesn't rebut the others. Overlap between advisors on the same finding is a signal to weight it higher, not to merge it away entirely.
 - For high-stakes, low-reversibility decisions (hires, partnerships, kills, restructures), be more conservative in the final recommendation — a Tier 2 finding on a one-way door deserves more weight than the same tier on something easily undone.
 - 5-7 advisors is the sweet spot — fewer misses lenses that matter, more produces redundant kill-conditions without adding real signal.
 - Named after Gary Klein's pre-mortem technique: instead of a post-mortem after failure, run the autopsy *before* the decision, while there's still time to change course.
 - Can be re-run as terms change (a contract gets renegotiated, a capacity picture shifts) — the report becomes a living check before the ink is dry.
-
 ---
 
 ## /project-health
@@ -5706,7 +5702,6 @@ Arguments: $ARGUMENTS (optional `--skip-build` flag and optional target director
 
 ## /report
 
-
 Generate a polished, interactive HTML report for: $ARGUMENTS
 
 ## Overview
@@ -5723,7 +5718,7 @@ Parse `$ARGUMENTS` to determine what the user wants. The input can be:
 |-----------|---------|--------|
 | Topic / description | "Builder's Loft launch week" | Gather context from project files, Notion, calendar, etc. |
 | File path(s) | "from ROADMAP.md and package.json" | Read specified files and visualize their content |
-| Glob pattern | "notes/research/strata/*.md" | Read matching files and synthesize |
+| Glob pattern | "notes/research/acme/*.md" | Read matching files and synthesize |
 | Data dump | (user pastes data in the conversation) | Structure and visualize the provided data |
 | Empty | (no args) | Ask: "What should this report cover? Give me a topic, file paths, or describe what you want to see." |
 
@@ -6585,22 +6580,22 @@ Before saving, verify:
 ## Notes
 
 - If the data you want to visualize should be gathered by **searching an existing research or notes corpus** rather than supplied directly, a corpus-search dashboard variant is the better tool for the job.
-
 ---
 
 ## /research
 
-
 Research a topic in the background using a subagent while you keep working. Returns a structured summary.
 
 Topic: $ARGUMENTS
+
+**Config:** `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`) — see `docs/config.md`. `<projects>` below is that directory; a missing file or key means the default.
 
 ## Steps
 
 1. **Classify the research type** — Based on `$ARGUMENTS`, determine the best approach:
    - **Codebase research** (e.g., "how does auth work in web-app", "find all Stripe webhook handlers"): Use an Explore subagent scoped to the relevant project directory
    - **Documentation research** (e.g., "Drizzle ORM migration API", "Next.js 16 proxy.ts"): Use an Explore subagent to read local docs, or use Firecrawl/WebFetch to pull official docs
-   - **Cross-project research** (e.g., "how do we handle cron jobs across projects"): Use an Explore subagent across ~/Projects
+   - **Cross-project research** (e.g., "how do we handle cron jobs across projects"): Use an Explore subagent across `<projects>`
    - **External research** (e.g., "Stripe metered billing API", "Neon branching best practices"): Use web search and doc fetching tools
 
 2. **Spawn the subagent** — Use the Agent tool with `subagent_type=Explore` (or a task agent for longer work). Give it a focused, specific prompt:
@@ -6649,27 +6644,27 @@ Topic: $ARGUMENTS
 - For cross-project searches, prefer `/search-all` if it's a simple pattern match
 - This skill does NOT modify any files — it only reads and reports
 - Multiple research tasks can run in parallel if they're independent
-
 ---
 
 ## /roadmap
 
-
 Enter a multi-round Socratic brainstorming session to deeply explore a project idea, then generate a phased roadmap with tasks, dependencies, and unknowns.
 
 Topic: $ARGUMENTS
+
+**Config:** `paths.notes` (default `~/.claude/dev-notes`) and `paths.projects` (default `~/Projects`) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. `<notes>` and `<projects>` below are those directories; a missing file or key means the default.
 
 ## Steps
 
 1. **Initialize context** — Gather background before brainstorming:
 
    **a) Project detection:**
-   - If `$ARGUMENTS` names a known project in `~/Projects/`, read its `CLAUDE.md` and `package.json` to understand the current state, stack, and existing features
+   - If `$ARGUMENTS` names a known project in `<projects>/`, read its `CLAUDE.md` and `package.json` to understand the current state, stack, and existing features
    - If `$ARGUMENTS` is a feature within the current project (already cd'd into one), gather context from schema files, existing routes, components
    - If `$ARGUMENTS` is a greenfield idea, note that and skip codebase reading
 
    **b) Existing roadmaps:**
-   - Check `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/INDEX.md`
+   - Check `<notes>/roadmaps/INDEX.md`
    - If a roadmap already exists for this topic, tell the user and offer: revise the existing one, or create a new one
 
 2. **Round 1 — Foundation questions (3-4 questions)**
@@ -6774,10 +6769,10 @@ Topic: $ARGUMENTS
    Capture the key Q&A from all 3 rounds as `brainstorm.md` in the same directory.
 
 6. **Save and index** — Write the files:
-   - Create directory: `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/<slug>/`
+   - Create directory: `<notes>/roadmaps/<slug>/` (create `<notes>/roadmaps/` and its `INDEX.md` if missing)
    - Write `roadmap.md` (the roadmap)
    - Write `brainstorm.md` (the Q&A transcript)
-   - Update `roadmaps/INDEX.md` — append a row: `| slug | project | active | 1/N | date | [roadmap](slug/roadmap.md) |`
+   - Update `<notes>/roadmaps/INDEX.md` — append a row: `| slug | project | active | 1/N | date | [roadmap](slug/roadmap.md) |`
 
 7. **Present the roadmap** — Show the completed roadmap in a formatted view (similar to what `/phases` would render).
 
@@ -6796,15 +6791,15 @@ Topic: $ARGUMENTS
 - If the topic spans multiple projects (e.g., "redesign the auth system across all apps"), note that in the frontmatter with `project: multi`.
 - For very large scopes, suggest breaking into multiple roadmaps rather than one with 10+ phases.
 - Multiple `/research` agents can run in parallel during brainstorming if there are several unknowns to investigate.
-
 ---
 
 ## /scaffold
 
-
-Create a new project from templates tuned to your stack conventions. Scaffolds full project structure with framework, database, auth, and design system pre-wired.
+Create a new project from templates tuned to your stack conventions. Scaffolds full project structure with framework, database, auth, and UI kit pre-wired.
 
 Arguments: $ARGUMENTS (project name + optional template: "next", "vite", "api", "monorepo", or a description)
+
+**Config:** `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`) — see `docs/config.md`. `<projects>` below is that directory (expand `~` before using it in Bash); a missing file or key means the default.
 
 ## Steps
 
@@ -6812,7 +6807,7 @@ Arguments: $ARGUMENTS (project name + optional template: "next", "vite", "api", 
 
    **a) Project name:** First word or quoted string (e.g., `my-app`, `"cool project"`)
    - Slugify for directory name: lowercase, hyphens, no spaces
-   - Target directory: `~/Projects/<slug>/`
+   - Target directory: `<projects>/<slug>/`
    - If directory already exists, warn and stop
 
    **b) Template:** Infer from remaining arguments or ask:
@@ -6829,7 +6824,7 @@ Arguments: $ARGUMENTS (project name + optional template: "next", "vite", "api", 
 2. **Gather preferences** — Use AskUserQuestion with 3-4 questions:
 
    **Question 1 — Database:**
-   - Neon Postgres + Drizzle (recommended — matches most projects)
+   - Neon Postgres + Drizzle (recommended default)
    - Supabase (if project needs realtime or Supabase Auth)
    - None (static site or client-only)
 
@@ -6840,9 +6835,9 @@ Arguments: $ARGUMENTS (project name + optional template: "next", "vite", "api", 
    - None
 
    **Question 3 — UI:**
-   - @rebel/ui (shared design system — auto-wires with `/setup-rebel-ui` patterns)
-   - shadcn/ui (standalone, `npx shadcn@latest init`)
+   - shadcn/ui (recommended default — standalone, `npx shadcn@latest init`)
    - Tailwind only (minimal)
+   - @rebel/ui (shared design system) — **offer this only if it's detected**: `<projects>/design-system/template/` exists, or a sibling project in `<projects>` depends on `@rebel/ui`. Otherwise don't mention it.
 
    **Question 4 — Extras (multi-select feel — list as options):**
    - Stripe (payments/billing)
@@ -6856,14 +6851,14 @@ Arguments: $ARGUMENTS (project name + optional template: "next", "vite", "api", 
 
    **For `next` template:**
    ```bash
-   cd ~/Projects
+   cd <projects>
    npx create-next-app@latest <slug> --typescript --tailwind --app --src-dir --import-alias "@/*" --turbopack
    cd <slug>
    ```
 
    **For `vite` template:**
    ```bash
-   cd ~/Projects
+   cd <projects>
    npm create vite@latest <slug> -- --template react-ts
    cd <slug>
    npm install
@@ -6872,7 +6867,7 @@ Arguments: $ARGUMENTS (project name + optional template: "next", "vite", "api", 
 
    **For `api` template:**
    ```bash
-   cd ~/Projects
+   cd <projects>
    mkdir <slug> && cd <slug>
    npm init -y
    npm install hono
@@ -6882,7 +6877,7 @@ Arguments: $ARGUMENTS (project name + optional template: "next", "vite", "api", 
 
    **For `monorepo` template:**
    ```bash
-   cd ~/Projects
+   cd <projects>
    npx create-turbo@latest <slug> --package-manager pnpm
    cd <slug>
    ```
@@ -6925,14 +6920,14 @@ Arguments: $ARGUMENTS (project name + optional template: "next", "vite", "api", 
 
 6. **Wire up UI** (if selected):
 
-   **@rebel/ui:**
-   - Follow the exact same steps as `/setup-rebel-ui` — add link dependency, configure globals.css with theme bridge block, set up layout.tsx with providers
-   - Read the template files from `~/Projects/design-system/template/`
-
-   **shadcn/ui:**
+   **shadcn/ui (default):**
    ```bash
    npx shadcn@latest init -d
    ```
+
+   **@rebel/ui (only if selected, which requires it was detected in step 2):**
+   - If you have the `/setup-rebel-ui` skill installed, follow the same steps — add link dependency, configure globals.css with theme bridge block, set up layout.tsx with providers
+   - Read the template files from `<projects>/design-system/template/`
 
 7. **Wire up extras:**
 
@@ -6989,7 +6984,7 @@ Arguments: $ARGUMENTS (project name + optional template: "next", "vite", "api", 
    3. `npm run dev`
 
    ## Conventions
-   <inherit from ~/Projects/CLAUDE.md>
+   <inherit from `<projects>/CLAUDE.md` if it exists; otherwise omit this section>
    ```
 
    **d) Initialize git:**
@@ -7002,9 +6997,9 @@ Arguments: $ARGUMENTS (project name + optional template: "next", "vite", "api", 
 9. **Report** — Show what was created:
 
    ```
-    SCAFFOLD  <project-name> created at ~/Projects/<slug>/
+    SCAFFOLD  <project-name> created at <projects>/<slug>/
 
-    Stack: Next.js 16 + Neon/Drizzle + Clerk + @rebel/ui + Stripe
+    Stack: Next.js 16 + Neon/Drizzle + Clerk + shadcn/ui + Stripe
 
     Structure:
     <slug>/
@@ -7032,21 +7027,22 @@ Arguments: $ARGUMENTS (project name + optional template: "next", "vite", "api", 
    ```
 
 ## Notes
-- This skill creates a project that matches the conventions in `~/Projects/CLAUDE.md`: async request APIs, function declarations, semantic tokens, `cn()` utility, etc.
-- For @rebel/ui projects, reads templates from `~/Projects/design-system/template/` to get the canonical globals.css and layout.tsx
+- This skill creates a project that matches the conventions in `<projects>/CLAUDE.md` if you have one (otherwise the usual Next.js 16 defaults): async request APIs, function declarations, semantic tokens, `cn()` utility, etc.
+- @rebel/ui is an optional extra for people who use that design system; it is only offered when detected, and then reads templates from `<projects>/design-system/template/` to get the canonical globals.css and layout.tsx
 - After scaffolding, suggest `/switch <project>` to enter the new project context
 - For monorepo template, suggest naming workspace packages with `@<project>/` prefix
 - The scaffold includes a `CLAUDE.md` because every project should have one — it inherits cross-project conventions and adds project-specific details
 - **Never hardcode secrets** in scaffolded files — always use `.env.example` placeholders
 - If the user gives a description instead of a template name (e.g., "a SaaS dashboard for managing invoices"), infer the best template and preferences, then confirm before proceeding
-
 ---
 
 ## /search-all
 
-Search across all ~/Projects/* directories for a pattern. Finds packages, code references, and files across 50+ projects.
+Search across every project directory in your workspace for a pattern. Finds packages, code references, and files across 50+ projects.
 
 Query: $ARGUMENTS
+
+**Config:** `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`) — see `docs/config.md`. `<projects>` below is that directory (expand `~` before using it in Bash); a missing file or key means the default.
 
 ## Steps
 
@@ -7059,10 +7055,10 @@ Query: $ARGUMENTS
 2. **Execute search** — Based on mode:
 
    **Package search:**
-   Strip a leading `pkg:` first (`QUERY="${QUERY#pkg:}"`), then match **exact dependency names** (a `grep` for `react` would also hit `react-dom`, `preact` and any description or script that mentions it). Look through every `package.json` up to four levels deep, so monorepo workspaces (`~/Projects/app/packages/*/package.json`) are included, and skip `node_modules`/build output. A `*` in the query switches to glob matching (`@supabase/*`, `drizzle-*`); without one it is an exact name.
+   Strip a leading `pkg:` first (`QUERY="${QUERY#pkg:}"`), then match **exact dependency names** (a `grep` for `react` would also hit `react-dom`, `preact` and any description or script that mentions it). Look through every `package.json` up to four levels deep, so monorepo workspaces (`<projects>/app/packages/*/package.json`) are included, and skip `node_modules`/build output. A `*` in the query switches to glob matching (`@supabase/*`, `drizzle-*`); without one it is an exact name.
    ```bash
    QUERY="${QUERY#pkg:}"
-   find ~/Projects -maxdepth 4 -name package.json \
+   find <projects> -maxdepth 4 -name package.json \
      -not -path "*/node_modules/*" -not -path "*/.next/*" -not -path "*/dist/*" -not -path "*/.git/*" -print0 2>/dev/null |
    xargs -0 node -e '
      const fs = require("fs");
@@ -7078,22 +7074,22 @@ Query: $ARGUMENTS
            if (re ? re.test(name) : name === q) console.log([f, name, version, field].join("\t"));
      }' "$QUERY"
    ```
-   Each output row is `path<TAB>package<TAB>version<TAB>field`. The project is the first directory under `~/Projects/`; `Dev?` is "yes" when the field is `devDependencies`, and note `peerDependencies` rows as peer. A project can match more than once (workspaces, or the same package in two fields) — keep every row, but count the project once.
+   Each output row is `path<TAB>package<TAB>version<TAB>field`. The project is the first directory under `<projects>/`; `Dev?` is "yes" when the field is `devDependencies`, and note `peerDependencies` rows as peer. A project can match more than once (workspaces, or the same package in two fields) — keep every row, but count the project once.
 
    **File search:**
    ```bash
    # Find files matching the pattern across all projects
-   find ~/Projects -maxdepth 4 -name "$QUERY" -not -path "*/node_modules/*" -not -path "*/.next/*" -not -path "*/dist/*" -not -path "*/.git/*" 2>/dev/null
+   find <projects> -maxdepth 4 -name "$QUERY" -not -path "*/node_modules/*" -not -path "*/.next/*" -not -path "*/dist/*" -not -path "*/.git/*" 2>/dev/null
    ```
 
    **Code search:**
    ```bash
    # Search source files for the pattern
-   grep -rn --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.py" --include="*.sql" "$QUERY" ~/Projects/ --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist --exclude-dir=.git -l 2>/dev/null | head -30
+   grep -rn --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.py" --include="*.sql" "$QUERY" <projects>/ --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist --exclude-dir=.git -l 2>/dev/null | head -30
    ```
    Then get match counts per project: `grep -c` for each matched file.
 
-3. **Group results by project** — Parse file paths to extract the project name (first directory under `~/Projects/`). Sort by match count descending.
+3. **Group results by project** — Parse file paths to extract the project name (first directory under `<projects>/`). Sort by match count descending.
 
 4. **Get context** — For code searches, show a few sample matches (with line numbers) from the top projects.
 
@@ -7101,45 +7097,45 @@ Query: $ARGUMENTS
 
    **For package searches:**
    ```
-   ## Search: package "stripe" across ~/Projects
+   ## Search: package "stripe" across <projects>
 
    Found in 6 projects:
    | Project | Package | Version | Dev? |
    |---------|---------|---------|------|
-   | agencyos | stripe | ^14.2.0 | no |
-   | communityos | stripe | ^14.1.0 | no |
-   | pay-copilot | stripe | ^14.2.0 | no |
+   | dashboard | stripe | ^14.2.0 | no |
+   | community-app | stripe | ^14.1.0 | no |
+   | billing-app | stripe | ^14.2.0 | no |
    | web-app | stripe | ^13.9.0 | no |
    | api-service | stripe | ^14.0.0 | no |
-   | strata | stripe | ^14.2.0 | no |
+   | admin-portal | stripe | ^14.2.0 | no |
 
    Note: web-app is on an older version (13.9.0 vs 14.2.0)
    ```
 
    **For code searches:**
    ```
-   ## Search: "useSession" across ~/Projects
+   ## Search: "useSession" across <projects>
 
    Found in 4 projects (23 total matches):
    | Project | Matches | Key files |
    |---------|---------|-----------|
-   | agencyos | 8 | lib/auth.ts, components/nav.tsx |
+   | dashboard | 8 | lib/auth.ts, components/nav.tsx |
    | web-app | 7 | lib/session.ts, app/layout.tsx |
-   | communityos | 5 | hooks/use-auth.ts |
+   | community-app | 5 | hooks/use-auth.ts |
    | api-service | 3 | lib/auth.ts |
 
-   Sample (agencyos/lib/auth.ts:15):
+   Sample (dashboard/lib/auth.ts:15):
      const { data: session } = useSession()
    ```
 
    **For file searches:**
    ```
-   ## Search: file "proxy.ts" across ~/Projects
+   ## Search: file "proxy.ts" across <projects>
 
    Found in 3 projects:
-   - agencyos/proxy.ts (2.1KB, modified 2d ago)
+   - dashboard/proxy.ts (2.1KB, modified 2d ago)
    - web-app/src/proxy.ts (1.8KB, modified 1w ago)
-   - communityos/proxy.ts (950B, modified 3d ago)
+   - community-app/proxy.ts (950B, modified 3d ago)
    ```
 
 ## Notes
@@ -7147,7 +7143,6 @@ Query: $ARGUMENTS
 - Limits results to first 30 matching files for performance
 - For deeper investigation of a specific project's matches, suggest using Grep directly in that project
 - This is a read-only search — no files are modified
-
 ---
 
 ## /slack-ctx
@@ -7447,10 +7442,11 @@ entry with `status: replied`. Keep `threads` at 30 entries max, dropping least-r
 
 ## /subagent
 
-
 Dispatch a task to a background agent that explores the codebase, plans the implementation, and makes the changes — all while you keep working in the primary session.
 
 Task: $ARGUMENTS
+
+**Config:** `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`) — see `docs/config.md`. `<projects>` below is that directory; a missing file or key means the default.
 
 ## Steps
 
@@ -7460,10 +7456,10 @@ Task: $ARGUMENTS
    - A feature to implement ("add email notifications to web-app")
    - A bug to fix ("fix the timezone issue in the cron jobs")
    - A refactor ("convert the auth middleware to use proxy.ts")
-   - A setup/config task ("add Stripe webhook handler to agencyos")
+   - A setup/config task ("add Stripe webhook handler to web-app")
 
    **b) Target project:** Infer the project directory from the task description:
-   - If a project name is mentioned, map it to `~/Projects/<dir>`
+   - If a project name is mentioned, map it to `<projects>/<dir>`
    - If already cd'd into a project, use the current directory
    - If ambiguous, the agent should check the codebase to determine the right location
 
@@ -7504,7 +7500,7 @@ Task: $ARGUMENTS
 
    ```
     SUBAGENT  Dispatched: <task summary>
-    Working in: ~/Projects/<project>
+    Working in: <projects>/<project>
     Agent will: explore → plan → implement → verify
     You'll be notified when it completes. Keep working.
    ```
@@ -7551,20 +7547,20 @@ Task: $ARGUMENTS
 - If the task requires changes across multiple projects, suggest `/parallel` instead — each project gets its own agent.
 - The agent has full tool access (Read, Edit, Write, Bash, Glob, Grep) — it can explore and implement.
 - Do NOT dispatch a subagent for trivial tasks that would take you 30 seconds to do directly. Use judgment.
-
 ---
 
 ## /switch
 
-
-Fast context switch into any project with full orientation. Fuzzy matches project names against ~/Projects/*.
+Fast context switch into any project with full orientation. Fuzzy matches project names against the directories in your projects folder.
 
 Target: $ARGUMENTS
 
+**Config:** `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`) — see `docs/config.md`. `<projects>` below is that directory; a missing file or key means the default.
+
 ## Steps
 
-1. **Find the project** — If `$ARGUMENTS` is a full path, use it directly. Otherwise, fuzzy match against directory names in `~/Projects/`:
-   - Run `ls ~/Projects/` and find the best match for `$ARGUMENTS` (case-insensitive, partial match OK)
+1. **Find the project** — If `$ARGUMENTS` is a full path, use it directly. Otherwise, fuzzy match against directory names in `<projects>/`:
+   - Run `ls <projects>/` and find the best match for `$ARGUMENTS` (case-insensitive, partial match OK)
    - If multiple matches, show them and ask the user to pick
    - If no match, tell the user and list similar names
 
@@ -7603,7 +7599,6 @@ Target: $ARGUMENTS
 - This skill changes the working directory — all subsequent commands will run in the new project
 - If the project has a CLAUDE.md, its instructions apply for the rest of the session
 - The user can type `/switch` without arguments to see a list of all projects
-
 ---
 
 ## /test
@@ -7833,10 +7828,11 @@ The playbook, the harness and the measured probe results live next to this skill
 
 ## /todo
 
-
 Manage tasks within the current roadmap phase or as a standalone list. Add, complete, skip, reprioritize, and view tasks.
 
 Arguments: $ARGUMENTS
+
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
 
 ## Steps
 
@@ -7857,13 +7853,13 @@ Arguments: $ARGUMENTS
 2. **Find the data source** — Determine where to read/write tasks:
 
    **For roadmap-connected tasks:**
-   - Read `~/.claude/projects/<your-project-path>/dev-notes/roadmaps/INDEX.md`
+   - Read `<notes>/roadmaps/INDEX.md`
    - Find the active roadmap (status: active)
    - If exactly one, use it. If multiple, ask the user to pick. If none, fall through to standalone.
    - Read the roadmap's `roadmap.md` and locate the current phase (from `current_phase` in frontmatter)
 
    **For standalone tasks:**
-   - If `$ARGUMENTS` starts with "standalone", use `roadmaps/standalone/` directory
+   - If `$ARGUMENTS` starts with "standalone", use the `<notes>/roadmaps/standalone/` directory
    - If a name is provided (e.g., `standalone quick-tasks`), use `todo-YYYY-MM-DD-<name>.md`
    - If no name, use `todo-YYYY-MM-DD.md` (today's date)
    - If the file doesn't exist, create it with frontmatter:
@@ -7883,7 +7879,7 @@ Arguments: $ARGUMENTS
 
      ```
       TODO  Phase 2: Core Features (2/6)
-      Roadmap: agencyos-v2-launch
+      Roadmap: web-app-v2-launch
 
       x  2.1 Client dashboard layout         high  M   done
       x  2.2 Project list with status         high  M   done
@@ -7918,7 +7914,7 @@ Arguments: $ARGUMENTS
      - Announce: "Phase N complete! All tasks done."
      - If there's a next phase, ask: "Ready to start Phase N+1: <Name>?"
      - If yes: update `current_phase` in frontmatter, set next phase `status: in-progress`, add `started: YYYY-MM-DD`
-     - Update INDEX.md with new phase progress
+     - Update `<notes>/roadmaps/INDEX.md` with new phase progress
    - Show the updated task list
 
    **`skip <id>`:**
@@ -7954,7 +7950,7 @@ Arguments: $ARGUMENTS
    - Parse all phases in the active roadmap
    - Display:
      ```
-      SUMMARY  agencyos-v2-launch
+      SUMMARY  web-app-v2-launch
       Phases: 1 completed, 1 in-progress, 2 pending
       Tasks: 7/18 done (39%)
       Effort remaining: ~3L + 2M + 1S
@@ -7965,12 +7961,11 @@ Arguments: $ARGUMENTS
 
 ## Notes
 - All writes go back to the same `roadmap.md` file that `/roadmap` created and `/phases` reads — they share the same data
-- For standalone lists, writes go to `roadmaps/standalone/todo-*.md`
+- For standalone lists, writes go to `<notes>/roadmaps/standalone/todo-*.md`
 - The `>` marker in the display always points to the first uncompleted task, preferring higher-priority tasks (high > medium > low)
-- Phase boundary transitions update both the roadmap file and INDEX.md, keeping `/phases` in sync
+- Phase boundary transitions update both the roadmap file and `<notes>/roadmaps/INDEX.md`, keeping `/phases` in sync
 - If no roadmap is active and the user runs `/todo` without "standalone", suggest: "No active roadmap. Run `/todo standalone <name>` for a quick list, or `/roadmap` to plan a project."
 - Task IDs are stable — completing or skipping a task doesn't renumber others (only `/todo move` renumbers)
-
 ---
 
 ## /verify-app
