@@ -3,7 +3,31 @@
 # Copy to ~/.config/operator-skills/config.yaml
 # (or $XDG_CONFIG_HOME/operator-skills/config.yaml if XDG_CONFIG_HOME is set).
 # This file lives outside the repo so your paths never get committed.
-# Each skill reads only its own top-level section.
+# Every key is optional: a skill falls back to the default shown here when a key
+# (or the whole file) is missing. Skills read only the sections they need and
+# never rewrite sections that aren't theirs. Full key reference: docs/config.md.
+
+# Who you are — used where a skill writes as you, drafts in your voice, or
+# assigns work to you.
+owner:
+  name: Your Name                # default: ask once, or write neutrally
+  handle: yourname               # default: $USER — task/board assignee handle
+  voice_guide:                   # optional: path to your writing-style guide
+
+# Where things live.
+paths:
+  projects: ~/Projects           # default: ~/Projects — workspace root holding your projects
+  notes: ~/.claude/dev-notes     # default: ~/.claude/dev-notes — dev-notes root
+                                 #   (decisions/ learnings/ sessions/ freezes/ roadmaps/ INDEX.md)
+  memory:                        # optional: workspace memory dir (e.g. Claude Code auto-memory)
+
+# How browser-driving skills (/verify-app, /perf) reach a browser.
+browser:
+  mode: headless                 # default: headless — agent-browser launches its own browser
+                                 #   cdp — attach to your running browser over DevTools Protocol
+  cdp_port: 9222                 # used when mode: cdp
+  launch_cmd:                    # optional: command that starts your CDP browser
+  agent_browser_config:          # optional: agent-browser --config file to use in cdp mode
 
 # /note — add a note to your knowledge base (a local Markdown vault:
 # Obsidian, Tolaria, Logseq, or a plain folder).
