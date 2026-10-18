@@ -2,11 +2,11 @@
 
 One-shot health check for the current project. Delegates to specialized skills where possible and aggregates results.
 
-Target directory: {the text you type after the command} (default: current working directory)
+Arguments: {the text you type after the command} (optional `--skip-build` flag and optional target directory; default: current working directory)
 
 ## Steps
 
-1. **Detect project** — If `{the text you type after the command}` is provided, `cd` to that directory. Verify `package.json` exists. Detect package manager (pnpm-lock.yaml = pnpm, package-lock.json = npm).
+1. **Parse arguments and detect project** — Pull flags out of `{the text you type after the command}` first: `--skip-build` skips check 2c (report Build as SKIP). Whatever remains, if anything, is the target directory: `cd` to it; if nothing remains, stay in the current working directory. Verify `package.json` exists. Detect package manager (pnpm-lock.yaml = pnpm, package-lock.json = npm).
 
 2. **Run checks in parallel** — Use parallel bash calls for speed:
 
@@ -19,6 +19,7 @@ Target directory: {the text you type after the command} (default: current workin
    - Categorize: major (breaking), minor, patch updates
 
    **c) Build check:**
+   - Skip this check if `--skip-build` was passed
    - Run `npm run build 2>&1` or `pnpm build 2>&1`
    - Capture exit code and any error output
    - Time the build
@@ -68,6 +69,6 @@ Target directory: {the text you type after the command} (default: current workin
 
 ## Notes
 - This is the "run everything and summarize" skill — it surfaces issues, specialized skills fix them
-- The build step can be slow (30s-2min) — consider skipping with `/project-health --skip-build` argument
-- This skill does NOT modify any files — it only reports
+- The build step can be slow (30s-2min) — skip it with `/project-health --skip-build`, optionally with a directory: `/project-health ../app --skip-build`
+- This skill makes no source changes — it only reports. The build and type check can write artifacts (`.next/`, `dist/`, `*.tsbuildinfo`)
 - For a narrower check, use the individual skills directly: `/deps`, `/test`, `/env-check`, `/db-status`

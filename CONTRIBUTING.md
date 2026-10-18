@@ -61,7 +61,7 @@ The fastest way to get the shape right is to copy an existing skill that resembl
 
 ## Adding a skill
 
-A skill is registered in **six surfaces**. Update all of them — miss one and it drifts silently (no error, no warning).
+A skill is registered in **eight surfaces**. Update all of them — then run `node verify-adapters.mjs`, which fails on the drift that used to be silent.
 
 - [ ] **1. `skills/<name>/SKILL.md`** — create the folder and file (frontmatter + body, per above).
 - [ ] **2. `README.md`** — add a row to the right category table under `## Skill Catalog` (Orchestration, Planning, Code Quality, Scaffolding & Architecture, Git & Infrastructure, or Knowledge), **and** bump the skill count, which appears **4×**:
@@ -73,6 +73,8 @@ A skill is registered in **six surfaces**. Update all of them — miss one and i
 - [ ] **4. `docs/claude-ai-project-instructions.md`** — add a row to the `## Skill Catalog` table and a row to `## Quick Combos` if it fits a workflow; bump the count (appears **2×**). Optionally promote it into the inline "Big N — Full Skill Prompts" set (rename the heading + add the inline prompt).
 - [ ] **5. `docs/cowork-setup-guide.md`** — bump the count (1×).
 - [ ] **6. `skills/help/SKILL.md`** — add the skill under the matching category block in the `/help` cheat sheet, and bump **its own count** (see trap #2).
+- [ ] **7. `generated/`** — run `node generate-adapters.mjs` (see [below](#the-generated-surface)).
+- [ ] **8. `~/.agents/skills/<name>`** — Delta and Zed discover skills there, and a whole-directory symlink to `skills/<name>` keeps it drift-free. Run `./install-global.sh` (it links every skill and converges old-form entries); `node verify-adapters.mjs` checks it. Override the location with `AGENTS_SKILLS_DIR`.
 
 ## Two traps
 
@@ -85,30 +87,27 @@ These are the two things that have actually bitten this repo.
 ## Verify before committing
 
 ```bash
-# 1. folder count matches the README claim
-ls -d skills/*/ | wc -l
-
-# 2. no stale counts left behind (the only legit "3x" matches are a Notion ID + hex colors)
-grep -rn "all 3[0-9] skill\|3[0-9] custom\|3[0-9] operator" README.md docs/
-
-# 3. the /help cheat sheet matches its mirror exactly
-awk '/^ SKILL CATALOG/{f=1} f{print} /Cross-project/{if(f)exit}' skills/help/SKILL.md > /tmp/a
-awk '/^ SKILL CATALOG/{f=1} f{print} /Cross-project/{if(f)exit}' docs/claude-ai-skill-reference.md > /tmp/b
-diff /tmp/a /tmp/b && echo "IDENTICAL"
-
-# 4. try it live
-ln -sf "$PWD/skills" ~/.claude/skills/operator   # if not already linked
-# open a new Claude Code session and type /<name>
-
-# 5. generated/ (Codex + Cursor + AGENTS.md) matches skills/*/SKILL.md
 node verify-adapters.mjs
 ```
 
-There is a **seventh surface** past the six above: `generated/` transpiles every
+That one command replaces the old manual folder-count, stale-count `grep` and `/help` `diff` steps, and CI runs it on every push and PR. It derives every number from the `skills/*/` folders (nothing is hardcoded) and exits 1, naming each problem, if any of these drifted:
+
+- `generated/` (Codex + Cursor + `AGENTS.md`) no longer matches `skills/*/SKILL.md`
+- a skill body differs from its `## /name` section in `docs/claude-ai-skill-reference.md`, or a section is missing or orphaned
+- a "N skills" claim in `README.md`, `docs/claude-ai-skill-reference.md`, `docs/claude-ai-project-instructions.md` or `docs/cowork-setup-guide.md` differs from the folder count
+- a skill is missing from the `## Skill Catalog` in `README.md` or `docs/claude-ai-project-instructions.md`
+- the `/help` cheat sheet differs from its mirror in the reference doc, or its stated count differs from the commands it lists
+- a frontmatter `name` doesn't match its folder
+- a skill isn't symlinked into `~/.agents/skills` (run `./install-global.sh`; `node verify-adapters.mjs --skip-install` skips this one, as CI does, and `AGENTS_SKILLS_DIR` overrides the location)
+
+Then try it live: `ln -sf "$PWD/skills" ~/.claude/skills/operator`, open a new Claude Code session and type `/<name>`.
+
+<a id="the-generated-surface"></a>
+The **seventh surface**, past the six hand-edited ones above: `generated/` transpiles every
 `SKILL.md` into Codex CLI prompts, Cursor commands, and one `AGENTS.md` digest.
 It's produced by `generate-adapters.mjs`, not hand-edited — after adding or
 editing a skill, run `node generate-adapters.mjs` to regenerate it, then
-`node verify-adapters.mjs` (check #5 above) to confirm nothing drifted. See
+`node verify-adapters.mjs` to confirm nothing drifted. See
 `generated/README.md` for what's in there and how to install it into Codex/Cursor.
 
 Every skill lands in one of two output buckets, `generated/portable/` or
@@ -132,7 +131,7 @@ classification that's gone stale gets flagged instead of silently drifting.
 
 ## Editing an existing skill
 
-Same idea, smaller surface. Editing a skill's prompt means editing **both** `skills/<name>/SKILL.md` **and** its mirrored copy in `docs/claude-ai-skill-reference.md`. If you touch `skills/help/SKILL.md`, mirror it into `skill-reference.md` too (trap #1). Renaming a skill touches all six surfaces plus the folder name.
+Same idea, smaller surface. Editing a skill's prompt means editing **both** `skills/<name>/SKILL.md` **and** its mirrored copy in `docs/claude-ai-skill-reference.md`. If you touch `skills/help/SKILL.md`, mirror it into `skill-reference.md` too (trap #1). Renaming a skill touches all eight surfaces plus the folder name.
 
 ## Style
 

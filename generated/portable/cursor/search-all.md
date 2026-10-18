@@ -7,7 +7,7 @@ Query: {the text you type after the command}
 ## Steps
 
 1. **Classify the search** — Based on `{the text you type after the command}`, determine search mode:
-   - If query looks like a package name (e.g., "stripe", "drizzle-orm", "@supabase/supabase-js"): **package search**
+   - If query looks like a package name (e.g., "stripe", "drizzle-orm", "@supabase/supabase-js", or a glob like "@supabase/*"): **package search**
    - If query looks like a filename or glob (e.g., "proxy.ts", "*.config.ts"): **file search**
    - Otherwise: **code search**
    - The user can also prefix: `pkg:stripe`, `file:proxy.ts`, `code:useSession`
@@ -15,11 +15,26 @@ Query: {the text you type after the command}
 2. **Execute search** — Based on mode:
 
    **Package search:**
+   Strip a leading `pkg:` first (`QUERY="${QUERY#pkg:}"`), then match **exact dependency names** (a `grep` for `react` would also hit `react-dom`, `preact` and any description or script that mentions it). Look through every `package.json` up to four levels deep, so monorepo workspaces (`~/Projects/app/packages/*/package.json`) are included, and skip `node_modules`/build output. A `*` in the query switches to glob matching (`@supabase/*`, `drizzle-*`); without one it is an exact name.
    ```bash
-   # Search all package.json files for the dependency
-   grep -rl "$QUERY" ~/Projects/*/package.json 2>/dev/null | head -20
+   QUERY="${QUERY#pkg:}"
+   find ~/Projects -maxdepth 4 -name package.json \
+     -not -path "*/node_modules/*" -not -path "*/.next/*" -not -path "*/dist/*" -not -path "*/.git/*" -print0 2>/dev/null |
+   xargs -0 node -e '
+     const fs = require("fs");
+     const [q, ...files] = process.argv.slice(1);
+     const esc = (s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+     const re = q.includes("*") ? new RegExp("^" + q.split("*").map(esc).join(".*") + "$") : null;
+     const fields = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"];
+     for (const f of files) {
+       let pkg;
+       try { pkg = JSON.parse(fs.readFileSync(f, "utf8")); } catch { continue; }
+       for (const field of fields)
+         for (const [name, version] of Object.entries(pkg[field] || {}))
+           if (re ? re.test(name) : name === q) console.log([f, name, version, field].join("\t"));
+     }' "$QUERY"
    ```
-   Then for each match, extract the package version from the package.json.
+   Each output row is `path<TAB>package<TAB>version<TAB>field`. The project is the first directory under `~/Projects/`; `Dev?` is "yes" when the field is `devDependencies`, and note `peerDependencies` rows as peer. A project can match more than once (workspaces, or the same package in two fields) — keep every row, but count the project once.
 
    **File search:**
    ```bash
