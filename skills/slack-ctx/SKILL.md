@@ -11,15 +11,17 @@ Manage the local Slack directory that backs `/slack-reply`.
 
 Arguments: $ARGUMENTS
 
+**Config:** `slack.registry` (default `~/.config/operator-skills/slack/registry.yaml`) and `slack.mirror_dir` (default: the default vault's `routes.reference` folder, else the vault root; if no vault is configured, `regen` is skipped) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. Missing file or key → default; never guess.
+
 ## Data — one writer, one mirror
 
 | File | Role |
 |------|------|
-| `~/.claude/projects/-Users-andrewmiller-knowledge/slack/registry.yaml` | **Source of truth.** The only file written by hand or by skill. |
-| `~/knowledge/03-Resources/slack-directory.md` | **Generated mirror.** Human-browsable in the vault, git-tracked. Never edited directly — `regen` overwrites it wholesale. |
-| `~/knowledge/03-Resources/slack-reply-log.md` | Append-only log of what was drafted, written by `/slack-reply`. |
+| `slack.registry` | **Source of truth.** The only file written by hand or by skill. |
+| `<slack.mirror_dir>/slack-directory.md` | **Generated mirror.** Human-browsable in your vault. Never edited directly — `regen` overwrites it wholesale. |
+| `<slack.mirror_dir>/slack-reply-log.md` | Append-only log of what was drafted, written by `/slack-reply`. |
 
-The mirror exists so the directory is greppable by `kb search` and readable in Tolaria. It
+The mirror exists so the directory is greppable and readable in your vault. It
 is disposable — if it ever disagrees with the YAML, the YAML wins and `regen` fixes it.
 Any action that mutates the registry must run `regen` afterward, or the two drift.
 
@@ -107,23 +109,21 @@ search results.
 
 ## The generated mirror
 
-`regen` overwrites `~/knowledge/03-Resources/slack-directory.md` with this exact shape:
+`regen` overwrites `<slack.mirror_dir>/slack-directory.md` with this shape. Frontmatter: if the file already exists, preserve its existing keys and values (`created`, any id key) and only refresh `modified`; if it's new, use the vault's `frontmatter` defaults plus the keys below, and follow the vault's `conventions` file if it has one:
 
 ```markdown
 ---
-strata_id: <PRESERVE the existing UUID — never mint a new one on regen>
 type: Note
-tags: [slack, directory, generated, ops]
+tags: [slack, directory, generated]
 created: <preserve>
 modified: <today>
-para: resource
-generated_from: ~/.claude/projects/-Users-andrewmiller-knowledge/slack/registry.yaml
+generated_from: <slack.registry path>
 ---
 
 # Slack Directory
 
 > [!warning] Generated file — do not edit by hand.
-> Source of truth is `~/.claude/projects/-Users-andrewmiller-knowledge/slack/registry.yaml`.
+> Source of truth is `<slack.registry path>`.
 > Edit there and run `/slack-ctx regen`.
 
 ## Channels

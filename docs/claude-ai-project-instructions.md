@@ -5,7 +5,7 @@
 
 ---
 
-You have 43 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 44 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -13,6 +13,7 @@ You have 43 operator skills for software projects. Use them when a user's reques
 |-------|-------------|
 | `/orchestrate` | Decompose a goal, route each piece to the best specialist, run parallel/pipeline, gate, report |
 | `/maestro` | Cross-provider command deck — durable task board any terminal or provider can pick up |
+| `/handoff` | Hand a bounded task to Codex (or another agent) as a well-scoped GitHub issue |
 | `/parallel` | Run tasks simultaneously via subagents, aggregate results |
 | `/subagent` | Dispatch a background agent to explore + implement |
 | `/research` | Background research — structured findings |
@@ -41,7 +42,7 @@ You have 43 operator skills for software projects. Use them when a user's reques
 | `/env-check` | Compare expected vs actual env vars (no secrets shown) |
 | `/migrate` | Full migration workflow: generate, push, rollback, seed; `status` = read-only connection + migration check |
 | `/port-check` | What's running on dev ports + project identification |
-| `/verify-app` | Browser-based app verification via CDP |
+| `/verify-app` | Browser-based app verification with agent-browser (headless, or your own browser over CDP) |
 | `/test-desktop-app` | Test a local macOS desktop app without stealing focus — layered ladder, focus policy, guardrails |
 | `/gleap` | Gleap feedback SDK + REST API — install, query, audit an integration |
 | `/learn` | Catalog lessons learned — gotchas, quirks, searchable |
@@ -81,6 +82,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 | Workflow | Skills |
 |----------|--------|
 | Orchestrate a goal | `/orchestrate <goal>` → auto-routes `/research` → build → `/pr-review`, gated |
+| Hand off to Codex | `/handoff <task>` → Codex opens a PR → `/pr-review` |
 | New project | `/scaffold` → `/switch` → `/map` |
 | Stand up foundation | `/scaffold` → `/foundation-loop` → `/switch` |
 | Add dark mode | `/dark-mode` → `/verify-app` |
@@ -102,7 +104,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 43, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 44, see the uploaded Knowledge file.
 
 ### /orchestrate
 

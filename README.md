@@ -2,7 +2,7 @@
 
 **Claude slash commands for people who build things.**
 
-43 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
+44 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
 
 They started as one-off prompts, became reusable slash commands, then became a system where skills call other skills — roadmaps feed into phases, phases feed into todos, todos feed into parallel agents, and everything gets logged. This is that system, open-sourced.
 
@@ -23,7 +23,7 @@ Open Cowork and send this message:
 
 > Clone https://github.com/andrewm621/operator-skills.git to ~/operator-skills and symlink the skills directory to ~/.claude/skills/operator
 
-Claude runs the commands for you. Type `/` to see all 43 skills in autocomplete.
+Claude runs the commands for you. Type `/` to see all 44 skills in autocomplete.
 
 See [`docs/cowork-setup-guide.md`](docs/cowork-setup-guide.md) for manual install and optional Global Instructions.
 
@@ -34,7 +34,7 @@ git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
 ln -s ~/operator-skills/skills ~/.claude/skills/operator
 ```
 
-Type `/` in a new session to see all 43 skills.
+Type `/` in a new session to see all 44 skills.
 
 ### Every agent at once (Claude Code, Codex, Cursor, Grok, Delta, Zed)
 
@@ -64,6 +64,7 @@ The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operat
 | `/orchestrate` | Decompose a goal, route each piece to the best specialist, run parallel/pipeline, gate, report | `/orchestrate ship the billing page: research, build, review` |
 | `/maestro` | Cross-provider command deck — durable task board (create, claim, sync) any terminal or provider can pick up | `/maestro new "Refactor auth" --repo web-app` |
 | `/parallel` | Run tasks simultaneously, aggregate results; `build-check` fans out build/type-check agents over every consumer of a shared package | `/parallel research Stripe billing \| check build \| verify localhost:3000` |
+| `/handoff` | Hand a bounded task to Codex (or another agent) as a well-scoped GitHub issue — acceptance criteria, file pointers, constraints | `/handoff add rate limiting to the API` |
 | `/subagent` | Dispatch a background agent to explore + implement | `/subagent add email notifications to the API` |
 | `/research` | Background research — structured findings while you keep working | `/research Drizzle ORM migration API` |
 | `/switch` | Context switch into any project with full orientation | `/switch agencyos` |
@@ -111,7 +112,7 @@ The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operat
 | `/env-check` | Compare expected vs actual env vars (never displays secrets) | `/env-check` |
 | `/migrate` | Full migration workflow — generate, review, apply, rollback; `status` is the read-only connection + migration check | `/migrate generate` |
 | `/port-check` | What's running on dev ports + project identification | `/port-check` |
-| `/verify-app` | Browser-based app verification via CDP — screenshots + errors | `/verify-app` |
+| `/verify-app` | Browser-based app verification with `agent-browser` (headless, or your own browser over CDP) — screenshots + errors | `/verify-app` |
 | `/test-desktop-app` | Test a local macOS desktop app (Tauri first) without stealing focus — layered ladder, focus policy, guardrails, reporting | `/test-desktop-app the unsaved-changes modal focuses Cancel` |
 | `/gleap` | Gleap feedback SDK + REST API — install, query, audit an integration | `/gleap audit` |
 
@@ -207,7 +208,7 @@ Adding or editing a skill? See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short v
 
 | Feature | Code (CLI) | Cowork (Desktop) | Claude.ai (Web) |
 |---------|-----------|-----------------|-----------------|
-| All 43 skills | Full | Full | Full |
+| All 44 skills | Full | Full | Full |
 | `/` autocomplete | Native | Native | Manual invoke |
 | Subagent spawning | Full | Full | Simulated |
 | File system access | Full | Full | Via Knowledge files |

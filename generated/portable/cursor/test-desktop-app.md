@@ -4,6 +4,8 @@ Verify a claim about a running local macOS desktop app using the most background
 
 Claim to verify: {the text you type after the command}
 
+**Config:** `paths.projects` (default `~/Projects`) from `~/.config/operator-skills/config.yaml`, used only to find the operator-skills checkout — see `docs/config.md`. The focus policy has its own file, `~/.claude/app-testing.json`, described below.
+
 The playbook, the harness and the measured probe results live next to this skill in the operator-skills repo:
 `skills/test-desktop-app/desktop-app-testing.guide.md` and `skills/test-desktop-app/harness/`. For web apps use
 `/verify-app` instead.
@@ -13,8 +15,10 @@ The playbook, the harness and the measured probe results live next to this skill
 1. **Locate the harness, load the playbook, check the focus mode** — Find the checkout (first match wins):
 
    ```bash
-   for d in "${DESKTOP_APP_TESTING_HOME:-}" ~/Projects/operator-skills/skills/test-desktop-app \
-            ~/operator-skills/skills/test-desktop-app ~/.claude/skills/operator/test-desktop-app; do
+   PROJECTS="${PROJECTS:-$HOME/Projects}"   # use paths.projects from the config if it differs
+   for d in "${DESKTOP_APP_TESTING_HOME:-}" ~/.claude/skills/operator/test-desktop-app ~/.claude/skills/test-desktop-app \
+            ~/.agents/skills/test-desktop-app ~/.codex/skills/test-desktop-app \
+            "$PROJECTS/operator-skills/skills/test-desktop-app" ~/operator-skills/skills/test-desktop-app; do
      [ -n "$d" ] && [ -f "$d/desktop-app-testing.guide.md" ] && { DAT_HOME="$d"; break; }
    done; echo "${DAT_HOME:-NOT FOUND}"; HARNESS="$DAT_HOME/harness"
    ```

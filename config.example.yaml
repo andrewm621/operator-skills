@@ -49,3 +49,28 @@ knowledge:
     # work:
     #   path: ~/work-notes
     #   inbox: Inbox
+
+# /email-triage — context it reads before ranking mail, and where the report goes.
+email_triage:
+  context: []                    # default: [<paths.memory>/MEMORY.md] if paths.memory is set, else none
+                                 #   files or globs listing clients, active deals, standing commitments
+                                 #   e.g. context: [~/notes/clients.md, ~/notes/projects/*.md]
+  report_dir:                    # default: the default vault's inbox (knowledge.*), else the current directory
+  known_noise: []                # optional: extra sender addresses to always treat as NOISE
+  always_surface: []             # optional: extra sender addresses/subjects to never fold into NOISE
+
+# /slack-ctx and /slack-reply — the local Slack directory (people, channels, threads).
+slack:
+  registry: ~/.config/operator-skills/slack/registry.yaml   # default shown — source of truth, written by /slack-ctx
+  mirror_dir:                    # default: the default vault's routes.reference folder (else vault root);
+                                 #   holds slack-directory.md (generated) and slack-reply-log.md.
+                                 #   No vault configured = mirror and reply log are skipped.
+
+# /ai-export — where browser downloads land and where raw JSON is archived.
+# (Notes are filed into the default vault under knowledge:.)
+ai_export:
+  downloads:                     # default: $AI_EXPORT_DOWNLOADS, else ask — your browser's download folder
+  archive:                       # default: $AI_EXPORT_ARCHIVE, else ask — root with <platform>/raw/ beneath it
+
+# Also read by /maestro (via owner.handle and paths.projects above) — it reads them
+# itself; env vars MAESTRO_HANDLE / MAESTRO_PROJECTS override the file.

@@ -14,7 +14,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  46 custom commands
+ SKILL CATALOG  47 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -31,6 +31,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
 ═══════════════════════════════════════════════════════════════
  /orchestrate <goal>      Decompose → route to specialists → gate → report
  /maestro [subcommand]    Cross-provider task board + comms: new/work/route/ask/answer/inbox/mirror
+ /handoff <task>          Hand a task to Codex as a scoped GitHub issue
  /subagent <task>         Background agent: explore → implement → verify
  /parallel <a> | <b>      Run tasks simultaneously; build-check [projects|all] for shared-package consumers
  /research <topic>        Background research → structured findings

@@ -1,6 +1,8 @@
-Performance audit for web apps. Runs Lighthouse via Dia Browser, analyzes bundle size, checks Core Web Vitals, and suggests optimizations.
+Performance audit for web apps. Runs Lighthouse, analyzes bundle size, checks Core Web Vitals, and suggests optimizations.
 
 Arguments: $ARGUMENTS (optional: URL, "bundle", "vitals", or a specific area like "images", "fonts", "js")
+
+**Config:** `browser.mode` (default `headless`), `browser.cdp_port` (default `9222`), `browser.launch_cmd` and `browser.agent_browser_config` (both optional) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. A missing file or key means the default; never guess.
 
 ## Steps
 
@@ -17,18 +19,28 @@ Arguments: $ARGUMENTS (optional: URL, "bundle", "vitals", or a specific area lik
    | `js` | JavaScript bundle analysis |
 
 2. **Check prerequisites:**
-   - If URL-based audit: verify Dia is running (`curl -s http://127.0.0.1:9222/json/version`). If not, tell user to run `dia-dev`.
+   - If URL-based audit: read `browser.mode` (default `headless`).
+     - **`headless`** — no connection check; the audit tools launch their own browser.
+     - **`cdp`** — run `curl -s http://127.0.0.1:<cdp_port>/json/version` (`cdp_port` defaults to `9222`). If it fails, suggest `browser.launch_cmd` if set (otherwise a browser started with `--remote-debugging-port=<cdp_port>`) and stop. Pass `--config <agent_browser_config>` to any `agent-browser` command when that key is set.
    - If bundle analysis: verify this is a Next.js or Vite project (has build config)
    - Detect framework for framework-specific optimizations
 
 3. **Run Lighthouse audit** (for URL-based audits):
 
    **a) Navigate and audit:**
-   Use Chrome DevTools MCP for the full Lighthouse audit:
+   Use Chrome DevTools MCP for the full Lighthouse audit (it must be configured to launch its own browser, or to attach to `http://127.0.0.1:<cdp_port>` in `cdp` mode):
    ```
    mcp__chrome-devtools__navigate_page → target URL
    mcp__chrome-devtools__lighthouse_audit → run audit
    ```
+   If those tools aren't available, fall back to the Lighthouse CLI, which needs no MCP server:
+   ```bash
+   # headless mode: Lighthouse launches its own headless Chrome
+   npx lighthouse <URL> --output=json --output-path=./lighthouse.json --chrome-flags="--headless=new"
+   # cdp mode: attach to the running browser instead
+   npx lighthouse <URL> --output=json --output-path=./lighthouse.json --port=<cdp_port>
+   ```
+   Read the scores and metrics from the JSON (`categories.*.score`, `audits.*.numericValue`), then delete `lighthouse.json`.
 
    **b) Parse Lighthouse results** — Extract scores:
    - Performance (target: >90)
@@ -64,9 +76,12 @@ Arguments: $ARGUMENTS (optional: URL, "bundle", "vitals", or a specific area lik
    - Pages with large bundles (>100KB)
 
    **For Vite:**
+   `vite build` has no `--report` flag (it lists chunk sizes in its normal output, which is often enough). For a treemap, use the bundle visualizer, which needs no config change:
    ```bash
-   npx vite build --report 2>&1
+   npx vite build 2>&1                  # chunk sizes are in the build output
+   npx vite-bundle-visualizer           # builds, then writes stats.html (open it for the treemap)
    ```
+   Or, if the project wants it permanently, add `rollup-plugin-visualizer` to `vite.config.ts`. Delete generated `stats.html` when done unless the user wants it.
 
    Also check for common bundle issues:
    ```bash
@@ -106,13 +121,13 @@ Arguments: $ARGUMENTS (optional: URL, "bundle", "vitals", or a specific area lik
      grep -rl "\"use client\"" app/ components/ 2>/dev/null
      ```
      For each, check file size and import tree depth
-   - Look for barrel imports that pull in too much:
+   - Look for barrel imports that pull in too much (icon sets, UI kits, utility libraries imported from their package root):
      ```bash
-     grep -rn "from '@rebel/ui'" --include="*.tsx" --include="*.ts" app/ components/ 2>/dev/null
+     grep -rnE "import \{[^}]{80,}\} from '[^./]" --include="*.tsx" --include="*.ts" app/ components/ 2>/dev/null
      ```
    - Check for dynamic imports where they should be used (heavy components, modals, charts)
 
-6. **Network analysis** (if Dia is available):
+6. **Network analysis** (if the Chrome DevTools MCP is available):
    Use Chrome DevTools MCP:
    ```
    mcp__chrome-devtools__list_network_requests → get all requests
@@ -181,10 +196,10 @@ Arguments: $ARGUMENTS (optional: URL, "bundle", "vitals", or a specific area lik
     Performance: 78/100 — 2 high-impact fixes available
     Estimated score after fixes: ~88-92
 
-    Quick wins:
-    - Add `priority` to hero image → /perf fix 1
-    - Dynamic import charts → /perf fix 2
-    - Use next/font → /perf fix 3
+    Quick wins (tell me which to apply, e.g. "fix 1 and 3"):
+    - Add `priority` to hero image (issue 1)
+    - Dynamic import charts (issue 2)
+    - Use next/font (issue 3)
    ```
 
 8. **Offer fixes** — For each issue found:
@@ -193,12 +208,12 @@ Arguments: $ARGUMENTS (optional: URL, "bundle", "vitals", or a specific area lik
    - **Do not make changes without presenting them first**
 
 ## Notes
-- Lighthouse audit requires Dia Browser running with CDP on port 9222 (`dia-dev`)
+- In `headless` mode (default) the audit launches its own browser. In `cdp` mode it needs your browser listening on `browser.cdp_port`.
 - Bundle analysis works without a browser — just needs a build
 - For production URLs (not localhost), Lighthouse runs against the live site which may differ from local
 - Next.js build output already shows per-route bundle sizes — parse this for free without extra tools
 - The `@next/bundle-analyzer` package provides detailed treemaps but isn't required — the built-in build output is usually sufficient
-- Common quick wins in this workspace: `next/font` instead of external stylesheets, `priority` on hero images, dynamic imports for charts/heavy components, avoiding barrel re-exports
+- Common quick wins: `next/font` instead of external stylesheets, `priority` on hero images, dynamic imports for charts/heavy components, avoiding barrel re-exports
 - This skill pairs with `/verify-app` (functional check) — `/perf` focuses on performance specifically
 - For Vercel-deployed apps, also check Vercel Speed Insights dashboard for real user metrics (not just lab data)
-- If the project uses @rebel/ui, check that the design system CSS isn't being duplicated or loaded twice
+- If the project uses a shared design-system package, check that its CSS isn't being duplicated or loaded twice

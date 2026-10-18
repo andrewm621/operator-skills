@@ -26,6 +26,7 @@ reads this file.
 ### Orchestration
 
 - **/maestro** — Standing cross-provider command deck for the Maestro task board — create, claim, work, route, and message across tasks/providers (Claude, Codex, Cursor, Grok Build), persisting across sessions and terminals via markdown + git so any agent can pick up where another left off, and ask/answer questions along the way.
+- **/handoff** — Hand a task off to Codex (or another agent) as a clean, well-scoped GitHub issue with acceptance criteria, file pointers, and constraints — the bridge between planning in one session and async execution elsewhere.
 - **/switch** — Fast context switch into any project with full orientation. Fuzzy matches project names against the directories in your projects folder.
 
 ### Planning
@@ -89,7 +90,7 @@ that underlying Claude-specific tooling or MCP server is also present.
 
 ### Code Quality
 
-- **/perf** — Performance audit for web apps. Runs Lighthouse via Dia Browser, analyzes bundle size, checks Core Web Vitals, and suggests optimizations.
+- **/perf** — Performance audit for web apps. Runs Lighthouse, analyzes bundle size, checks Core Web Vitals, and suggests optimizations.
 
 ### Scaffolding & Architecture
 
@@ -100,12 +101,12 @@ that underlying Claude-specific tooling or MCP server is also present.
 
 ### Git & Infrastructure
 
-- **/verify-app** — Verify a running web app in Dia Browser via CDP. URL defaults to http://localhost:3000 unless specified.
+- **/verify-app** — Verify a running web app in a real browser via `agent-browser`. URL defaults to http://localhost:3000 unless specified.
 
 ### Knowledge
 
-- **/ai-export** — Export AI chat threads (ChatGPT verified; Claude.ai and Grok unverified) from your logged-in browser through the app's own JSON API, convert them locally to markdown, archive the raw JSON, and file the notes into your knowledge vault.
-- **/email-triage** — Triage Andrew's Gmail inbox into a two-axis urgency × context report — read-only, never touches labels, archive state, drafts, or sends.
+- **/ai-export** — Export AI chat threads (ChatGPT verified; Claude.ai and Grok unverified) from your logged-in browser through the app's own JSON API, convert them locally to markdown, archive the raw JSON, and file the notes into your knowledge vault (a plain folder of Markdown works).
+- **/email-triage** — Triage your Gmail inbox into a two-axis urgency × context report — read-only, never touches labels, archive state, drafts, or sends.
 - **/notion** — Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current. `/notion ctx ...` manages that registry and its cached page summaries for fast, token-efficient context loading.
-- **/slack-reply** — Draft a reply to a Slack message or thread in Andrew's voice. Resolves the target from a pasted URL, the local Slack directory, or search; reads the thread for context; stages the reply as a Slack draft for approval. Never sends.
+- **/slack-reply** — Draft a reply to a Slack message or thread in your voice. Resolves the target from a pasted URL, the local Slack directory, or search; reads the thread for context; stages the reply as a Slack draft for approval. Never sends.
 - **/slack-ctx** — Manage the local Slack directory — the cached map of people, channels, and threads that makes /slack-reply resolve a target without searching. Save, find, list, sync, prune, and regenerate the vault mirror.

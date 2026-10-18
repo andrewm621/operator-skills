@@ -61,6 +61,39 @@ Your knowledge base: a local Markdown vault (Obsidian, Tolaria, Logseq, or a pla
 | `knowledge.vaults.<name>.commit` | `false` | `true`: `git add` + `git commit` the note after writing (never pushes) |
 | `knowledge.vaults.<name>.routes` | none | Map of note kind to folder (relative to `path`) |
 
+### `email_triage`
+
+Read by `/email-triage`.
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `email_triage.context` | `[<paths.memory>/MEMORY.md]` if `paths.memory` is set, else none | Files listing your clients/contacts, used to judge context |
+| `email_triage.report_dir` | the default vault's inbox, else the current directory | Where the triage report is written |
+| `email_triage.known_noise` | `[]` | Senders/domains to always treat as noise |
+| `email_triage.always_surface` | `[]` | Senders/domains to always surface |
+
+### `slack`
+
+Read by `/slack-ctx` and `/slack-reply`.
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `slack.registry` | `~/.config/operator-skills/slack/registry.yaml` | The local Slack directory (people, channels, threads) |
+| `slack.mirror_dir` | the default vault's `routes.reference` folder, else the vault root; no vault → skipped | Where the directory mirror and reply log are written |
+
+### `ai_export`
+
+Read by `/ai-export`.
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `ai_export.downloads` | `$AI_EXPORT_DOWNLOADS`, else ask | Where raw JSON exports are saved |
+| `ai_export.archive` | `$AI_EXPORT_ARCHIVE`, else ask | Where converted archives are kept |
+
+### Environment overrides
+
+`/maestro`'s CLI also honors `MAESTRO_HANDLE` (overrides `owner.handle`) and `MAESTRO_PROJECTS` (overrides `paths.projects`).
+
 ## No config file
 
 Everything still works; skills use the defaults:

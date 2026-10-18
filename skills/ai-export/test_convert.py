@@ -13,9 +13,9 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONVERT = os.path.join(HERE, "convert.py")
-ALLOWED_KEYS = {"strata_id", "type", "created", "source", "conversation_id", "title", "conv_created", "conv_updated",
+ALLOWED_KEYS = {"type", "created", "source", "conversation_id", "title", "conv_created", "conv_updated",
                 "model", "triage", "url", "related_to", "tags", "belongs_to"}
-INDEX_KEYS = {"strata_id", "type", "created", "source", "tags", "related_to"}
+INDEX_KEYS = {"type", "created", "source", "tags", "related_to"}
 PROJECT = "g-p-" + "a1b2c3d4" * 4
 CID = "11111111-1111-1111-1111-111111111111"
 
@@ -228,6 +228,28 @@ class ConvertTest(unittest.TestCase):
 
     def test_refuses_other_platforms(self):
         _, r = self.run_convert(bundle([conv()], platform="claude"), expect_ok=False)
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_default_frontmatter_has_only_generic_keys(self):
+        out, _ = self.run_convert(bundle([conv()]))
+        for name in os.listdir(out):
+            self.assertLessEqual(fm_keys(frontmatter(os.path.join(out, name))), ALLOWED_KEYS)
+
+    def test_id_key_and_fm_are_opt_in(self):
+        out, _ = self.run_convert(bundle([conv()]), "--id-key", "uid", "--fm", "para=resource", "--fm", 'note=a "quoted"\nvalue')
+        for name in os.listdir(out):
+            lines = frontmatter(os.path.join(out, name))
+            keys = fm_keys(lines)
+            self.assertLessEqual(keys, ALLOWED_KEYS | {"uid", "para", "note"})
+            self.assertEqual(lines[0].split(":")[0], "uid")
+            self.assertIn("para", keys)
+            self.assertNotIn("evil", keys)
+
+    def test_fm_refuses_reserved_and_builtin_keys(self):
+        for bad in ("_organized=true", "type=x", "bad key=1", "noequals"):
+            _, r = self.run_convert(bundle([conv()]), "--fm", bad, expect_ok=False)
+            self.assertNotEqual(r.returncode, 0, bad)
+        _, r = self.run_convert(bundle([conv()]), "--id-key", "_id", expect_ok=False)
         self.assertNotEqual(r.returncode, 0)
 
 
