@@ -26,6 +26,11 @@
 //      Fix with ./install-global.sh. Skipped with --skip-install or when CI is
 //      set, since a CI runner has no home-directory install.
 //
+//   7. Portability guard: no file under skills/ may contain an absolute
+//      home-directory path (/Users/..., -Users-... as in Claude Code's
+//      project-slug dirs, or /home/<name>/...). Personal paths belong in the
+//      per-user config (docs/config.md), not in the skills.
+//
 // Frontmatter `name` must equal the folder name; generate-adapters.mjs throws on
 // a mismatch and this script reports it as a failure.
 //
@@ -313,6 +318,32 @@ function checkAgentsSkills() {
   return { agentsDir, total: names.length, problems };
 }
 
+/** Check 7: no absolute home-directory paths anywhere under skills/. */
+function checkPortability() {
+  const problems = [];
+  const patterns = [
+    { label: "/Users/ path", re: /\/Users\/[^\s`"')]*/ },
+    { label: "-Users- project-slug path", re: /-Users-[A-Za-z0-9_.-]+/ },
+    { label: "/home/<name> path", re: /\/home\/[a-z_][a-z0-9_-]*\/[^\s`"')]*/ },
+  ];
+  for (const rel of listFilesRecursive(join(REPO_ROOT, "skills"))) {
+    if (rel.split(sep).some((part) => part === "__pycache__" || part === "node_modules")) continue;
+    const buf = readFileSync(join(REPO_ROOT, "skills", rel));
+    if (buf.includes(0)) continue; // binary (e.g. .pyc) — not skill text
+    buf
+      .toString("utf8")
+      .replace(/\r\n/g, "\n")
+      .split("\n")
+      .forEach((line, i) => {
+        for (const { label, re } of patterns) {
+          const m = line.match(re);
+          if (m) problems.push(`skills/${rel}:${i + 1}: ${label} "${m[0]}" — read it from the per-user config instead (docs/config.md)`);
+        }
+      });
+  }
+  return problems;
+}
+
 function main() {
   const skipInstall = process.argv.includes("--skip-install") || Boolean(process.env.CI);
   let failed = false;
@@ -348,6 +379,7 @@ function main() {
     [...checkCatalog("README.md", skills), ...checkCatalog("docs/claude-ai-project-instructions.md", skills)],
   );
   report("/help cheat sheet is inconsistent", "/help cheat sheet matches its mirror and its stated count.", checkHelp(skills));
+  report("skills/ contains hardcoded personal paths", "skills/ has no absolute home-directory paths.", checkPortability());
 
   if (skipInstall) {
     console.log("- skipped ~/.agents/skills install check (--skip-install or CI).");

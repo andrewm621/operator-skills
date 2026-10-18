@@ -46,14 +46,14 @@ Symlinks each skill folder into `~/.codex/skills/`, `~/.cursor/skills/` and `~/.
 
 ### Per-user config (optional)
 
-Skills that need to know something about *your* setup — currently `/note`, which needs the location of your knowledge-base vault — read it from one file outside the repo, so nothing personal is ever committed:
+Skills that need to know something about *your* setup read it from one file outside the repo, so nothing personal is ever committed. Every key is optional: with no file at all, skills fall back to sensible defaults (`~/Projects` as your workspace, `~/.claude/dev-notes` for decisions/learnings/roadmaps/freezes, memory-writing steps skipped, headless browser).
 
 ```bash
 mkdir -p ~/.config/operator-skills
 cp ~/operator-skills/config.example.yaml ~/.config/operator-skills/config.yaml   # then edit the paths
 ```
 
-The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operator-skills/config.yaml` if that's set). Each skill reads only its own top-level section — `/note` uses `knowledge:`, with one or more named vaults (path, inbox folder, optional conventions file, default frontmatter, routes, optional auto-commit). See [`config.example.yaml`](config.example.yaml). If the file is missing, `/note` shows the example and offers to create it rather than guessing a path.
+The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operator-skills/config.yaml` if that's set). It has four sections: `owner:` (your name/handle/voice guide), `paths:` (`projects`, `notes`, `memory`), `browser:` (headless vs. CDP for `/verify-app` and `/perf`), and `knowledge:` (one or more named vaults for `/note`). Each skill reads only the sections it needs. See [`config.example.yaml`](config.example.yaml) for the shape and [`docs/config.md`](docs/config.md) for every key, its default, which skills read it, and what happens with no config file. `/note` is the one skill that won't guess: if its `knowledge:` section is missing it shows the example and offers to create it.
 
 ## Skill Catalog
 
