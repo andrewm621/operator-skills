@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "onboarding-spec.schema.json",
+  "title": "Onboarding Spec (spec.yaml)",
+  "description": "Portable description of a product's onboarding: who the users are, the paths they take, the steps on each path, the signals that complete a step, and how success is measured. Required sections: spec_version, product, activation, segments, steps, events, measurement. Everything else is optional.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec_version", "product", "activation", "segments", "steps", "events", "measurement"],
+  "properties": {
+    "spec_version": { "const": 1, "description": "Schema version. Always 1 for this file." },
+    "notes": { "type": "string", "description": "Free text for the humans reading the file. Never read by tooling." },
+
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "one_liner", "audience"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "one_liner": { "type": "string", "minLength": 1 },
+        "audience": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "activation": {
+      "type": "object",
+      "description": "The moment a new user has got real value. activation_event is the headline metric; aha_event is an earlier milestone worth tracking separately when the two can differ (for example when a paywall sits between them).",
+      "additionalProperties": false,
+      "required": ["activation_event", "window_days"],
+      "properties": {
+        "aha_event": { "$ref": "#/$defs/eventName" },
+        "activation_event": { "$ref": "#/$defs/eventName" },
+        "window_days": { "type": "integer", "minimum": 1, "description": "How many days after signup the user has to activate to count." }
+      }
+    },
+
+    "intake": {
+      "type": "object",
+      "description": "Optional questions asked up front. Answers choose a segment and/or prefill later steps.",
+      "additionalProperties": false,
+      "required": ["questions"],
+      "properties": {
+        "questions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "type", "ask_at"],
+            "properties": {
+              "id": { "$ref": "#/$defs/id" },
+              "type": { "enum": ["single_select", "multi_select", "text", "number"] },
+              "ask_at": { "enum": ["before_first_action", "first_run", "after_first_action"] },
+              "skippable": { "type": "boolean" },
+              "options": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+              "maps_to": { "type": "array", "minItems": 1, "items": { "enum": ["segment", "prefill"] } },
+              "copy": { "type": "string", "description": "Key into copy.keys for the question text." }
+            }
+          }
+        }
+      }
+    },
+
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Groups of users who get different paths. Exactly one segment must be the default (match: default); it catches everyone nobody else matches.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "match"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "description": { "type": "string" },
+          "match": {
+            "description": "Either the word default, or a map from an intake answer (intake.<question id>) to the list of values that put a user in this segment.",
+            "anyOf": [
+              { "const": "default" },
+              {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "type": ["string", "number", "boolean"] }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+
+    "paths": {
+      "type": "array",
+      "description": "The ordered steps each segment walks through. Every non-default segment needs one.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["segment", "steps"],
+        "properties": {
+          "segment": { "$ref": "#/$defs/id" },
+          "entry": { "type": "string", "description": "Where the path starts, for example first_run." },
+          "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/id" } }
+        }
+      }
+    },
+
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One registry. Every surface (checklist, tour, email) reads the same step. A step is completed by a signal, never by a manual tick, unless manual is true and a reason is written down.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "surface"],
+        "description": "A step needs either completes_on, or manual: true with a manual_reason.",
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "title": { "type": "string" },
+          "surface": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "enum": ["checklist", "tour", "email", "prompt"] }
+          },
+          "completes_on": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["event"],
+            "properties": {
+              "event": { "$ref": "#/$defs/eventName" },
+              "where": { "type": "string", "description": "Plain-language condition on the event's properties, if any." }
+            }
+          },
+          "manual": { "type": "boolean" },
+          "manual_reason": { "type": "string", "minLength": 1, "description": "Why no signal can complete this step." },
+          "blocked_when": {
+            "type": "array",
+            "description": "States where the user cannot finish the step. Each one says what to show instead, so a progress counter never sticks.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["rule", "show"],
+              "properties": {
+                "rule": { "type": "string", "minLength": 1 },
+                "show": { "type": "string", "minLength": 1, "description": "Key into copy.keys, with or without a leading copy." }
+              }
+            }
+          },
+          "copy": { "type": "string", "description": "Key into copy.keys for the step's label." }
+        },
+        "anyOf": [
+          { "required": ["completes_on"] },
+          { "required": ["manual"], "properties": { "manual": { "const": true } } }
+        ],
+        "if": { "required": ["manual"], "properties": { "manual": { "const": true } } },
+        "then": { "required": ["manual_reason"] }
+      }
+    },
+
+    "tours": {
+      "type": "array",
+      "description": "Guided walkthroughs written as versioned data. Bump version when the steps change so users can be offered the new one.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "version", "steps"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "version": { "type": "integer", "minimum": 1 },
+          "auto_offer": { "enum": ["once", "always", "never"] },
+          "replay": { "type": "string", "description": "Where the user can start it again, for example help_menu." },
+          "steps": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "anchor", "copy"],
+              "properties": {
+                "id": { "$ref": "#/$defs/id" },
+                "anchor": { "type": "string", "minLength": 1, "description": "The screen element the step points at." },
+                "copy": { "type": "string", "minLength": 1, "description": "Key into copy.keys." },
+                "advance": { "enum": ["look", "do"], "description": "look: Next button. do: the user performs the action." },
+                "optional": { "type": "boolean" }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Every signal the spec relies on. exists says whether the product already emits it today.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "when", "exists"],
+        "properties": {
+          "name": { "$ref": "#/$defs/eventName" },
+          "when": { "type": "string", "minLength": 1, "description": "Plain-language description of when it fires." },
+          "props": { "type": "array", "items": { "type": "string" } },
+          "exists": { "type": "boolean" },
+          "source": { "type": "string", "description": "Where it is emitted today (file and line at the default branch), when exists is true." }
+        }
+      }
+    },
+
+    "emails": {
+      "type": "array",
+      "description": "Lifecycle messages. All copy is static; nothing is generated at send time.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "segment", "trigger", "goal", "copy"],
+        "properties": {
+          "id": { "$ref": "#/$defs/id" },
+          "segment": { "type": "string", "minLength": 1, "description": "A segment id, or * for everyone." },
+          "trigger": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["after"],
+            "properties": {
+              "after": { "$ref": "#/$defs/eventName" },
+              "delay": { "type": "string", "pattern": "^[0-9]+(m|h|d)$", "description": "For example 24h or 3d." },
+              "unless": {
+                "description": "Skip the email if the user has already done this event (or any of these events).",
+                "anyOf": [
+                  { "$ref": "#/$defs/eventName" },
+                  { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/eventName" } }
+                ]
+              }
+            }
+          },
+          "goal": { "type": "string", "minLength": 1 },
+          "copy": { "type": "string", "minLength": 1, "description": "Key into copy.keys." },
+          "suppress": { "type": "array", "items": { "type": "string" }, "description": "States that stop the email, for example activated or unsubscribed." },
+          "max_per_week": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+
+    "copy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "voice": { "type": "string", "description": "One line on tone, for example plain, no jargon." },
+        "keys": {
+          "type": "object",
+          "description": "Static text by key. Keys may be flat dotted strings or nested maps.",
+          "minProperties": 1
+        }
+      }
+    },
+
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["baseline", "target", "funnel"],
+      "properties": {
+        "baseline": {
+          "description": "Today's number, how it was measured, and over what period. Text is allowed when the number is not known yet.",
+          "anyOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["value"],
+              "properties": {
+                "value": { "type": ["string", "number"] },
+                "source": { "type": "string" },
+                "period": { "type": "string" }
+              }
+            }
+          ]
+        },
+        "target": { "type": "string", "minLength": 1 },
+        "window": { "type": "string", "description": "How long to watch a cohort before judging the result." },
+        "funnel": {
+          "type": "array",
+          "minItems": 2,
+          "description": "The stages from signup to activation, in order. Use event names or step ids.",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_-]*$", "description": "Lowercase letters, digits, underscore or hyphen; starts with a letter." },
+    "eventName": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "description": "snake_case event name." }
+  }
+}
