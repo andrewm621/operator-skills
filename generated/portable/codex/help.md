@@ -7,7 +7,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  47 custom commands
+ SKILL CATALOG  48 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -18,6 +18,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /log [text|view|wrap]    Daily work log — incremental entries, wrap-up (also one-off session notes)
  /freeze [topic|list|thaw|all] Context snapshot for cross-thread resumption
  /pre-mortem <decision>   Devil's-advocate council pre-mortem → ranked causes of death
+ /onboarding-spec <product> Design onboarding as a linted spec: brief → discover → design → critic
 
 ═══════════════════════════════════════════════════════════════
  AGENT ORCHESTRATION
@@ -106,6 +107,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  Big decision        /pre-mortem <decision> → resolve Tier 1 → decide
  Status report      /report <project or topic> → opens in browser
  Client collateral  fact sheet → /collateral-set → /motion-artifact for GIFs
+ Design onboarding  /onboarding-spec <product> → approve gates A, B, C → spec package
  Design system      /rebel-new-component → /parallel build-check all
  Cross-project      /search-all → /deps align → /parallel build-check
  Wire up feedback   /gleap install → /env-check → /gleap audit

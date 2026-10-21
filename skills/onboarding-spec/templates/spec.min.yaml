@@ -1,0 +1,38 @@
+# The smallest spec that passes the lint: one segment, one path, one step.
+# It uses sample values so it lints as-is. Copy it to <output dir>/spec.yaml,
+# replace every sample value, and grow it only where the product needs more.
+# Optional sections you can add later: intake, tours, emails, copy (and a notes string).
+
+spec_version: 1
+
+product:
+  name: Sample Product                  # replace
+  one_liner: One sentence on what it does.
+  audience: Who it is for.
+
+activation:
+  activation_event: first_item_created  # the moment a new user has got real value
+  window_days: 7
+
+segments:
+  - id: everyone
+    match: default                      # exactly one default segment is required
+
+paths:
+  - segment: everyone
+    entry: first_run
+    steps: [create_first_item]
+
+steps:
+  - id: create_first_item
+    surface: [checklist]                # checklist | tour | email | prompt
+    completes_on: {event: first_item_created}
+
+events:
+  - {name: signup_completed, when: "a new account is created", exists: false}
+  - {name: first_item_created, when: "the user saves their first item", exists: false}
+
+measurement:
+  baseline: not yet measured
+  target: What improvement counts as success.
+  funnel: [signup_completed, first_item_created]

@@ -68,6 +68,7 @@ const CLAUDE_ONLY = new Set([
   "email-triage",
   "collateral-set",
   "ai-export",
+  "onboarding-spec",
 ]);
 
 /**

@@ -5,7 +5,7 @@
 
 ---
 
-You have 44 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 45 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -25,6 +25,7 @@ You have 44 operator skills for software projects. Use them when a user's reques
 | `/invert` | Red-team via parallel failure-lens agents (Munger's inversion) |
 | `/pre-mortem` | Devil's-advocate council pre-mortem on a decision — ranked causes of death |
 | `/log` | Daily work log — timestamped entries + wrap-up |
+| `/onboarding-spec` | Design a product's onboarding as a portable, linted spec: brief, discover, design, critic, spec (spec-only) |
 | `/test` | Auto-detect framework, run tests, parse failures |
 | `/pr-review` | Structured review: security, logic, patterns, breaking changes |
 | `/deps` | Audit vulns, update packages, align versions |
@@ -99,12 +100,13 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 | Export AI threads | `/ai-export chatgpt <project URL>` → approve the download → converted notes + raw archive → file into the vault |
 | Show a feature | `/motion-artifact <feature> gif` → preview → render → paste into Slack or the release note |
 | Client collateral | fact sheet → `/collateral-set <client>` → approve anchor → fan-out → gate → publish → `/motion-artifact` for any GIF cut |
+| Design onboarding | `/onboarding-spec <product>` → approve activation + segments → approve structure → critic → approve the spec |
 
 ---
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 44, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 45, see the uploaded Knowledge file.
 
 ### /orchestrate
 

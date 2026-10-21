@@ -1,0 +1,163 @@
+# Example onboarding spec for an invented product. Tallyho is a fictional
+# invoicing app; nothing here describes a real company or codebase.
+# Check it with:  node lint.mjs examples/tallyho.spec.yaml
+
+spec_version: 1
+
+product:
+  name: Tallyho
+  one_liner: Send a professional invoice in two minutes and get paid by card or bank transfer.
+  audience: Freelancers and very small agencies who invoice from a spreadsheet today.
+
+activation:
+  aha_event: first_invoice_previewed     # they see their invoice looking right
+  activation_event: first_invoice_sent   # headline metric
+  window_days: 7
+
+intake:
+  questions:
+    - id: work_type
+      type: single_select
+      ask_at: before_first_action
+      skippable: true
+      copy: intake.work_type
+      options: [freelancer, agency, other]
+      maps_to: [segment, prefill]
+    - id: invoices_per_month
+      type: single_select
+      ask_at: before_first_action
+      skippable: true
+      copy: intake.invoices_per_month
+      options: [fewer_than_5, 5_to_20, more_than_20]
+      maps_to: [prefill]
+
+segments:
+  - id: freelancers
+    description: One person billing clients for hours or projects.
+    match:
+      intake.work_type: [freelancer]
+  - id: agencies
+    description: A small team that needs to bill a client for several people's work.
+    match:
+      intake.work_type: [agency]
+  - id: unknown
+    description: Skipped the question or chose other.
+    match: default
+
+paths:
+  - segment: freelancers
+    entry: first_run
+    steps: [add_business_details, add_first_client, preview_invoice, send_invoice, connect_payments, invite_accountant]
+  - segment: agencies
+    entry: first_run
+    steps: [add_business_details, add_first_client, add_team_rates, preview_invoice, send_invoice, connect_payments, invite_accountant]
+  - segment: unknown
+    entry: first_run
+    steps: [add_business_details, add_first_client, preview_invoice, send_invoice]
+
+steps:
+  - id: add_business_details
+    title: Add your business details
+    surface: [checklist, tour]
+    copy: step.add_business_details
+    completes_on: {event: business_details_saved}
+  - id: add_first_client
+    title: Add your first client
+    surface: [checklist, email]
+    copy: step.add_first_client
+    completes_on: {event: client_created}
+  - id: add_team_rates
+    title: Set hourly rates for your team
+    surface: [checklist]
+    copy: step.add_team_rates
+    completes_on: {event: team_rate_saved}
+  - id: preview_invoice
+    title: Preview your first invoice
+    surface: [checklist, tour]
+    copy: step.preview_invoice
+    completes_on: {event: first_invoice_previewed}
+  - id: send_invoice
+    title: Send your first invoice
+    surface: [checklist, email, prompt]
+    copy: step.send_invoice
+    completes_on: {event: first_invoice_sent}
+    blocked_when:
+      - {rule: email_not_verified, show: copy.send_blocked_unverified}
+  - id: connect_payments
+    title: Turn on card payments
+    surface: [checklist]
+    copy: step.connect_payments
+    completes_on: {event: payments_connected}
+    blocked_when:
+      - {rule: payments_not_available_in_country, show: copy.payments_unavailable}
+  - id: invite_accountant
+    title: Invite your accountant
+    surface: [checklist]
+    copy: step.invite_accountant
+    manual: true
+    manual_reason: Tallyho cannot see whether an accountant outside the app has been told; the user ticks it themselves.
+
+tours:
+  - id: first-invoice
+    version: 1
+    auto_offer: once
+    replay: help_menu
+    steps:
+      - {id: details_form, anchor: settings.business_form, copy: tour.first_invoice.1, advance: do}
+      - {id: preview_button, anchor: invoice.preview_button, copy: tour.first_invoice.2, advance: do}
+      - {id: send_button, anchor: invoice.send_button, copy: tour.first_invoice.3, advance: look, optional: true}
+
+events:
+  - {name: signup_completed, when: "a new account is created", props: [account_id], exists: true, source: "api/accounts.ts:88"}
+  - {name: business_details_saved, when: "the business form is saved with a name and address", props: [account_id], exists: false}
+  - {name: client_created, when: "the first client is saved", props: [account_id, client_id], exists: true, source: "api/clients.ts:41"}
+  - {name: team_rate_saved, when: "the first team rate is saved", props: [account_id], exists: false}
+  - {name: first_invoice_previewed, when: "an invoice preview is opened for the first time", props: [account_id, invoice_id], exists: false}
+  - {name: first_invoice_sent, when: "the account's first invoice is delivered", props: [account_id, invoice_id], exists: true, source: "api/invoices.ts:212"}
+  - {name: payments_connected, when: "card payments are switched on", props: [account_id], exists: true, source: "api/payments.ts:67"}
+  - {name: invoice_draft_started, when: "a draft invoice is created", props: [account_id], exists: true, source: "api/invoices.ts:120"}
+
+emails:
+  - id: nudge_no_client
+    segment: "*"
+    trigger: {after: signup_completed, delay: 24h, unless: client_created}
+    goal: first_client
+    copy: email.nudge_no_client
+    suppress: [activated, unsubscribed]
+    max_per_week: 2
+  - id: nudge_not_sent
+    segment: "*"
+    trigger: {after: first_invoice_previewed, delay: 48h, unless: first_invoice_sent}
+    goal: first_invoice_sent
+    copy: email.nudge_not_sent
+    suppress: [activated, unsubscribed]
+    max_per_week: 1
+
+copy:
+  voice: Plain and friendly. Short sentences. No accounting jargon.
+  keys:
+    intake.work_type: What kind of work do you invoice for?
+    intake.invoices_per_month: Roughly how many invoices do you send a month?
+    step.add_business_details: Add your business name and address
+    step.add_first_client: Add the first person or company you bill
+    step.add_team_rates: Set an hourly rate for each person on your team
+    step.preview_invoice: See what your invoice will look like
+    step.send_invoice: Send your first invoice
+    step.connect_payments: Let clients pay by card or bank transfer
+    step.invite_accountant: Invite your accountant so they can see your invoices
+    send_blocked_unverified: Confirm your email address first. We have sent you a link.
+    payments_unavailable: Card payments are not available in your country yet. You can still send invoices and get paid by bank transfer.
+    tour.first_invoice.1: Start here. Your name and address appear at the top of every invoice.
+    tour.first_invoice.2: Click Preview to see exactly what your client will receive.
+    tour.first_invoice.3: When it looks right, Send delivers it by email.
+    email.nudge_no_client: Your first invoice is one client away. Add a client and Tallyho fills in the rest.
+    email.nudge_not_sent: You have an invoice ready to go. Send it today and you could be paid this week.
+
+measurement:
+  baseline:
+    value: not yet measured
+    source: signup_completed to first_invoice_sent, per signup cohort
+    period: last 90 days before launch
+  target: Raise the share of new accounts that send an invoice within 7 days, set once the baseline is known.
+  window: 4 weeks of signups after launch, compared with the 4 weeks before
+  funnel: [signup_completed, business_details_saved, client_created, first_invoice_previewed, first_invoice_sent]
