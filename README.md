@@ -2,7 +2,7 @@
 
 **Claude slash commands for people who build things.**
 
-46 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
+44 custom skills that turn Claude into a full operating system for software projects. Not demos — the actual commands I use daily to run 50+ projects across Next.js, Vite, Cloudflare Workers, and Turborepo monorepos.
 
 They started as one-off prompts, became reusable slash commands, then became a system where skills call other skills — roadmaps feed into phases, phases feed into todos, todos feed into parallel agents, and everything gets logged. This is that system, open-sourced.
 
@@ -23,7 +23,7 @@ Open Cowork and send this message:
 
 > Clone https://github.com/andrewm621/operator-skills.git to ~/operator-skills and symlink the skills directory to ~/.claude/skills/operator
 
-Claude runs the commands for you. Type `/` to see all 46 skills in autocomplete.
+Claude runs the commands for you. Type `/` to see all 44 skills in autocomplete.
 
 See [`docs/cowork-setup-guide.md`](docs/cowork-setup-guide.md) for manual install and optional Global Instructions.
 
@@ -34,15 +34,28 @@ git clone https://github.com/andrewm621/operator-skills.git ~/operator-skills
 ln -s ~/operator-skills/skills ~/.claude/skills/operator
 ```
 
-Type `/` in a new session to see all 46 skills.
+Type `/` in a new session to see all 44 skills.
 
-### Every agent at once (Claude Code, Codex, Cursor, Grok)
+### Every agent at once (Claude Code, Codex, Cursor, Grok, Delta, Zed)
 
 ```bash
 ./install-global.sh            # add --dry-run to preview
 ```
 
-Symlinks each skill folder into `~/.codex/skills/` and `~/.cursor/skills/`, and refreshes the frontmatter-stripped copies in `~/.claude/commands/`. Grok scans both `~/.claude/commands` and `~/.cursor/skills`, so it needs nothing extra. Anything it would replace is moved to a dated `*-backup/` folder first. Re-run after adding or renaming a skill.
+Symlinks each skill folder into `~/.codex/skills/`, `~/.cursor/skills/` and `~/.agents/skills/` (the Agent Skills location Delta and Zed read; set `AGENTS_SKILLS_DIR` to move it), and refreshes the frontmatter-stripped copies in `~/.claude/commands/`. Grok scans both `~/.claude/commands` and `~/.cursor/skills`, so it needs nothing extra. Anything it would replace in the Codex/Cursor/Claude locations is moved to a dated `*-backup/` folder first; in `~/.agents/skills` it only replaces its own links and warns about (and skips) everything else. Re-run after adding or renaming a skill.
+
+The script also prunes after removed skills. Symlinks in the three link locations that point into this repo's `skills/` but no longer resolve are moved to the backup folder (links to anywhere else are never touched). For `~/.claude/commands`, it records what it installed in `~/.claude/commands/.operator-skills-manifest` and, when a skill disappears from the repo, moves its `<name>.md` to `~/.claude/commands-backup/` — but only if the file is still byte-identical to what it installed. Your own commands and other tools' commands are never in the manifest, so they are never touched; an edited copy is skipped with a warning. (A first run with no manifest prunes only the four skills removed before the manifest existed: `db-status`, `session-notes`, `parallel-check`, `notion-ctx`.)
+
+### Per-user config (optional)
+
+Skills that need to know something about *your* setup read it from one file outside the repo, so nothing personal is ever committed. Every key is optional: with no file at all, skills fall back to sensible defaults (`~/Projects` as your workspace, `~/.claude/dev-notes` for decisions/learnings/roadmaps/freezes, memory-writing steps skipped, headless browser).
+
+```bash
+mkdir -p ~/.config/operator-skills
+cp ~/operator-skills/config.example.yaml ~/.config/operator-skills/config.yaml   # then edit the paths
+```
+
+The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operator-skills/config.yaml` if that's set). Its sections are `owner:` (your handle and voice guide), `paths:` (`projects`, `notes`, `memory`), `browser:` (headless vs. CDP for `/verify-app` and `/perf`), `knowledge:` (one or more named vaults for `/note`), and per-skill blocks for `/email-triage`, `/slack-ctx` + `/slack-reply`, and `/ai-export`. Each skill reads only the sections it needs. See [`config.example.yaml`](config.example.yaml) for the shape and [`docs/config.md`](docs/config.md) for every key, its default, which skills read it, and what happens with no config file. `/note` is the one skill that won't guess: if its `knowledge:` section is missing it shows the example and offers to create it.
 
 ## Skill Catalog
 
@@ -51,23 +64,24 @@ Symlinks each skill folder into `~/.codex/skills/` and `~/.cursor/skills/`, and 
 | Skill | What it does | Example |
 |-------|-------------|---------|
 | `/orchestrate` | Decompose a goal, route each piece to the best specialist, run parallel/pipeline, gate, report | `/orchestrate ship the billing page: research, build, review` |
-| `/maestro` | Cross-provider command deck — durable task board (create, claim, sync) any terminal or provider can pick up | `/maestro new "Refactor auth" --repo liberty-networking` |
-| `/parallel` | Run tasks simultaneously, aggregate results | `/parallel research Stripe billing \| check build \| verify localhost:3000` |
+| `/maestro` | Cross-provider command deck — durable task board (create, claim, sync) any terminal or provider can pick up | `/maestro new "Refactor auth" --repo web-app` |
+| `/parallel` | Run tasks simultaneously, aggregate results; `build-check` fans out build/type-check agents over every consumer of a shared package | `/parallel research Stripe billing \| check build \| verify localhost:3000` |
+| `/handoff` | Hand a bounded task to Codex (or another agent) as a well-scoped GitHub issue — acceptance criteria, file pointers, constraints | `/handoff add rate limiting to the API` |
 | `/subagent` | Dispatch a background agent to explore + implement | `/subagent add email notifications to the API` |
 | `/research` | Background research — structured findings while you keep working | `/research Drizzle ORM migration API` |
-| `/switch` | Context switch into any project with full orientation | `/switch agencyos` |
+| `/switch` | Context switch into any project with full orientation | `/switch web-app` |
 | `/freeze` | Snapshot full context for cross-thread resumption | `/freeze` to save, `/freeze thaw` to resume |
 
 ### Planning
 
 | Skill | What it does | Example |
 |-------|-------------|---------|
-| `/roadmap` | Socratic brainstorm → phased roadmap with tasks and dependencies | `/roadmap agencyos v2 launch` |
+| `/roadmap` | Socratic brainstorm → phased roadmap with tasks and dependencies | `/roadmap web-app v2 launch` |
 | `/phases` | Visual roadmap progress with phase indicators | `/phases` |
 | `/todo` | Task management — add, complete, skip, reprioritize | `/todo done 2.3` |
 | `/invert` | Red-team via 5 parallel failure-lens agents (Munger's inversion) | `/invert the checkout flow` |
 | `/pre-mortem` | Devil's-advocate council pre-mortem on a decision — ranked causes of death | `/pre-mortem should I sign this client` |
-| `/log` | Daily work log — timestamped entries + end-of-day wrap-up | `/log` or `/log wrap` |
+| `/log` | Daily work log — timestamped entries + end-of-day wrap-up (also covers one-off session notes) | `/log` or `/log wrap` |
 
 ### Code Quality
 
@@ -78,7 +92,6 @@ Symlinks each skill folder into `~/.codex/skills/` and `~/.cursor/skills/`, and 
 | `/deps` | Audit vulns, update packages, align versions across projects | `/deps align stripe` |
 | `/perf` | Lighthouse + bundle size + Core Web Vitals | `/perf` |
 | `/project-health` | One-shot audit: security + deps + build + lint + types | `/project-health` |
-| `/parallel-check` | Verify a shared dependency change doesn't break consumers | `/parallel-check all` |
 
 ### Scaffolding & Architecture
 
@@ -99,10 +112,9 @@ Symlinks each skill folder into `~/.codex/skills/` and `~/.cursor/skills/`, and 
 | `/git-sync` | Full git report — branches, ahead/behind, stashes, conflicts | `/git-sync` |
 | `/changelog` | Categorized changelog from git commits since a tag | `/changelog v1.2.0` |
 | `/env-check` | Compare expected vs actual env vars (never displays secrets) | `/env-check` |
-| `/db-status` | Database connection, migration status, table inventory | `/db-status` |
-| `/migrate` | Full migration workflow — generate, review, apply, rollback | `/migrate generate` |
+| `/migrate` | Full migration workflow — generate, review, apply, rollback; `status` is the read-only connection + migration check | `/migrate generate` |
 | `/port-check` | What's running on dev ports + project identification | `/port-check` |
-| `/verify-app` | Browser-based app verification via CDP — screenshots + errors | `/verify-app` |
+| `/verify-app` | Browser-based app verification with `agent-browser` (headless, or your own browser over CDP) — screenshots + errors | `/verify-app` |
 | `/test-desktop-app` | Test a local macOS desktop app (Tauri first) without stealing focus — layered ladder, focus policy, guardrails, reporting | `/test-desktop-app the unsaved-changes modal focuses Cancel` |
 | `/gleap` | Gleap feedback SDK + REST API — install, query, audit an integration | `/gleap audit` |
 
@@ -111,16 +123,15 @@ Symlinks each skill folder into `~/.codex/skills/` and `~/.cursor/skills/`, and 
 | Skill | What it does | Example |
 |-------|-------------|---------|
 | `/learn` | Catalog lessons learned — gotchas, quirks, searchable index | `/learn recall supabase auth` |
-| `/session-notes` | End-of-session snapshot — what was done, decisions, next steps | `/session-notes` |
+| `/note` | Add a note to your knowledge base (local Markdown vault) — follows the vault's conventions, routes, dedupes, never overwrites | `/note ref: Postgres advisory locks cheat sheet` |
 | `/document` | Write to dev-notes, Notion, inline docs, or README | `/document decision: why we chose Drizzle` |
 | `/search-all` | Cross-project search for code, files, or packages | `/search-all pkg:stripe` |
 | `/ai-export` | Export AI chat threads (ChatGPT verified; Claude.ai/Grok unverified) from your logged-in browser to markdown, archive the raw JSON, file into your vault | `/ai-export chatgpt <project URL> --since 2026-10-13` |
 | `/email-triage` | Triage Gmail into a two-axis urgency × context report — read-only, never labels/archives/sends | `/email-triage 30d` |
 | `/help` | Cheat sheet of all skills with quick combos | `/help` |
-| `/notion` | Sync notes and decisions to a Notion workspace | `/notion note "Shipped auth flow"` |
-| `/notion-ctx` | Per-project Notion doc registry with cached summaries | `/notion-ctx sync` |
-| `/slack-reply` | Draft a Slack reply in your voice — resolves the thread, stages a draft | `/slack-reply josh re: the UTI timeline` |
-| `/slack-ctx` | Local Slack directory — people, channels, threads, cached ids | `/slack-ctx save <url> josh` |
+| `/notion` | Sync notes and decisions to a Notion workspace; `/notion ctx` keeps a registry of cached page summaries | `/notion note "Shipped auth flow"` |
+| `/slack-reply` | Draft a Slack reply in your voice — resolves the thread, stages a draft | `/slack-reply jane re: the Acme timeline` |
+| `/slack-ctx` | Local Slack directory — people, channels, threads, cached ids | `/slack-ctx save <url> jane` |
 
 ## How They Compose
 
@@ -137,7 +148,7 @@ This is the smart layer above the rest. `/orchestrate` decomposes the goal, pick
 ### Pattern 2: Parallel Everything
 
 ```
-/parallel research Stripe billing | check agencyos build | verify localhost:3000
+/parallel research Stripe billing | check web-app build | verify localhost:3000
 ```
 
 This spawns three independent agents simultaneously. One researches an API, one runs a build, one verifies a running app. Results come back aggregated with pass/fail status and timing. No waiting for sequential execution.
@@ -145,7 +156,7 @@ This spawns three independent agents simultaneously. One researches an API, one 
 ### Pattern 3: Plan, Execute, Track
 
 ```
-/roadmap agencyos v2 launch
+/roadmap web-app v2 launch
 ```
 
 This kicks off a Socratic brainstorming session — three rounds of structured questions that challenge assumptions and probe edges. The output is a phased roadmap with tasks, priorities, effort estimates, and unknowns.
@@ -185,7 +196,7 @@ The [`.claude/CLAUDE.md`](.claude/CLAUDE.md) template shows how skills wire toge
 ## Customization
 
 - **Paths** — Several skills reference `~/Projects/`. Adapt to your directory structure.
-- **Notion** — `/notion` and `/notion-ctx` need a Notion MCP server. Skip them if you don't use Notion.
+- **Notion** — `/notion` (including `/notion ctx`) needs a Notion MCP server. Skip it if you don't use Notion.
 - **Browser tools** — `/verify-app` and `/perf` use Chrome DevTools Protocol (any Chromium browser on port 9222). These are Claude Code-specific.
 - **`/scaffold`** — Opinionated toward my stack (Next.js, Neon, Drizzle). Fork the templates for yours.
 
@@ -193,13 +204,13 @@ The best skills are the ones you modify to match how you actually work.
 
 ## Contributing
 
-Adding or editing a skill? See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short version: a skill is registered in six places (the `SKILL.md`, the README catalog + count, both Claude.ai docs, the Cowork guide, and the `/help` cheat sheet), and `docs/claude-ai-skill-reference.md` is a verbatim mirror of the skill bodies — keep them in sync or the web version drifts. The checklist and a verify script are in that file.
+Adding or editing a skill? See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short version: a skill is registered on several surfaces (the `SKILL.md`, the README catalog + count, both Claude.ai docs, the Cowork guide, the `/help` cheat sheet, and the generated adapters), and `docs/claude-ai-skill-reference.md` is a verbatim mirror of the skill bodies. Run `node verify-adapters.mjs` before committing — it fails on any drift between them.
 
 ## Platform Compatibility
 
 | Feature | Code (CLI) | Cowork (Desktop) | Claude.ai (Web) |
 |---------|-----------|-----------------|-----------------|
-| All 46 skills | Full | Full | Full |
+| All 44 skills | Full | Full | Full |
 | `/` autocomplete | Native | Native | Manual invoke |
 | Subagent spawning | Full | Full | Simulated |
 | File system access | Full | Full | Via Knowledge files |

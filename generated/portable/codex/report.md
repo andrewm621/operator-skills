@@ -14,7 +14,7 @@ Parse `$ARGUMENTS` to determine what the user wants. The input can be:
 |-----------|---------|--------|
 | Topic / description | "Builder's Loft launch week" | Gather context from project files, Notion, calendar, etc. |
 | File path(s) | "from ROADMAP.md and package.json" | Read specified files and visualize their content |
-| Glob pattern | "notes/research/strata/*.md" | Read matching files and synthesize |
+| Glob pattern | "notes/research/acme/*.md" | Read matching files and synthesize |
 | Data dump | (user pastes data in the conversation) | Structure and visualize the provided data |
 | Empty | (no args) | Ask: "What should this report cover? Give me a topic, file paths, or describe what you want to see." |
 
@@ -838,7 +838,7 @@ Add additional JS as needed for the specific report (search, custom filters, cal
 
 1. **Determine save location:**
    - If inside a project: save to `reports/[slug]-report.html` (create `reports/` dir if needed)
-   - If a `notes/dashboards/` dir exists (AI Agent Teams): save there for backward compatibility
+   - If a `notes/dashboards/` dir already exists: save there for backward compatibility
    - Fallback: save to current directory as `[slug]-report.html`
 
 2. **Generate filename:** Slugify the topic. Examples:

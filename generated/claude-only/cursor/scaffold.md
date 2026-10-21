@@ -1,8 +1,10 @@
 # scaffold
 
-Create a new project from templates tuned to your stack conventions. Scaffolds full project structure with framework, database, auth, and design system pre-wired.
+Create a new project from templates tuned to your stack conventions. Scaffolds full project structure with framework, database, auth, and UI kit pre-wired.
 
 Arguments: {the text you type after the command} (project name + optional template: "next", "vite", "api", "monorepo", or a description)
+
+**Config:** `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`) — see `docs/config.md`. `<projects>` below is that directory (expand `~` before using it in Bash); a missing file or key means the default.
 
 ## Steps
 
@@ -10,7 +12,7 @@ Arguments: {the text you type after the command} (project name + optional templa
 
    **a) Project name:** First word or quoted string (e.g., `my-app`, `"cool project"`)
    - Slugify for directory name: lowercase, hyphens, no spaces
-   - Target directory: `~/Projects/<slug>/`
+   - Target directory: `<projects>/<slug>/`
    - If directory already exists, warn and stop
 
    **b) Template:** Infer from remaining arguments or ask:
@@ -27,7 +29,7 @@ Arguments: {the text you type after the command} (project name + optional templa
 2. **Gather preferences** — Use AskUserQuestion with 3-4 questions:
 
    **Question 1 — Database:**
-   - Neon Postgres + Drizzle (recommended — matches most projects)
+   - Neon Postgres + Drizzle (recommended default)
    - Supabase (if project needs realtime or Supabase Auth)
    - None (static site or client-only)
 
@@ -38,9 +40,9 @@ Arguments: {the text you type after the command} (project name + optional templa
    - None
 
    **Question 3 — UI:**
-   - @rebel/ui (shared design system — auto-wires with `/setup-rebel-ui` patterns)
-   - shadcn/ui (standalone, `npx shadcn@latest init`)
+   - shadcn/ui (recommended default — standalone, `npx shadcn@latest init`)
    - Tailwind only (minimal)
+   - @rebel/ui (shared design system) — **offer this only if it's detected**: `<projects>/design-system/template/` exists, or a sibling project in `<projects>` depends on `@rebel/ui`. Otherwise don't mention it.
 
    **Question 4 — Extras (multi-select feel — list as options):**
    - Stripe (payments/billing)
@@ -54,14 +56,14 @@ Arguments: {the text you type after the command} (project name + optional templa
 
    **For `next` template:**
    ```bash
-   cd ~/Projects
+   cd <projects>
    npx create-next-app@latest <slug> --typescript --tailwind --app --src-dir --import-alias "@/*" --turbopack
    cd <slug>
    ```
 
    **For `vite` template:**
    ```bash
-   cd ~/Projects
+   cd <projects>
    npm create vite@latest <slug> -- --template react-ts
    cd <slug>
    npm install
@@ -70,7 +72,7 @@ Arguments: {the text you type after the command} (project name + optional templa
 
    **For `api` template:**
    ```bash
-   cd ~/Projects
+   cd <projects>
    mkdir <slug> && cd <slug>
    npm init -y
    npm install hono
@@ -80,7 +82,7 @@ Arguments: {the text you type after the command} (project name + optional templa
 
    **For `monorepo` template:**
    ```bash
-   cd ~/Projects
+   cd <projects>
    npx create-turbo@latest <slug> --package-manager pnpm
    cd <slug>
    ```
@@ -123,14 +125,14 @@ Arguments: {the text you type after the command} (project name + optional templa
 
 6. **Wire up UI** (if selected):
 
-   **@rebel/ui:**
-   - Follow the exact same steps as `/setup-rebel-ui` — add link dependency, configure globals.css with theme bridge block, set up layout.tsx with providers
-   - Read the template files from `~/Projects/design-system/template/`
-
-   **shadcn/ui:**
+   **shadcn/ui (default):**
    ```bash
    npx shadcn@latest init -d
    ```
+
+   **@rebel/ui (only if selected, which requires it was detected in step 2):**
+   - If you have the `/setup-rebel-ui` skill installed, follow the same steps — add link dependency, configure globals.css with theme bridge block, set up layout.tsx with providers
+   - Read the template files from `<projects>/design-system/template/`
 
 7. **Wire up extras:**
 
@@ -187,7 +189,7 @@ Arguments: {the text you type after the command} (project name + optional templa
    3. `npm run dev`
 
    ## Conventions
-   <inherit from ~/Projects/CLAUDE.md>
+   <inherit from `<projects>/CLAUDE.md` if it exists; otherwise omit this section>
    ```
 
    **d) Initialize git:**
@@ -200,9 +202,9 @@ Arguments: {the text you type after the command} (project name + optional templa
 9. **Report** — Show what was created:
 
    ```
-    SCAFFOLD  <project-name> created at ~/Projects/<slug>/
+    SCAFFOLD  <project-name> created at <projects>/<slug>/
 
-    Stack: Next.js 16 + Neon/Drizzle + Clerk + @rebel/ui + Stripe
+    Stack: Next.js 16 + Neon/Drizzle + Clerk + shadcn/ui + Stripe
 
     Structure:
     <slug>/
@@ -230,8 +232,8 @@ Arguments: {the text you type after the command} (project name + optional templa
    ```
 
 ## Notes
-- This skill creates a project that matches the conventions in `~/Projects/CLAUDE.md`: async request APIs, function declarations, semantic tokens, `cn()` utility, etc.
-- For @rebel/ui projects, reads templates from `~/Projects/design-system/template/` to get the canonical globals.css and layout.tsx
+- This skill creates a project that matches the conventions in `<projects>/CLAUDE.md` if you have one (otherwise the usual Next.js 16 defaults): async request APIs, function declarations, semantic tokens, `cn()` utility, etc.
+- @rebel/ui is an optional extra for people who use that design system; it is only offered when detected, and then reads templates from `<projects>/design-system/template/` to get the canonical globals.css and layout.tsx
 - After scaffolding, suggest `/switch <project>` to enter the new project context
 - For monorepo template, suggest naming workspace packages with `@<project>/` prefix
 - The scaffold includes a `CLAUDE.md` because every project should have one — it inherits cross-project conventions and adds project-specific details

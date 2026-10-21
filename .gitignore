@@ -2,3 +2,9 @@
 
 # Generated reports (build artifacts, not source)
 reports/
+
+# Claude Code agent worktrees
+.claude/worktrees/
+
+# Python bytecode
+__pycache__/

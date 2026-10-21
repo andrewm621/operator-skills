@@ -31,7 +31,7 @@ Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `
 
    **If the row says `Workflow`, stop and author a Workflow script instead** (see the Workflow tool). Note that the Workflow tool requires explicit opt-in — if the user hasn't opted in, briefly describe the workflow you'd run and ask. Do not silently downgrade a Workflow-grade job into a fragile flat fan-out.
 
-3. **Route each task to a specialist** — Match the task to the richest-fit named agent, not a generic one. Named specialists carry their own system prompts and conventions — they beat `general-purpose` on quality.
+3. **Route each task to a specialist** — Match the task to the richest-fit named agent, not a generic one. Named specialists carry their own system prompts and conventions — when they exist they beat `general-purpose` on quality. The names below are conventions, not guarantees: **if an agent type isn't available in your setup, use `general-purpose` (or `Explore` for read-only search, `Plan` for planning) with the same brief** — same task, same context pointers, same output format.
 
    | Task is about… | `agentType` | Notes |
    |---|---|---|
@@ -84,7 +84,7 @@ Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `
 ## Notes
 - This skill is orchestration made explicit. Reach for it whenever the work is substantive and multi-step; use `/parallel` for a quick flat fan-out you've already scoped, and `/subagent` for a single fire-and-forget change.
 - The graduation rule (step 2) is the point of this skill: don't force loops, conditionals, large pipelines, or resume/budget needs through prose orchestration — that's what the `Workflow` tool exists for. And don't reach for `Workflow` on a 3-task fan-out — that's over-engineering.
-- Specialist routing (step 3) is the quality lever. The named agents exist precisely so we stop spawning blank `general-purpose` agents for work that has a better-fit owner.
+- Specialist routing (step 3) is the quality lever. Named agents, where you have them, exist so you stop spawning blank `general-purpose` agents for work that has a better-fit owner; where you don't, the fallback keeps the same brief and the routing still works.
 - Respect autonomy boundaries: research/read is autonomous; anything that sends, publishes, spends, deploys, or is hard to reverse needs the user's approval — even when a subagent could technically do it.
 - Max ~5 agents per *visible* fan-out (rollup legibility, not a system limit). Need more concurrent units than that? That's a `Workflow` (its real cap is ~14 concurrent, 1000 lifetime).
 - Hand every agent context pointers (step 5). This is non-negotiable and is the most common reason a delegation comes back shallow.

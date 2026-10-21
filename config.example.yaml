@@ -1,0 +1,74 @@
+# operator-skills per-user config
+#
+# Copy to ~/.config/operator-skills/config.yaml
+# (or $XDG_CONFIG_HOME/operator-skills/config.yaml if XDG_CONFIG_HOME is set).
+# This file lives outside the repo so your paths never get committed.
+# Every key is optional: a skill falls back to the default shown here when a key
+# (or the whole file) is missing. Skills read only the sections they need and
+# never rewrite sections that aren't theirs. Full key reference: docs/config.md.
+
+# Who you are — used where a skill drafts in your voice or assigns work to you.
+owner:
+  handle: yourname               # default: $USER — task/board assignee handle
+  voice_guide:                   # optional: path to your writing-style guide
+
+# Where things live.
+paths:
+  projects: ~/Projects           # default: ~/Projects — workspace root holding your projects
+  notes: ~/.claude/dev-notes     # default: ~/.claude/dev-notes — dev-notes root
+                                 #   (decisions/ learnings/ sessions/ freezes/ roadmaps/ INDEX.md)
+  memory:                        # optional: workspace memory dir (e.g. Claude Code auto-memory)
+
+# How browser-driving skills (/verify-app, /perf) reach a browser.
+browser:
+  mode: headless                 # default: headless — agent-browser launches its own browser
+                                 #   cdp — attach to your running browser over DevTools Protocol
+  cdp_port: 9222                 # used when mode: cdp
+  launch_cmd:                    # optional: command that starts your CDP browser
+  agent_browser_config:          # optional: agent-browser --config file to use in cdp mode
+
+# /note — add a note to your knowledge base (a local Markdown vault:
+# Obsidian, Tolaria, Logseq, or a plain folder).
+knowledge:
+  default: personal              # vault used when --vault is not given
+  vaults:
+    personal:
+      path: ~/notes              # required: the vault's root folder
+      inbox: 00-Inbox            # where new notes land unless routed (relative to path)
+      conventions: AGENTS.md     # optional: vault file to read before writing (rules, frontmatter types)
+      frontmatter:               # optional: defaults merged into every note
+        type: Note
+      commit: false              # true = git add + commit the note after writing (never push)
+      routes:                    # optional: kind -> folder (relative to path)
+        project: 01-Projects
+        reference: 03-Resources
+
+    # More vaults are allowed; pick one with: /note --vault work <text>
+    # work:
+    #   path: ~/work-notes
+    #   inbox: Inbox
+
+# /email-triage — context it reads before ranking mail, and where the report goes.
+email_triage:
+  context: []                    # default: [<paths.memory>/MEMORY.md] if paths.memory is set, else none
+                                 #   files or globs listing clients, active deals, standing commitments
+                                 #   e.g. context: [~/notes/clients.md, ~/notes/projects/*.md]
+  report_dir:                    # default: the default vault's inbox (knowledge.*), else the current directory
+  known_noise: []                # optional: extra sender addresses to always treat as NOISE
+  always_surface: []             # optional: extra sender addresses/subjects to never fold into NOISE
+
+# /slack-ctx and /slack-reply — the local Slack directory (people, channels, threads).
+slack:
+  registry: ~/.config/operator-skills/slack/registry.yaml   # default shown — source of truth, written by /slack-ctx
+  mirror_dir:                    # default: the default vault's routes.reference folder (else vault root);
+                                 #   holds slack-directory.md (generated) and slack-reply-log.md.
+                                 #   No vault configured = mirror and reply log are skipped.
+
+# /ai-export — where browser downloads land and where raw JSON is archived.
+# (Notes are filed into the default vault under knowledge:.)
+ai_export:
+  downloads:                     # default: $AI_EXPORT_DOWNLOADS, else ask — your browser's download folder
+  archive:                       # default: $AI_EXPORT_ARCHIVE, else ask — root with <platform>/raw/ beneath it
+
+# Also read by /maestro (via owner.handle and paths.projects above) — it reads them
+# itself; env vars MAESTRO_HANDLE / MAESTRO_PROJECTS override the file.

@@ -4,6 +4,8 @@ Verify a claim about a running local macOS desktop app using the most background
 
 Claim to verify: {the text you type after the command}
 
+**Config:** `paths.projects` (default `~/Projects`) from `~/.config/operator-skills/config.yaml`, used only to find the operator-skills checkout — see `docs/config.md`. The focus policy has its own file, `~/.claude/app-testing.json`, described below.
+
 The playbook, the harness and the measured probe results live next to this skill in the operator-skills repo:
 `skills/test-desktop-app/desktop-app-testing.guide.md` and `skills/test-desktop-app/harness/`. For web apps use
 `/verify-app` instead.
@@ -13,8 +15,10 @@ The playbook, the harness and the measured probe results live next to this skill
 1. **Locate the harness, load the playbook, check the focus mode** — Find the checkout (first match wins):
 
    ```bash
-   for d in "${DESKTOP_APP_TESTING_HOME:-}" ~/Projects/operator-skills/skills/test-desktop-app \
-            ~/operator-skills/skills/test-desktop-app ~/.claude/skills/operator/test-desktop-app; do
+   PROJECTS="${PROJECTS:-$HOME/Projects}"   # use paths.projects from the config if it differs
+   for d in "${DESKTOP_APP_TESTING_HOME:-}" ~/.claude/skills/operator/test-desktop-app ~/.claude/skills/test-desktop-app \
+            ~/.agents/skills/test-desktop-app ~/.codex/skills/test-desktop-app \
+            "$PROJECTS/operator-skills/skills/test-desktop-app" ~/operator-skills/skills/test-desktop-app; do
      [ -n "$d" ] && [ -f "$d/desktop-app-testing.guide.md" ] && { DAT_HOME="$d"; break; }
    done; echo "${DAT_HOME:-NOT FOUND}"; HARNESS="$DAT_HOME/harness"
    ```
@@ -59,14 +63,14 @@ The playbook, the harness and the measured probe results live next to this skill
 - macOS only. Needs Accessibility (AX/key events) and Screen Recording (screenshots) granted to the calling process,
   and `swiftc` (the Swift tools compile on demand into the private cache `~/Library/Caches/desktop-app-testing`).
 - Facts in the playbook were measured with the `harness/fixtures/probe-app` fixture on one macOS version; re-run
-  `harness/probes/run_probes.py` on a new one before relying on them. `python3 -m unittest discover -s
-  "$HARNESS/tests"` checks the harness's own safety logic without launching anything.
+  `harness/probes/run_probes.py` on a new one before relying on them. `(cd "$HARNESS" && python3 -m unittest
+  tests.test_harness)` checks the harness's own safety logic without launching anything.
 - Related: `/verify-app` for web apps and layer 0; `/test` for the unit-test suite; `/parallel` if several independent
   apps need checking (each with its own identifier and scratch dir).
 
-## Local example (one machine, one project; ignore or replace elsewhere)
+## Worked example (one hypothetical project; replace the names with yours)
 - Setup: the user's focus config is the `auto`, 5-minute one above, created at `~/.claude/app-testing.json`.
-- Project: strata-v1 (Tauri 2 + WKWebView) has a merged debug-only test bridge: `pnpm build:bridge` produces
-  `Strata Bridge.app` with identifier `co.andrewmiller.strata.test`; `scripts/bridge.py` drives it. Quit it with
+- Project: my-app (Tauri 2 + WKWebView) with a debug-only test bridge: `pnpm build:bridge` produces
+  `MyApp Bridge.app` with identifier `com.example.myapp.test`; `scripts/bridge.py` drives it. Quit it with
   `Bridge.quit()`, raise its quit modal with `Bridge.request_close(from_os=True)`, never via AppleScript. See playbook
   section 8 for the protocol and the known gaps against the probe findings.

@@ -1,20 +1,31 @@
 Generate or update an architectural map of a project — folder structure, dependencies, data flow, and component relationships — with Mermaid diagrams.
 
-Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Projects overview)
+Target: $ARGUMENTS (project name, directory, or "workspace" for the full projects-directory overview)
+
+**Config:** `paths.projects` (default `~/Projects`) and `paths.memory` (optional) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. `<projects>` and `<memory>` below are those directories; a missing `paths.projects` means the default, a missing `paths.memory` means skip the memory-writing steps (5 workspace map, 6).
 
 ## Steps
 
 1. **Determine scope** — From `$ARGUMENTS`:
 
-   - If a project name is given (e.g., "agencyos", "liberty-networking"), resolve to `~/Projects/<dir>`
-   - If "workspace" or "all", map the full `~/Projects/` workspace at a high level
+   - If a project name is given (e.g., "dashboard", "web-app"), resolve to `<projects>/<dir>`
+   - If "workspace" or "all", map the full `<projects>/` workspace at a high level
    - If empty, use the current working directory
    - If a subdirectory path is given (e.g., "app/api"), map just that subtree in detail
 
-2. **Explore the project** — Spawn an Explore subagent (or do directly for small projects) to gather:
+2. **Offer the CLAUDE.md/AGENTS.md pairing (optional)** — Skip this step for workspace-level maps (`/map workspace`), and skip it silently if neither file exists or they are already paired. Some repos keep `AGENTS.md` canonical with `CLAUDE.md` as a symlink to it (`CLAUDE.md -> AGENTS.md`) so Claude Code and other agents read the same file. This **moves files in the user's repo, so it is opt-in**: if the project root needs reconciling, say what you would do and ask before touching anything; if the user declines (or doesn't answer), skip the step and continue mapping. Cases:
+
+   - Both exist and `CLAUDE.md` already symlinks to `AGENTS.md` — no-op.
+   - Only `CLAUDE.md` exists, as a real file — with approval, `mv CLAUDE.md AGENTS.md && ln -s AGENTS.md CLAUDE.md` (preserves content, `AGENTS.md` becomes canonical).
+   - Only `AGENTS.md` exists — with approval, `ln -s AGENTS.md CLAUDE.md`.
+   - Neither exists — leave it; that's `/init`'s job, not `/map`'s. Don't create empty files.
+   - Both exist as separate real files (diverged) — don't silently merge or overwrite either one. Flag it in the final output ("CLAUDE.md and AGENTS.md both exist as separate real files — reconcile manually, then re-run /map") and skip the symlink step.
+   - `CLAUDE.md` is a symlink pointing somewhere other than `AGENTS.md` (a custom convention) — leave it alone, just note it's using a custom target.
+
+3. **Explore the project** — Spawn an Explore subagent (or do directly for small projects) to gather:
 
    **a) Structure:**
-   - Run `find <dir> -type f -name "*.ts" -o -name "*.tsx" -o -name "*.py" -o -name "*.json" | head -200` to understand the file tree
+   - Run `find <dir> \( -name node_modules -o -name .git -o -name dist -o -name .next \) -prune -o -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.py" -o -name "*.json" \) -print | head -200` to understand the file tree
    - Read `package.json` (dependencies, scripts, workspaces)
    - Read `CLAUDE.md` if it exists
    - Check for monorepo indicators: `turbo.json`, `pnpm-workspace.yaml`, workspace `packages/`
@@ -30,9 +41,9 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
    **c) Dependencies:**
    - Parse `package.json` for key external deps (not devDeps boilerplate)
    - For monorepos: map inter-package dependencies
-   - For `@rebel/ui` consumers: note the design system link
+   - For consumers of a shared design-system package (e.g. `@acme/ui`): note the link
 
-3. **Generate the architectural map** — Produce a comprehensive markdown document with Mermaid diagrams:
+4. **Generate the architectural map** — Produce a comprehensive markdown document with Mermaid diagrams:
 
    **a) Project Overview header:**
    ```markdown
@@ -52,7 +63,7 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
 
    ```mermaid
    graph TD
-       ROOT["agencyos/"] --> APP["app/"]
+       ROOT["web-app/"] --> APP["app/"]
        ROOT --> LIB["lib/"]
        ROOT --> COMP["components/"]
        ROOT --> DB["db/"]
@@ -108,7 +119,7 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
    ```mermaid
    graph TD
        APP["@app/web"] --> SHARED["@app/shared"]
-       APP --> UI["@rebel/ui"]
+       APP --> UI["@acme/ui"]
        APP --> DB["@app/db"]
        API["@app/api"] --> SHARED
        API --> DB
@@ -178,26 +189,26 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
 
    **IMPORTANT:** Only include diagram types that are relevant. A simple app doesn't need all 7 diagrams. A CLI tool might only need folder structure + data flow. A monorepo needs the dependency graph. Use judgment.
 
-4. **Save the map** — Write to the appropriate location:
+5. **Save the map** — Write to the appropriate location:
 
    **For individual projects:**
    - Save to `<project-dir>/ARCHITECTURE.md` (lives with the code, git-trackable)
    - If the project has a CLAUDE.md, add a brief mention: "See ARCHITECTURE.md for visual diagrams"
 
    **For workspace-level maps:**
-   - Save to `~/.claude/projects/-Users-andrewmiller-Projects/memory/workspace_architecture.md`
+   - Save to `<memory>/workspace_architecture.md`. If `paths.memory` is not set, don't save — just present the map in step 7 (and offer to write it wherever the user prefers)
 
    **For updating an existing map:**
    - Read the existing file first
    - Update only the sections that have changed
    - Update the "Generated" date
 
-5. **Update the knowledge map** — If this is a new project being mapped for the first time:
-   - Check if it exists in `memory/project_knowledge_map.md`
+6. **Update the knowledge map** — Only if `paths.memory` is set. If this is a new project being mapped for the first time:
+   - Check if it exists in `<memory>/project_knowledge_map.md`
    - If not, add it to the appropriate category
-   - If the project has enough complexity, suggest creating a dedicated `memory/project_<name>.md`
+   - If the project has enough complexity, suggest creating a dedicated `<memory>/project_<name>.md`
 
-6. **Present the results** — Display the complete architecture map. Since Mermaid renders in markdown viewers, also offer:
+7. **Present the results** — Display the complete architecture map. Since Mermaid renders in markdown viewers, also offer:
    - "View in GitHub/VS Code for rendered diagrams"
    - "Run `/document architecture notion` to create a Notion page with these diagrams"
 
@@ -228,5 +239,5 @@ Target: $ARGUMENTS (project name, directory, or "workspace" for the full ~/Proje
 - Mermaid diagrams render natively in GitHub, VS Code preview, Notion, and most markdown viewers
 - When updating an existing map, diff against the current code to catch new routes, tables, or packages
 - The workspace-level map (`/map workspace`) shows how projects relate to each other — shared deps, design system consumers, deployment targets
-- If a project uses @rebel/ui, always show it in the dependency graph
+- If a project uses a shared design-system or component package, always show it in the dependency graph
 - For AI projects, include the model/provider flow (which AI SDK, which models, tool calling patterns)

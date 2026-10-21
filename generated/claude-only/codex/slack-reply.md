@@ -2,17 +2,19 @@ Draft a reply to a Slack message or thread and stage it as a Slack draft for app
 
 Target: $ARGUMENTS
 
+**Config:** `slack.registry` (default `~/.config/operator-skills/slack/registry.yaml`), `slack.mirror_dir` (default: the default vault's `routes.reference` folder, else the vault root; if no vault is configured the reply log is skipped), and `owner.voice_guide` (optional) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. Missing file or key → default; never guess.
+
 ## Hard rule
 
 **This skill never sends.** It writes into Slack's "Drafts & Sent" via
-`mcp__claude_ai_Slack__slack_send_message_draft`. Andrew reviews in Slack and hits enter. Do not call
+`mcp__claude_ai_Slack__slack_send_message_draft`. You review in Slack and hit enter. Do not call
 `mcp__claude_ai_Slack__slack_send_message` or `mcp__claude_ai_Slack__slack_schedule_message` from this skill under any circumstance —
-not even if asked mid-flow. If Andrew wants it sent, tell him it's drafted and waiting.
+not even if asked mid-flow. If you want it sent, say it's drafted and waiting.
 
 ## Data
 
-- Registry (source of truth): `~/.claude/projects/-Users-andrewmiller-knowledge/slack/registry.yaml`
-- Reply log (append-only): `~/knowledge/03-Resources/slack-reply-log.md`
+- Registry (source of truth): `slack.registry`
+- Reply log (append-only): `<slack.mirror_dir>/slack-reply-log.md`
 - Managed by `/slack-ctx` — this skill reads the registry and appends to it, but structural
   edits and the vault mirror are `/slack-ctx`'s job.
 
@@ -44,13 +46,13 @@ If `workspace.domain` in the registry is null, write the parsed `domain` into it
 
 **Tier 2 — a name, nickname, or channel.** Grep the registry's `aliases`, `name`, and key
 fields (case-insensitive). A hit gives `channel_id` with zero API calls. If the ask names a
-person *and* a topic ("Josh about the UTI timeline"), also check `threads` for an open
+person *and* a topic ("Jane about the Acme timeline"), also check `threads` for an open
 thread matching both.
 
 **Tier 3 — search Slack.** Only on a Tier 1+2 miss.
 - `mcp__claude_ai_Slack__slack_search_public_and_private` — semantic search is enabled on this account, so
-  natural-language queries work ("question about the UTI rollout timeline"). Narrow with
-  modifiers: `from:@josh`, `in:#rebel-team`, `after:2026-07-28`, `is:thread`.
+  natural-language queries work ("question about the Acme rollout timeline"). Narrow with
+  modifiers: `from:@jane`, `in:#team`, `after:2026-07-28`, `is:thread`.
 - `mcp__claude_ai_Slack__slack_search_channels` when the target is a channel, not a message.
 - `mcp__claude_ai_Slack__slack_search_users` when the target is a DM and you need the `U…` id.
 
@@ -68,15 +70,15 @@ no thread, `mcp__claude_ai_Slack__slack_read_channel` with a small `limit` for s
 
 Read it properly — the point is to answer **what was actually asked**, and to notice if
 someone already answered it, if the ask changed partway down, or if there are two open
-questions and Andrew only remembered one. Say so if that's the case.
+questions and you only remembered one. Say so if that's the case.
 
 If any participant is unknown, `mcp__claude_ai_Slack__slack_read_user_profile` for name and role.
 
-### 3. Draft in Andrew's voice, tuned for Slack
+### 3. Draft in your voice, tuned for Slack
 
-Voice source: `/Users/andrewmiller/Projects/AI Agent Teams/live/agents/writing.md`. Read it
-if the reply is client-facing or longer than a couple of lines. Skip it for a one-line
-internal ack.
+Voice source (optional): the file at `owner.voice_guide`, if set. Read it if the reply is client-facing or longer than a
+couple of lines; skip it for a one-line internal ack. With no guide, match how your
+earlier messages in the thread read.
 
 Slack register differs from email — apply these on top of the voice guide:
 - Lead with the answer. No "Hey! Great question —".
@@ -85,17 +87,17 @@ Slack register differs from email — apply these on top of the voice guide:
 - Bullets only for 3+ parallel items. Two items is a sentence.
 - Slack markdown: `*bold*` renders as bold in Slack, `_italic_`, `` `code` ``, `>quote`.
   The draft tool takes standard markdown and converts — write standard `**bold**`.
-- Match the thread's formality. A client channel is not `#rebel-team`.
-- If the honest answer is "I don't know yet", draft that plus when he'll know. Do not
-  invent a status, a date, or a delivery claim. Pull real state from the vault
-  (`kb context <project>`, `strata/Projects/`) rather than guessing.
+- Match the thread's formality. A client channel is not `#team`.
+- If the honest answer is "I don't know yet", draft that plus when you'll know. Do not
+  invent a status, a date, or a delivery claim. Pull real state from your
+  project notes or tracker rather than guessing.
 
 Flag rather than paper over: if answering requires a fact you don't have, put
-`[NEEDS: what's the actual Keymark go-live date?]` inline and tell Andrew in your summary.
+`[NEEDS: what's the actual Acme go-live date?]` inline and say so in your summary.
 
 ### 4. Show it, then stage it
 
-Print the draft in the terminal first, with the target ("→ #rebel-team, thread w/ Josh,
+Print the draft in the terminal first, with the target ("→ #team, thread w/ Jane,
 2 replies"). On approval call `mcp__claude_ai_Slack__slack_send_message_draft`:
 
 - `channel_id` — the resolved id (`C…`, `D…`, or `U…` for a DM)
@@ -105,17 +107,17 @@ Print the draft in the terminal first, with the target ("→ #rebel-team, thread
 
 Error handling:
 - `draft_already_exists` — only one attached draft per channel. Report it and offer to
-  (a) open the channel so Andrew clears the old one, or (b) print the text for manual
+  (a) open the channel so you can clear the old one, or (b) print the text for manual
   paste. Do not attempt to delete the existing draft.
 - `channel_not_found` — the cached id is stale or access was lost. Re-resolve via Tier 3
   and correct the registry entry.
 
 ### 5. Log it
 
-Append one row to `~/knowledge/03-Resources/slack-reply-log.md` under today's date:
+Append one row to `<slack.mirror_dir>/slack-reply-log.md` under today's date (create the file with a `# Slack reply log` heading if it doesn't exist; skip this step if no mirror directory resolves):
 
 ```markdown
-- **2026-08-04** — [#rebel-team / Josh Heller](https://<domain>.slack.com/archives/C.../p...) — UTI phase 2 timeline — *drafted, awaiting send*
+- **2026-08-04** — [#team / Jane Doe](https://<domain>.slack.com/archives/C.../p...) — Acme phase 2 timeline — *drafted, awaiting send*
 ```
 
 Then update the registry: bump `last_used` on the person/channel, and upsert the `threads`
@@ -130,4 +132,4 @@ entry with `status: replied`. Keep `threads` at 30 entries max, dropping least-r
   all search and is unambiguous about which thread.
 - For a *new* message rather than a reply, this still works — resolve the channel, omit
   `thread_ts`. But say so explicitly, since replies are the default assumption.
-- Related: `/notion-ctx` is the same registry+cache pattern for Notion docs.
+- Related: `/notion ctx` is the same registry+cache pattern for Notion docs.

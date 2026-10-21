@@ -1,4 +1,8 @@
+# port-check
+
 Show what's running on common development ports. Identifies projects and offers to kill stale processes.
+
+**Config:** `paths.projects` (default `~/Projects`) and `browser.cdp_port` (default `9222`) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. `<projects>` below is the projects directory; a missing file or key means the default.
 
 ## Steps
 
@@ -9,13 +13,13 @@ Show what's running on common development ports. Identifies projects and offers 
    - 5432 (PostgreSQL)
    - 54321-54322 (Supabase local)
    - 8080, 8787, 8788 (Express, Wrangler/CF Workers)
-   - 9222 (Dia/Chrome DevTools Protocol)
+   - `browser.cdp_port`, default 9222 (Chrome DevTools Protocol for a browser-automation session)
    - Also show any other ports with node/next/vite/python/ruby/postgres processes
 
 2. **Identify projects** — For each process:
    - Get the PID and process name
    - Run `lsof -p <PID> | grep cwd` or `ps -p <PID> -o args=` to determine the working directory
-   - Match working directory to a `~/Projects/*` subdirectory
+   - Match working directory to a `<projects>/*` subdirectory
    - Calculate uptime from process start time: `ps -p <PID> -o etime=`
 
 3. **Detect conflicts** — Check if multiple dev servers are trying to use the same port range, or if a port is occupied by a zombie process.
@@ -27,10 +31,10 @@ Show what's running on common development ports. Identifies projects and offers 
 
    | Port | Process | PID | Project | Uptime |
    |------|---------|-----|---------|--------|
-   | 3000 | next-server | 12345 | agencyos | 2h 15m |
-   | 3001 | next-server | 12346 | liberty-networking | 45m |
+   | 3000 | next-server | 12345 | dashboard | 2h 15m |
+   | 3001 | next-server | 12346 | web-app | 45m |
    | 5432 | postgres | 789 | (system) | 3d |
-   | 9222 | Dia | 456 | (browser) | 1h 10m |
+   | 9222 | Chrome | 456 | (browser) | 1h 10m |
 
    2 dev servers running. No conflicts.
    ```

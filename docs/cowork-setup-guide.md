@@ -6,7 +6,7 @@ Open Cowork and send this message:
 
 > Clone https://github.com/andrewm621/operator-skills.git to ~/operator-skills and symlink the skills directory to ~/.claude/skills/operator. Then confirm it worked by listing what's in ~/.claude/skills/operator.
 
-Claude runs the commands and confirms the install. Type `/` — you should see all 46 skills in autocomplete.
+Claude runs the commands and confirms the install. Type `/` — you should see all 44 skills in autocomplete.
 
 ## Manual Install (No Claude)
 
@@ -34,7 +34,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 Use /research for background lookups while working on other things.
 Use /parallel for simultaneous task execution.
 Use /roadmap before complex features spanning 3+ files.
-After changing shared code, use /parallel-check to verify consumers.
+After changing shared code, use /parallel build-check to verify consumers.
 ```
 
 ## How It Works

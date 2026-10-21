@@ -1,6 +1,6 @@
 """Static tests for the harness safety logic. No GUI app is launched and no event is posted.
 
-    python3 -m unittest discover -s skills/test-desktop-app/harness/tests -v
+    cd skills/test-desktop-app/harness && python3 -m unittest tests.test_harness -v
 """
 import json
 import os
@@ -149,13 +149,13 @@ class GuardEvaluate(unittest.TestCase):
 
 class TestIdentifier(unittest.TestCase):
     def test_accepts_test_style_suffixes(self):
-        for ok in ("co.andrewmiller.strata.test", "co.andrewmiller.desktop-probe", "co.x.app.e2e", "co.x.app.bridge",
+        for ok in ("com.example.myapp.test", "com.example.desktop-probe", "co.x.app.e2e", "co.x.app.bridge",
                    "co.x.app.refusal-check", "co.x.app-test"):
             self.assertTrue(dt.TEST_ID.search(ok), ok)
 
     def test_rejects_real_apps(self):
         for bad in ("dev.zed.Zed", "com.test.realapp", "com.apple.Safari", "co.x.testing", "co.x.test.app",
-                    "co.x.contest", "co.andrewmiller.strata", "com.example.developer", ""):
+                    "co.x.contest", "com.example.myapp", "com.example.developer", ""):
             self.assertFalse(dt.TEST_ID.search(bad), bad)
 
 
@@ -307,7 +307,7 @@ class SeedAndScratch(Tmp):
 
     def test_assert_scratch_and_private_dir(self):
         with self.assertRaises(dt.HarnessError):
-            dt.assert_scratch(Path.home() / "knowledge/x")
+            dt.assert_scratch(Path.home() / "Documents/x")
         with self.assertRaises(dt.HarnessError):
             dt.assert_private_dir("/private/tmp")
         d = dt.private_dir(prefix="dat-test-")

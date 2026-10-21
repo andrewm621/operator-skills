@@ -1,5 +1,5 @@
 #!/bin/sh
-# build.sh <out-dir>   -> <out-dir>/Probe.app  (bundle id co.andrewmiller.desktop-probe)
+# build.sh <out-dir>   -> <out-dir>/Probe.app  (bundle id com.example.desktop-probe)
 # <out-dir> must be a PRIVATE dir: created here with mode 0700 if it does not exist, otherwise it must already be a
 # real dir (not a symlink), owned by you, mode 0700. The built app is executed, so never a shared/predictable /tmp dir.
 set -eu
@@ -21,7 +21,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>CFBundleIdentifier</key><string>co.andrewmiller.desktop-probe</string>
+  <key>CFBundleIdentifier</key><string>com.example.desktop-probe</string>
   <key>CFBundleName</key><string>Probe</string>
   <key>CFBundleExecutable</key><string>probe</string>
   <key>CFBundlePackageType</key><string>APPL</string>

@@ -3,7 +3,7 @@
    Zero dependencies: Node built-ins only.
 
    Phase 0 subcommands (see docs/maestro-spec.md §10):
-     init        create ~/Projects/.maestro/ (registry + index + board), idempotent
+     init        create <projects>/.maestro/ (registry + index + board), idempotent
      new         allocate a T-<id> and write a task file into <repo>/.maestro/tasks/
      claim       atomically claim a task (mkdir-based lock + heartbeat claim file)
      heartbeat   refresh a claim's heartbeat
@@ -24,7 +24,7 @@
      answer      append an answer re: an ask AND flip that ask's `#open`->`#resolved`
                  (the one sanctioned in-place edit — everything else is append-only)
      read        print a channel's thread (optionally only messages `--since` a ts)
-     inbox       list every `#open` ask addressed to someone (default `andrew`) —
+     inbox       list every `#open` ask addressed to someone (default: you, `owner.handle`) —
                  the "needs human" queue, across every registered repo + fleet
      handoff     like `say` but kind=handoff, explicitly targeted at `--to <who>`
 
@@ -40,10 +40,15 @@
    v1 dispatch is human-in-the-loop (spec §7): `route` prepares the worktree/seed and
    prints the launch string; it never spawns another provider process itself.
 
+   Config (all optional; see docs/config.md). Precedence: environment variable, then
+   ~/.config/operator-skills/config.yaml (or $XDG_CONFIG_HOME/...), then the default:
+     owner.handle   env MAESTRO_HANDLE    default $USER    — the human's handle for asks/answers/inbox
+     paths.projects env MAESTRO_PROJECTS  default ~/Projects — <projects>/.maestro holds the global state
+
    Data layout (docs/maestro-spec.md §4, docs/maestro-comms-spec.md §2):
-     ~/Projects/.maestro/{registry.yaml, index.jsonl, board.md, worktrees/}  — global, derived
-     ~/Projects/.maestro/channels/fleet.md                                   — global, authoritative
-     ~/Projects/.maestro/inbox.jsonl                                         — global, DERIVED
+     <projects>/.maestro/{registry.yaml, index.jsonl, board.md, worktrees/}  — global, derived
+     <projects>/.maestro/channels/fleet.md                                   — global, authoritative
+     <projects>/.maestro/inbox.jsonl                                         — global, DERIVED
      <repo>/.maestro/{tasks,todos,locks,channels}/                          — per-repo, authoritative
 */
 
@@ -63,7 +68,47 @@ import path from 'node:path';
 /* ---- paths -------------------------------------------------------------- */
 
 const HOME = os.homedir();
-const GLOBAL_DIR = path.join(HOME, 'Projects', '.maestro');
+
+/* Tiny zero-dependency reader for the two scalar keys Maestro needs from the
+   shared per-user config (`owner.handle`, `paths.projects`). Not a YAML parser:
+   it finds `<section>:` at column 0, then the first indented `<key>: value`
+   under it, and understands only bare/quoted scalars and trailing comments.
+   Missing file, section, or key -> undefined (caller applies the default). */
+function readConfigScalar(section, key) {
+  const base = process.env.XDG_CONFIG_HOME || path.join(HOME, '.config');
+  let text;
+  try {
+    text = readFileSync(path.join(base, 'operator-skills', 'config.yaml'), 'utf8');
+  } catch {
+    return undefined;
+  }
+  let inSection = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (/^\s*(#|$)/.test(line)) continue;
+    if (/^\S/.test(line)) {
+      inSection = line.replace(/\s*#.*$/, '').trim() === `${section}:`;
+      continue;
+    }
+    if (!inSection) continue;
+    const m = line.match(new RegExp(`^\\s+${key}:\\s*(.*)$`));
+    if (!m) continue;
+    let v = m[1].trim();
+    const q = v.match(/^(["'])(.*?)\1/);
+    v = q ? q[2] : v.replace(/\s+#.*$/, '').trim();
+    return v === '' ? undefined : v;
+  }
+  return undefined;
+}
+
+function expandHome(p) {
+  return p === '~' ? HOME : p.startsWith('~/') ? path.join(HOME, p.slice(2)) : p;
+}
+
+/* The human's handle (no leading @) — the default target of `ask`, the author
+   of `answer`, and whose open asks light up the board's NEEDS YOU block. */
+const HUMAN = (process.env.MAESTRO_HANDLE || readConfigScalar('owner', 'handle') || process.env.USER || os.userInfo().username).replace(/^@/, '');
+const PROJECTS_DIR = path.resolve(expandHome(process.env.MAESTRO_PROJECTS || readConfigScalar('paths', 'projects') || '~/Projects'));
+const GLOBAL_DIR = path.join(PROJECTS_DIR, '.maestro');
 const REGISTRY_PATH = path.join(GLOBAL_DIR, 'registry.yaml');
 const INDEX_PATH = path.join(GLOBAL_DIR, 'index.jsonl');
 const BOARD_PATH = path.join(GLOBAL_DIR, 'board.md');
@@ -158,7 +203,7 @@ function parseArgs(argv) {
 
 /* Presence check only — `route` never blocks on a missing binary (v1 dispatch
    is human-in-the-loop, spec §7: it prints the launch string regardless, for
-   Andrew to run once/if the binary is installed). Used solely to decide
+   the human to run once/if the binary is installed). Used solely to decide
    whether to print the "confirm with --help" advisory below. */
 function commandExists(bin) {
   try {
@@ -239,7 +284,7 @@ function renderRegistry(repos) {
   const lines = [
     "# Maestro registry — repos this machine's `maestro sync` walks.",
     '# Hand-maintained: add a repo by appending a `- name` / `path` pair below.',
-    '# Everything else under ~/Projects/.maestro/ is derived — never hand-edit it.',
+    `# Everything else under ${GLOBAL_DIR}/ is derived — never hand-edit it.`,
     'repos:',
   ];
   for (const r of repos) {
@@ -326,12 +371,9 @@ function cmdInit() {
   mkdirSync(GLOBAL_DIR, { recursive: true });
 
   if (!existsSync(REGISTRY_PATH)) {
-    const seed = [
-      { name: 'liberty networking', path: path.join(HOME, 'Projects', 'liberty networking') },
-      { name: 'agencyos', path: path.join(HOME, 'Projects', 'agencyos') },
-    ];
-    writeFileSync(REGISTRY_PATH, renderRegistry(seed));
-    console.log(`Created ${REGISTRY_PATH}`);
+    // Start empty: add repos by appending `- name` / `path` pairs to the registry.
+    writeFileSync(REGISTRY_PATH, renderRegistry([]));
+    console.log(`Created ${REGISTRY_PATH} (no repos yet — append \`- name\` / \`path\` pairs)`);
   } else {
     console.log(`Registry already exists — ${REGISTRY_PATH} (left untouched)`);
   }
@@ -637,8 +679,8 @@ function nextMessageSeq(channelPath, base) {
 /* Author = the live claim owner if the target task is claimed, else a
    session-identity fallback (comms spec §3). Fleet posts and unclaimed tasks
    always fall back — there's no claim to borrow an identity from. `answer`
-   overrides this with the literal 'andrew' (spec §3/§4) since it's always
-   the human replying. */
+   overrides this with the configured human handle (spec §3/§4) since it's
+   always the human replying. */
 function resolveAuthor(repo, target) {
   if (!repo || isFleet(target)) return `${os.userInfo().username}@cli`;
   const claimPath = path.join(repo.path, '.maestro', 'locks', `${target}.claim.json`);
@@ -653,12 +695,13 @@ function resolveAuthor(repo, target) {
   return `${os.userInfo().username}@cli`;
 }
 
-/* `@andrew` and bare `andrew` must match for --for/--to filtering (spec §3
-   uses `@andrew` for the human in the line format, but the CLI's default
+/* `@<handle>` and the bare handle must match for --for/--to filtering (spec §3
+   uses `@<handle>` for the human in the line format, but the CLI's default
    `--for`/`--to` value is documented as the bare name) — compare with the
-   leading `@` stripped from both sides. */
+   leading `@` stripped and the case folded on both sides (handles are
+   case-insensitive: `@Alice` and `alice` are the same person). */
 function normalizeWho(who) {
-  return String(who || '').replace(/^@/, '');
+  return String(who || '').replace(/^@/, '').toLowerCase();
 }
 
 /* Shared append path for say/ask/answer/handoff: acquire the channel lock,
@@ -722,7 +765,7 @@ function resolveChannelForMessageId(registry, mid, repoNameHint) {
 
 /* Every #open ask across fleet + every registered repo's channels/. Backs
    both `inbox` (live, filtered by --for) and `sync`'s derived inbox.jsonl /
-   board ⚑ block (unfiltered, then filtered to `andrew` for the board). */
+   board ⚑ block (unfiltered, then filtered to the human for the board). */
 function collectOpenAsks(registry) {
   const rows = [];
   const scan = (channelPath, channelLabel) => {
@@ -798,8 +841,8 @@ function gitBranchExists(repoPath, branch) {
 }
 
 /* Creates (or, idempotently, reuses) the sibling worktree for a task. Never
-   nests inside the repo — WORKTREES_ROOT lives under ~/Projects/.maestro/,
-   a sibling of every repo under ~/Projects/ (spec §2). Hard-fails rather than
+   nests inside the repo — WORKTREES_ROOT lives under <projects>/.maestro/,
+   a sibling of every repo under <projects>/ (spec §2). Hard-fails rather than
    guessing when the branch/path already exists in an unrecognized state. */
 /* Throws (rather than calling fail()/process.exit) so seedTask can catch a
    setup failure and roll back the claim it just took — see seedTask. */
@@ -1014,7 +1057,7 @@ function cmdRoute(positional, flags) {
   } else if (provider === 'codex') {
     // §7: v1 dispatch is human-in-the-loop. This CLI cannot invoke a Claude
     // skill (/handoff) itself, so it prepares state and prints the steps —
-    // the calling skill (or Andrew) runs /handoff and records the result
+    // the calling skill (or the human) runs /handoff and records the result
     // with `maestro set --issue`.
     console.log("Codex hand-off is two steps — this CLI can't invoke the /handoff skill itself:");
     console.log(`  1. Run /handoff ${taskId} to create the GitHub issue, then record it:`);
@@ -1137,7 +1180,7 @@ function cmdAsk(positional, flags) {
   const registry = loadRegistry();
   const { repo, target } = resolveChannelTarget(registry, targetArg, flags.repo);
 
-  const targetAddr = typeof flags.to === 'string' ? flags.to : '@andrew';
+  const targetAddr = typeof flags.to === 'string' ? flags.to : `@${HUMAN}`;
   const { mid } = postMessage(repo, target, { kind: 'ask', text, targetAddr, tag: 'open' });
   if (repo) refreshHeartbeat(repo, target);
   console.log(mid);
@@ -1188,7 +1231,7 @@ function cmdAnswer(positional, flags) {
     const seq = nextMessageSeq(channelPath, base);
     answerMid = `M-${base}-${seq}`;
     const ts = isoSeconds(new Date());
-    const answerLine = formatMessageLine({ ts, mid: answerMid, author: 'andrew', kind: 'answer', target: askAuthor, reId: mid, text });
+    const answerLine = formatMessageLine({ ts, mid: answerMid, author: HUMAN, kind: 'answer', target: askAuthor, reId: mid, text });
 
     // The one sanctioned in-place edit (comms spec §5): flip this ask's
     // #open -> #resolved, under the same lock as the append below.
@@ -1208,7 +1251,7 @@ function cmdAnswer(positional, flags) {
 
 function cmdInbox(positional, flags) {
   const registry = loadRegistry();
-  const forWho = normalizeWho(typeof flags.for === 'string' ? flags.for : 'andrew');
+  const forWho = normalizeWho(typeof flags.for === 'string' ? flags.for : HUMAN);
 
   const rows = collectOpenAsks(registry).filter((r) => normalizeWho(r.target) === forWho);
 
@@ -1350,10 +1393,10 @@ function cmdSync() {
   writeFileSync(INDEX_PATH, indexLines.length ? `${indexLines.join('\n')}\n` : '');
 
   // Derived comms projections (comms spec §2, §7) — inbox.jsonl (every open
-  // ask, any target) and the board's ⚑ block (just the ones for @andrew).
+  // ask, any target) and the board's ⚑ block (just the ones for the human).
   const openAsks = collectOpenAsks(registry);
   writeFileSync(INBOX_PATH, openAsks.length ? `${openAsks.map((a) => JSON.stringify(a)).join('\n')}\n` : '');
-  const needsYou = openAsks.filter((a) => normalizeWho(a.target) === 'andrew');
+  const needsYou = openAsks.filter((a) => normalizeWho(a.target) === normalizeWho(HUMAN));
 
   writeFileSync(BOARD_PATH, renderBoard(rows, needsYou));
 
@@ -1369,7 +1412,7 @@ function cmdSync() {
 function countNeedsHuman(channelPath) {
   let n = 0;
   for (const m of readChannelMessages(channelPath)) {
-    if (m.kind === 'ask' && m.tag === 'open' && normalizeWho(m.target) === 'andrew') n++;
+    if (m.kind === 'ask' && m.tag === 'open' && normalizeWho(m.target) === normalizeWho(HUMAN)) n++;
   }
   return n;
 }

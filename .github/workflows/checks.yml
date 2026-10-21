@@ -1,8 +1,10 @@
 name: checks
 
-# The two things CONTRIBUTING says drift silently — the generated/ adapters and
-# the scenes copied out of SKILL.md — plus the motion scenes themselves. All of
-# it is `node <script>` with no dependencies, matching the repo's no-build rule.
+# The things CONTRIBUTING says drift silently — the generated/ adapters, the
+# claude-ai-skill-reference.md mirror, skill counts, the catalogs and the /help
+# cheat sheet (all in verify-adapters.mjs) — plus the motion scenes themselves and
+# the two Python unittest suites that ship with skills. No dependencies anywhere
+# (Node scripts and stdlib-only Python), matching the repo's no-build rule.
 
 on:
   push:
@@ -18,7 +20,28 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node verify-adapters.mjs
+      # A CI runner has no ~/.agents/skills install, so skip that one check.
+      - run: node verify-adapters.mjs --skip-install
+
+  ai-export-tests:
+    name: ai-export tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: unittest
+        working-directory: skills/ai-export
+        run: python3 -m unittest test_convert -v
+
+  # The harness tests compile and run the real Swift helpers (swiftc, CoreGraphics),
+  # so they need a macOS runner. They post no input and launch no app.
+  harness-tests:
+    name: test-desktop-app harness tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: unittest
+        working-directory: skills/test-desktop-app/harness
+        run: python3 -m unittest tests.test_harness -v
 
   scenes:
     name: motion scenes

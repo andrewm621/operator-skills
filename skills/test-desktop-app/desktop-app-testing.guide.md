@@ -74,10 +74,10 @@ tests in `harness/tests/` cover each case.
    `com.test.realapp` do not), and refuses one that is already running. `--seed-state` only writes into
    that test data dir, and only if the harness created it (marker file); `remove_data_dir()` deletes only such a dir.
 4. **Scratch copies of data only.** Copy fixtures/vaults into a scratch dir (`desktop_test.scratch_copy`) and point the
-   app at the copy. Never point a test at `~/knowledge`, a real vault, or the opened folder of the user's session.
+   app at the copy. Never point a test at a real notes vault, your home folder, or the opened folder of the user's session.
 5. **No broad kills, and no OS-level quit of an app you are testing in the background.** No `pkill -f name`, no
    `killall`. Menu "Quit", `osascript ... to quit`, Dock Quit and logout are *macOS-initiated quits*, and apps often
-   activate themselves on them (strata-v1 does so on purpose, and its docs say not to quit that way). Quit a test app
+   activate themselves on them (my-app does so on purpose, and its docs say not to quit that way). Quit a test app
    through its own bridge/close event or by its recorded pid (`bin/stop`). A real OS quit is tested only inside
    `focus-guard --foreground`, or left for a human.
 6. **Validate paths before creating anything** (`assert_scratch`, `assert_private_dir`, the seed-path escape check).
@@ -132,7 +132,7 @@ Pick the **lowest layer that can verify the claim**. Each entry: when, commands,
     the 7 states measured; the 92 ms case was the off-screen window). So: **`settle()` must not wait on rAF alone**. Race it against a timer, or
     use `MessageChannel`/microtasks, otherwise every call hangs for its full timeout while the window is covered.
   - **Hidden is about being covered/minimized/off-screen, not about being unfocused.** An inactive but uncovered window
-    ran at 60 to 75 fps. (The strata-v1 bridge measured un-throttled timers and rAF with its window in the background,
+    ran at 60 to 75 fps. (The my-app bridge measured un-throttled timers and rAF with its window in the background,
     which fits: that window was visible. Expect the stalls the moment another window covers it.)
   - **Chained sleeps** (a loop of `await sleep(50)`) were NOT measured in the committed run; the probe now has a
     10 x 50 ms chained-timer check (`eval_chained`) that has not been run yet. Treat sequences of sleeps as possibly
@@ -187,7 +187,7 @@ Pick the **lowest layer that can verify the claim**. Each entry: when, commands,
   activate the app) and only `enable` accepts `AXManualAccessibility`/`AXEnhancedUserInterface`. Input commands accept
   only pids that `launch-bg` recorded.
   **Do not use this layer to quit the app** (menu "Quit", `osascript ... to quit`, System Events, Dock). That is a
-  macOS-initiated quit, which many apps handle by activating themselves (strata-v1 does, deliberately). Use the app's
+  macOS-initiated quit, which many apps handle by activating themselves (my-app does, deliberately). Use the app's
   own close path via layer 1, or `bin/stop <pid>`; an OS quit is a `focus-guard --foreground` step or a human check.
   `osascript`/System Events by **unix id of your recorded PID** is fine for *reading* menu state, never by app name.
 - **Focus:** no. **Permissions:** Accessibility for the calling process.
@@ -263,7 +263,7 @@ $HARNESS/bin/stop <pid>     # refuses any pid launch-bg did not record (start ti
 
 ## 6. Probe results (P1 to P6, plus what they turned up)
 
-Probe app: `harness/fixtures/probe-app/Probe.swift`, Swift AppKit + WKWebView, bundle id `co.andrewmiller.desktop-probe`,
+Probe app: `harness/fixtures/probe-app/Probe.swift`, Swift AppKit + WKWebView, bundle id `com.example.desktop-probe`,
 `acceptsFirstMouse` switchable. Built into a private temp dir; never a real app. Raw data: `harness/probes/last-run/`.
 
 | # | Question | Result | Notes |
@@ -339,11 +339,11 @@ Every desktop-test report has these four parts. A green build is not a verified 
 Also state the focus mode used, whether `lsappinfo front` ever showed the app under test, the PID(s) you started and
 that you stopped them, the scratch/data dirs used and removed, and that no temp hooks remain in the diff.
 
-## 8. Local example: strata-v1 (Tauri 2 + WKWebView markdown viewer/editor)
+## 8. Worked example: my-app (Tauri 2 + WKWebView markdown viewer/editor)
 
-> **Local example, specific to one machine and one project.** Everything in sections 1 to 7 and 9 is generic; this
-> section shows the ladder applied to a real app, the strata-v1 repo (`~/Projects/strata-v1`), whose debug-only test
-> bridge is merged (`a9a2341`, "Merge phase 9"). The source of truth is that repo's `AGENTS.md` ("Test bridge (debug
+> **Worked example for one hypothetical project (`my-app`); swap in your own names.** Everything in sections 1 to 7 and 9 is generic; this
+> section shows the ladder applied to a Tauri app whose debug-only test
+> bridge is merged. The source of truth would be that repo's `AGENTS.md` ("Test bridge (debug
 > only)"), `scripts/bridge.py` and `src-tauri/src/test_bridge.rs`; read them before relying on this summary.
 
 **Why it exists.** Earlier tests there used a Swift `CGEvent` click/key tool, `screencapture -l`, `osascript`, and a
@@ -353,11 +353,11 @@ for OS-originated quits. The harness here replaces the click tool (PID-posted mo
 the temp hook (layer 1).
 
 **Build and identity.** `pnpm build:bridge` runs `tauri build --debug --bundles app --features test-bridge --config
-src-tauri/tauri.bridge.conf.json`. The overlay sets the identifier to `co.andrewmiller.strata.test` and the product
-name to `Strata Bridge`; the bundle is `src-tauri/target/debug/bundle/macos/Strata Bridge.app`, and its data dir is
-`~/Library/Application Support/co.andrewmiller.strata.test/`, never the real app's. The bridge compiles only under
+src-tauri/tauri.bridge.conf.json`. The overlay sets the identifier to `com.example.myapp.test` and the product
+name to `MyApp Bridge`; the bundle is `src-tauri/target/debug/bundle/macos/MyApp Bridge.app`, and its data dir is
+`~/Library/Application Support/com.example.myapp.test/`, never the real app's. The bridge compiles only under
 `cfg(all(debug_assertions, feature = "test-bridge"))` (`compile_error!` otherwise), **refuses to start unless the
-app's identifier is exactly `co.andrewmiller.strata.test`** (so a bridge feature on the real identifier serves
+app's identifier is exactly `com.example.myapp.test`** (so a bridge feature on the real identifier serves
 nothing), and `scripts/assert-no-bridge.sh <binary|.app>` greps for its sentinel strings and must pass on every
 release build. One bridge instance per data dir at a time.
 
@@ -391,16 +391,16 @@ A genuine OS quit (Dock/AppleScript/logout path through `applicationShouldTermin
 **Typical session** (claim: "an OS-originated quit with unsaved text focuses Cancel and Return does not save"):
 1. Layer 0: unit tests and `/verify-app` on `pnpm dev` (mockIPC). Cheap, do first.
 2. `pnpm build:bridge`; copy `fixtures/vault/` into a **private** scratch dir (`desktop_test.private_dir()`; the repo's
-   own docs use `/private/tmp/strata-bridge-*`, which is a predictable shared path, so prefer a `mkdtemp` dir); launch with
-   `launch-bg "Strata Bridge.app" --stderr "$SCRATCH/app.log"` (the identifier ends in `.test`, so it passes the id check;
+   own docs use `/private/tmp/myapp-bridge-*`, which is a predictable shared path, so prefer a `mkdtemp` dir); launch with
+   `launch-bg "MyApp Bridge.app" --stderr "$SCRATCH/app.log"` (the identifier ends in `.test`, so it passes the id check;
    `--seed-state` refuses a data dir the harness did not create, so remove a stale bridge data dir first or let the
    bridge/`state.json` be set through `eval`).
 3. Layer 1: `Bridge.connect()`, `wait_ready()`, make a dirty buffer through `eval`, `request_close(from_os=True)`,
-   read the modal and `document.activeElement`; assert the file on disk is unchanged and no `.strata-tmp-*` exists.
+   read the modal and `document.activeElement`; assert the file on disk is unchanged and no `.myapp-tmp-*` exists.
 4. Layer 3/4 only for native chrome the DOM cannot reach; layer 2 for window chrome (see the gaps).
 5. `Bridge.quit()` (or `bin/stop <pid>`); delete the scratch dir and the test data dir.
 
-**Known gaps of this bridge against the probe findings (P4/P5).** These are fixes for the strata-v1 repo, not the
+**Known gaps of this bridge against the probe findings (P4/P5).** These are fixes for the my-app repo, not the
 harness; until they land:
 - **rAF runs at 0 fps when the window is occluded.** The bridge's `settle()` (2 rAFs) can hang while another window
   covers the app. Race it against a timer.
@@ -427,7 +427,7 @@ prompt, a real OS-initiated quit, and a real HID click or Cmd+Q keypress when th
 | `lib/desktop_test.py` | stdlib Python API tying them together | |
 | `fixtures/probe-app/` | `Probe.swift` + `build.sh` (private out dir) | `swiftc` |
 | `probes/run_probes.py` | re-runs P1 to P6, writes results.json and focus.log into a fresh private dir | Accessibility, Screen Recording |
-| `tests/test_harness.py` | static unit tests of the safety logic (`python3 -m unittest discover -s harness/tests`); launches nothing | `swiftc` |
+| `tests/test_harness.py` | static unit tests of the safety logic (from `harness/`: `python3 -m unittest tests.test_harness`); launches nothing | `swiftc` |
 
 Permissions are granted to the *calling process* (Terminal or the agent host), not to the tools. If a probe returns a
 blank or "could not create image", check Screen Recording; if `ax`/`pkey` exit 3, check Accessibility.

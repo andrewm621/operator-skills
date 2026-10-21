@@ -2,7 +2,9 @@ Preserve full conversation context for cross-thread resumption. Dumps everything
 
 Arguments: $ARGUMENTS (optional: topic slug, "list", "thaw", "thaw <slug>", or "all")
 
-## Instructions
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory (expand `~` before using it in Bash); a missing file or key means the default.
+
+## Steps
 
 Parse `$ARGUMENTS` to determine the action:
 
@@ -41,10 +43,10 @@ git stash list
 lsof -ti :3000,3001,3002,3003,3004,3005 2>/dev/null | head -20
 
 # Today's daily log
-ls -la ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/sessions/$(date +%Y-%m-%d)*.md 2>/dev/null
+ls -la <notes>/sessions/$(date +%Y-%m-%d)*.md 2>/dev/null
 
 # Active roadmap
-ls ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/*/roadmap.md 2>/dev/null | head -5
+ls <notes>/roadmaps/*/roadmap.md 2>/dev/null | head -5
 ```
 
 ### 3. Analyze conversation context
@@ -61,7 +63,7 @@ Extract from the current conversation (or post-compaction portion if compacted):
 ### 4. Determine slug
 
 If `$ARGUMENTS` is non-empty and isn't a subcommand, use it as the slug.
-Otherwise, generate a short descriptive slug from the active task (e.g., `freeze-skill-implementation`, `agencyos-auth-refactor`).
+Otherwise, generate a short descriptive slug from the active task (e.g., `freeze-skill-implementation`, `web-app-auth-refactor`).
 
 ### 5. Compose freeze file
 
@@ -73,7 +75,7 @@ Frozen: YYYY-MM-DD HH:MM | Project(s): <list> | CWD: <path>
 Branch: <branch> (<clean|dirty>) | Last commit: <hash> <message>
 
 > To resume: start a new session and run `/freeze thaw <slug>`
-> Or say: "Load context from ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/<filename>"
+> Or say: "Load context from <notes>/freezes/<filename>"
 
 ---
 
@@ -122,13 +124,13 @@ Branch: <branch> (<clean|dirty>) | Last commit: <hash> <message>
 
 ### 6. Save the file
 
-Write to: `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/YYYY-MM-DD-HHmm-<slug>.md`
+Write to: `<notes>/freezes/YYYY-MM-DD-HHmm-<slug>.md`
 
 Create the `freezes/` directory if it doesn't exist (use Bash: `mkdir -p`).
 
 ### 7. Update INDEX.md
 
-Read `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/INDEX.md`.
+Read `<notes>/INDEX.md` (create it with a `# Dev Notes Index` heading if it doesn't exist).
 
 If there's no `## Freezes` section, add one after the last existing section (before any blank trailing lines):
 
@@ -181,16 +183,16 @@ Compare current state against the freeze:
 Check for other freezes from the same project or same day:
 ```bash
 # Same project
-grep -l "Project(s):.*<project>" ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/*.md 2>/dev/null
+grep -l "Project(s):.*<project>" <notes>/freezes/*.md 2>/dev/null
 # Same day
-ls ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/<YYYY-MM-DD>*.md 2>/dev/null
+ls <notes>/freezes/<YYYY-MM-DD>*.md 2>/dev/null
 ```
 
 If related freezes exist, show them after the main context:
 ```
 Related freezes (same project/day):
-  - 2026-05-12 14:30  rebelsites-pipeline-hardening (also rebelsites)
-  - 2026-05-12 16:00  rebelsites-suggestion-chips   (also rebelsites)
+  - 2026-05-12 14:30  webapp-pipeline-hardening (also webapp)
+  - 2026-05-12 16:00  webapp-suggestion-chips   (also webapp)
 You may want to thaw these too for full context.
 ```
 
@@ -209,11 +211,11 @@ Progress: <completed> done, <in-progress> in flight, <blocked> blocked
 Next action: <resumption prompt>
 ```
 
-### 7. Read key files
+### 6. Read key files
 
 If the freeze lists files with status "In-progress" or "Needs work", proactively read them to rebuild context.
 
-### 8. Ask to continue
+### 7. Ask to continue
 
 Suggest the resumption prompt action and ask if the user wants to proceed with it or do something else.
 
@@ -232,11 +234,11 @@ Run the normal Save flow (steps 1-8 above) for this thread's context.
 ### 2. Detect other active work
 
 Scan for signals of other active threads:
-- Check today's freezes already saved: `ls ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/$(date +%Y-%m-%d)*.md`
+- Check today's freezes already saved: `ls <notes>/freezes/$(date +%Y-%m-%d)*.md`
 - Check git status across likely active projects (look at today's session logs for project names):
   ```bash
   # Parse project names from today's session files
-  grep -l "$(date +%Y-%m-%d)" ~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/sessions/$(date +%Y-%m-%d)*.md 2>/dev/null
+  grep -l "$(date +%Y-%m-%d)" <notes>/sessions/$(date +%Y-%m-%d)*.md 2>/dev/null
   ```
 - Check running dev servers on common ports to identify active projects
 
@@ -251,13 +253,13 @@ Shutdown Freeze Checklist
 This thread: frozen as <slug>
 
 Other active projects today:
-  1. rebelsites (session log exists, port 3000 running)
-     -> In that terminal, run: /freeze rebelsites-<inferred-topic>
-  2. strata-local (session log exists)
-     -> In that terminal, run: /freeze strata-<inferred-topic>
+  1. webapp (session log exists, port 3000 running)
+     -> In that terminal, run: /freeze webapp-<inferred-topic>
+  2. desktop-app (session log exists)
+     -> In that terminal, run: /freeze desktop-<inferred-topic>
 
 Already frozen today:
-  - 2026-05-12 14:30  agencyos-auth-refactor
+  - 2026-05-12 14:30  web-app-auth-refactor
 
 All done? Your freezes will be waiting:
   /freeze list
@@ -270,10 +272,10 @@ Infer topic slugs from session log filenames when possible (e.g., `2026-05-12-ge
 If multiple session logs exist for the same project today, note this:
 
 ```
-Note: rebelsites has 2 session logs today — you may have multiple
+Note: webapp has 2 session logs today — you may have multiple
 threads on this project. Freeze each thread with a distinct slug:
-  /freeze rebelsites-pipeline-hardening
-  /freeze rebelsites-suggestion-chips
+  /freeze webapp-pipeline-hardening
+  /freeze webapp-suggestion-chips
 ```
 
 ---
@@ -282,13 +284,13 @@ threads on this project. Freeze each thread with a distinct slug:
 
 When `$ARGUMENTS` is `list`:
 
-Glob for `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/freezes/*.md` and show the 10 most recent:
+Glob for `<notes>/freezes/*.md` and show the 10 most recent:
 
 ```
 Recent freezes:
-  1. 2026-05-12 14:30  agencyos-auth-refactor     (agencyos)
+  1. 2026-05-12 14:30  web-app-auth-refactor     (web-app)
   2. 2026-05-12 09:15  freeze-skill-implementation (skills)
-  3. 2026-05-11 16:45  liberty-cron-debugging      (liberty-networking)
+  3. 2026-05-11 16:45  cron-debugging              (web-app)
   ...
 
 Thaw one with: /freeze thaw <slug>
@@ -298,7 +300,7 @@ Parse the topic from the `# Context Freeze:` header line and project from the `P
 
 ---
 
-## Key Principles
+## Notes
 
 - **Optimize for Claude, not humans.** The freeze file should let a future Claude instance rebuild full working context in one read. Structure > prose.
 - **Preserve the compaction summary verbatim.** This is irreplaceable compressed context. Never paraphrase it.
