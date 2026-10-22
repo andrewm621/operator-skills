@@ -1,0 +1,242 @@
+<title>Walkthrough</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!--
+  TEMPLATE v1.0.0. Copy to <walkthrough dir>/walkthrough.src.html and edit ONLY the marked regions:
+    1. <title> and the header comment
+    2. wt:fonts       the web fonts (system fallbacks stay in the --wt-* font stacks)
+    3. #app-css       app tokens (--app-*) and the CSS for the canvas
+    4. wt:canvas      the canvas DOM: the app, mirrored from the real components
+    5. #wt-spec       WT.define({...}): data only, no DOM access
+    6. #wt-owners     WT.own(...) behaviours, then WT.start()
+  Everything else is the walkthrough chrome. wrap.mjs inlines motion.js and player.js at wt:runtime.
+
+  Contract (scripts/lint.mjs enforces it):
+  - No CSS transition or animation anywhere: every frame is a pure function of t.
+  - No network except fonts.googleapis.com and fonts.gstatic.com.
+  - Chrome classes are wt-*; app classes are yours. Light/dark: <html data-theme> is set before paint
+    (?theme=light|dark overrides the OS), so write dark app tokens once in :root[data-theme="dark"].
+  - Fictional people, places and data only. scripts/datasafety.mjs gates the publish.
+-->
+<!-- wt:fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap">
+<!-- /wt:fonts -->
+<style id="wt-chrome">
+/* ---------- Walkthrough chrome tokens. Override the pairs below in #app-css to brand it. ---------- */
+:root{
+  --wt-bg:#f7f4ee; --wt-ink:#1a2332; --wt-muted:#5f6673; --wt-line:#e2ddd3;
+  --wt-accent:#b9551f; --wt-accent-dark:#ec8a55; --wt-sub:#2f4a3c; --wt-sub-dark:#93c3a3;
+  --wt-band:#1a2332; --wt-band-ink:#f7f4ee; --wt-band-dim:#b7bdc8; --wt-band-accent:#f2a774;
+  --wt-band-btn:rgba(255,255,255,.10); --wt-band-btn-hover:rgba(255,255,255,.20);
+  --wt-shadow:rgba(26,35,50,.10); --wt-cursor:#1a2332;
+  --wt-serif:"Instrument Serif",Georgia,"Times New Roman",serif;
+  --wt-sans:"DM Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --wt-mono:"DM Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+:root[data-theme="dark"]{
+  --wt-bg:#16140f; --wt-ink:#eee8dd; --wt-muted:#a8a296; --wt-line:#38332b;
+  --wt-accent:var(--wt-accent-dark); --wt-sub:var(--wt-sub-dark);
+  --wt-band:#0c0b09; --wt-band-ink:#eee8dd; --wt-band-dim:#a8a296;
+  --wt-band-btn:rgba(255,255,255,.08); --wt-band-btn-hover:rgba(255,255,255,.16);
+  --wt-shadow:rgba(0,0,0,.45); --wt-cursor:#1a2332; color-scheme:dark;
+}
+:root[data-theme="light"]{color-scheme:light}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--wt-bg);color:var(--wt-ink);font-family:var(--wt-sans);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0}
+:focus-visible{outline:3px solid var(--wt-accent);outline-offset:2px;border-radius:6px}
+
+/* ---------- Page shell: presenter bar, narration + scaled canvas, caption band ---------- */
+.wt-shell{height:100%;display:flex;flex-direction:column}
+.wt-pbar{flex:none;display:flex;align-items:center;gap:14px;padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--wt-line)}
+.wt-brand{display:flex;flex-direction:column;line-height:1.1}
+.wt-brand small{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--wt-sub)}
+.wt-brand b{font-family:var(--wt-serif);font-weight:400;font-size:23px;letter-spacing:.01em}
+.wt-badge{font-size:12px;font-weight:600;color:var(--wt-muted);border:1px dashed var(--wt-muted);border-radius:99px;padding:3px 10px;white-space:nowrap}
+.wt-meta{margin-left:auto;font-size:13px;color:var(--wt-muted);white-space:nowrap}
+
+.wt-stage{flex:1;min-height:0;display:grid;grid-template-columns:280px minmax(0,1fr);gap:28px;padding-block:18px;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+.wt-narr{display:flex;flex-direction:column;justify-content:center;min-height:0;min-width:0}
+.wt-eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--wt-accent);margin:0 0 8px}
+.wt-narr h1{font-family:var(--wt-serif);font-weight:400;font-size:38px;line-height:1.05;letter-spacing:.005em;margin:0 0 10px;text-wrap:balance}
+.wt-lede{font-size:15.5px;color:var(--wt-muted);margin:0 0 18px;max-width:34ch}
+.wt-steps{list-style:none;margin:0;padding:0;border-top:1px solid var(--wt-line)}
+.wt-steps li{border-bottom:1px solid var(--wt-line)}
+.wt-steps button{display:flex;gap:12px;align-items:baseline;width:100%;text-align:left;padding:8px 2px;font-size:14.5px;color:var(--wt-muted)}
+.wt-steps button:hover{color:var(--wt-ink)}
+.wt-k{font-family:var(--wt-mono);font-size:12px;color:var(--wt-accent);min-width:22px}
+.wt-steps li.on button{color:var(--wt-ink);font-weight:700}
+.wt-steps li.done .wt-k::after{content:" \2713"}
+.wt-foot{margin:16px 0 0;font-size:12.5px;color:var(--wt-muted)}
+
+.wt-devwrap{position:relative;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center}
+.wt-sizer{position:relative;flex:none}
+
+.wt-tour{position:relative;flex:none;display:flex;align-items:center;gap:20px;min-height:84px;padding-block:12px;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px));background:var(--wt-band);color:var(--wt-band-ink)}
+.wt-prog{position:absolute;left:0;right:0;top:0;height:3px;background:var(--wt-band-btn)}
+.wt-prog i{display:block;height:100%;width:0;background:var(--wt-band-accent)}
+.wt-cap{flex:1;min-width:0;min-height:calc(2.6em + 19px);font-size:19px;line-height:1.3;font-weight:500}
+.wt-cap small{display:block;font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--wt-band-accent);margin-bottom:4px}
+.wt-dots{display:flex;align-items:center;gap:6px}
+.wt-dot{position:relative;width:10px;height:10px;border-radius:99px;border:1.5px solid var(--wt-band-dim);overflow:hidden}
+.wt-dot i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--wt-band-accent)}
+.wt-dot.done{border-color:var(--wt-band-accent);background:var(--wt-band-accent)}
+.wt-dot.on{width:30px;border-color:var(--wt-band-accent)}
+.wt-dot::before{content:"";position:absolute;inset:-10px -3px}
+.wt-ctl{display:flex;gap:6px}
+.wt-ctl button{display:grid;place-items:center;width:42px;height:42px;border-radius:10px;background:var(--wt-band-btn)}
+.wt-ctl button:hover{background:var(--wt-band-btn-hover)}
+.wt-ctl button:focus-visible,.wt-dot:focus-visible{outline-color:var(--wt-band-accent)}
+.wt-ctl svg{width:18px;height:18px}
+
+/* ---------- Canvas: the app, scaled as one unit. Size is set by WT.define canvas. ---------- */
+.wt-cv{position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden;border:1px solid var(--wt-line);border-radius:16px;box-shadow:0 18px 50px var(--wt-shadow);background:var(--app-bg,var(--wt-bg));color:var(--app-ink,var(--wt-ink));font-size:14px;line-height:1.4}
+.wt-cv.is-narrow{border-radius:20px}
+.wt-rip{position:absolute;left:-15px;top:-15px;z-index:49;width:30px;height:30px;border-radius:99px;border:3px solid var(--wt-accent);opacity:0;pointer-events:none}
+.wt-cur{position:absolute;left:0;top:0;z-index:50;width:24px;height:24px;pointer-events:none}
+.wt-cur svg{width:24px;height:24px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+
+/* ---------- Narrow layout (phone): hide the narration column, stack the controls ---------- */
+.wt-shell[data-mode="narrow"] .wt-pbar{padding-block:8px;gap:10px}
+.wt-shell[data-mode="narrow"] .wt-brand b{font-size:19px}
+.wt-shell[data-mode="narrow"] .wt-meta{display:none}
+.wt-shell[data-mode="narrow"] .wt-badge{margin-left:auto}
+.wt-shell[data-mode="narrow"] .wt-stage{display:flex;flex-direction:column;gap:0;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wt-shell[data-mode="narrow"] .wt-narr{display:none}
+.wt-shell[data-mode="narrow"] .wt-devwrap{flex:1}
+.wt-shell[data-mode="narrow"] .wt-tour{flex-wrap:wrap;gap:10px 12px;padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wt-shell[data-mode="narrow"] .wt-cap{flex-basis:100%;font-size:15.5px;min-height:3.9em}
+.wt-shell[data-mode="narrow"] .wt-dots{flex:1}
+.wt-shell[data-mode="narrow"] .wt-ctl button{width:44px;height:44px}
+
+/* ---------- Wide, smaller viewports ---------- */
+@media (min-width:760px) and (max-width:1100px){
+  .wt-shell[data-mode="wide"] .wt-stage{grid-template-columns:230px minmax(0,1fr);gap:20px}
+  .wt-shell[data-mode="wide"] .wt-narr h1{font-size:30px}
+  .wt-shell[data-mode="wide"] .wt-lede{font-size:14px}
+  .wt-shell[data-mode="wide"] .wt-steps button{font-size:13.5px;padding:6px 2px}
+}
+@media (min-width:760px) and (max-width:1100px) and (orientation:portrait){
+  .wt-shell[data-mode="wide"] .wt-stage{display:flex;flex-direction:column;gap:14px}
+  .wt-shell[data-mode="wide"] .wt-narr{flex:none}
+  .wt-shell[data-mode="wide"] .wt-lede,.wt-shell[data-mode="wide"] .wt-steps,.wt-shell[data-mode="wide"] .wt-foot{display:none}
+  .wt-shell[data-mode="wide"] .wt-narr h1{margin:0}
+  .wt-shell[data-mode="wide"] .wt-devwrap{flex:1}
+}
+@media (min-width:760px) and (max-height:760px){
+  .wt-shell[data-mode="wide"] .wt-lede{display:none}
+  .wt-shell[data-mode="wide"] .wt-narr h1{font-size:30px}
+  .wt-shell[data-mode="wide"] .wt-tour{min-height:72px;padding-block:10px}
+  .wt-shell[data-mode="wide"] .wt-cap{font-size:17px}
+}
+
+/* ---------- Export mode (motion-artifact's render.mjs sets window.__motionExport): bare canvas at native size ---------- */
+.wt-export .wt-pbar,.wt-export .wt-narr,.wt-export .wt-tour{display:none}
+.wt-export .wt-stage{display:block;padding:0}
+.wt-export .wt-cv{position:fixed;left:0;top:0;border:0;border-radius:0;box-shadow:none}
+</style>
+
+<style id="app-css">
+/* APP: tokens first. Write dark values once, under :root[data-theme="dark"]. */
+:root{
+  --app-bg:#ffffff;
+  --app-ink:#1a2332;
+}
+:root[data-theme="dark"]{
+  --app-bg:#211e19;
+  --app-ink:#eee8dd;
+}
+/* APP: canvas CSS goes here. No transition, no animation. Scope narrow tweaks with .is-narrow. */
+</style>
+
+<script id="wt-theme">
+/* Sets <html data-theme> before first paint. ?theme=light|dark overrides the OS. */
+(function () {
+  var q = new URLSearchParams(location.search).get("theme");
+  var mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
+  function set() { document.documentElement.setAttribute("data-theme", q === "light" || q === "dark" ? q : (mq && mq.matches ? "dark" : "light")); }
+  set();
+  if (mq && mq.addEventListener && !q) mq.addEventListener("change", set);
+})();
+</script>
+
+<div class="wt-shell" id="wtShell" data-mode="wide">
+  <header class="wt-pbar">
+    <div class="wt-brand"><small id="wtBrandEy"></small><b id="wtBrandName"></b></div>
+    <span class="wt-badge" id="wtBadge"></span>
+    <span class="wt-meta" id="wtMeta"></span>
+  </header>
+
+  <div class="wt-stage">
+    <aside class="wt-narr">
+      <p class="wt-eyebrow" id="wtEy"></p>
+      <h1 id="wtTitle"></h1>
+      <p class="wt-lede" id="wtLede"></p>
+      <ol class="wt-steps" id="wtSteps"></ol>
+      <p class="wt-foot" id="wtFoot"></p>
+    </aside>
+
+    <div class="wt-devwrap" id="wtWrap">
+      <div class="wt-sizer" id="wtSizer">
+        <section class="wt-cv cv" id="cv" aria-label="Animated sample of the app" aria-hidden="true">
+<!-- wt:canvas -->
+<!-- /wt:canvas -->
+          <div class="wt-rip" id="wtRip"></div>
+          <div class="wt-cur" id="wtCur"><svg viewBox="0 0 24 24"><path d="M4 2l15 11-7 1-4 7z" fill="var(--wt-cursor)" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="wt-tour" role="region" aria-label="Walkthrough controls">
+    <div class="wt-prog"><i id="wtProg"></i></div>
+    <div class="wt-cap"><small id="wtCapEy"></small><span id="wtCapTx" aria-live="polite"></span></div>
+    <div class="wt-dots" id="wtDots"></div>
+    <div class="wt-ctl">
+      <button type="button" id="wtRestart" aria-label="Restart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+      <button type="button" id="wtPrev" aria-label="Previous step"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+      <button type="button" id="wtPlay" aria-label="Pause"></button>
+      <button type="button" id="wtNext" aria-label="Next step"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- wt:runtime -->
+
+<script id="wt-spec">
+/* DATA ONLY: no DOM access, no functions. lint.mjs evaluates this block on its own.
+   Times in beats, moves, clicks and marks are SCENE-relative milliseconds. */
+WT.define({
+  brand: { eyebrow: "Company", name: "App name" },
+  badge: "Walkthrough · sample data",
+  foot: "Fictional sample data only.",
+  canvas: { wide: [1000, 620], narrow: [390, 720], narrowBelow: 760 },
+  park: { wide: [760, 560], narrow: [300, 640] },
+  scenes: [
+    { id: "one", name: "First", title: "First step", lede: "One sentence on what this step shows.", len: 12000,
+      beats: [[0, "A caption of about ten words."], [4000, "Another caption."], [8000, "A third caption."]],
+      moves: [[300, 800, "#someTarget"]],
+      clicks: [[1200, "#someTarget"]],
+      marks: { done: 6000 } },
+    { id: "recap", name: "Recap", title: "The one line", lede: "The closing principle.", len: 8000,
+      beats: [[0, "The closing principle, one line."]] }
+  ],
+  closing: "recap"
+});
+</script>
+<script id="wt-owners">
+/* BEHAVIOUR: each owner is the only writer of what it touches. helpers: rp win pick op css txt cls tr rev num spin.
+   k.at("scene", "mark") -> absolute ms; k.local(t, "scene") -> ms into the scene. See recipes/*.js. */
+(function () {
+  "use strict";
+  var h = WT.h, rp = h.rp, win = h.win, pick = h.pick, op = h.op, css = h.css, txt = h.txt, cls = h.cls, tr = h.tr, rev = h.rev, num = h.num, spin = h.spin;
+  var $ = WT.$, $$ = WT.$$;
+
+  // WT.own("first.screen", function (t, k) { ... });
+
+  WT.start();   // last line
+})();
+</script>
