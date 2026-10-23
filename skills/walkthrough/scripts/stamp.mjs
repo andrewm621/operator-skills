@@ -13,7 +13,7 @@
    manifest.json. It never commits, pushes or publishes. */
 
 import { readFileSync, writeFileSync } from 'node:fs';
-import { resolveTarget, readManifest, repoRoot, gitSafe, engineVersions, positional, has, isMain } from './_lib.mjs';
+import { resolveTarget, readManifest, repoRoot, gitSafe, GIT_NO_SUBMODULES, engineVersions, positional, has, isMain } from './_lib.mjs';
 
 const git = (cwd, args) => gitSafe(cwd, args, { stderr: 'pipe' });
 
@@ -26,7 +26,7 @@ export function stamp(arg, { force = false, today = new Date().toISOString().sli
   catch { throw new Error(`${root} is not a git repo; nothing to stamp against`); }
   const files = Object.values(manifest.mirrors || {}).flat();
   if (files.length && !force) {
-    const dirty = git(root, ['status', '--porcelain', '--', ...files]);
+    const dirty = git(root, ['status', '--porcelain', ...GIT_NO_SUBMODULES, '--', ...files]);
     if (dirty) throw new Error(`mirrored files have uncommitted edits:\n${dirty}\ncommit them first (the baseline must be a real commit), or pass --force`);
   }
   const before = { builtAtCommit: manifest.builtAtCommit || null, engine: manifest.engine || null };

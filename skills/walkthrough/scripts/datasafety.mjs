@@ -28,10 +28,10 @@
    realNames gets through, so the skill's step 6 has the human read the visible text too.
    Exit 1 while any finding is unacknowledged. */
 
-import { readFileSync, existsSync, statSync, readdirSync, realpathSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, lstatSync, readdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveTarget, readManifest, repoRoot, gitSafe, GIT_NO_DRIVERS, positional, flag, has, decodeEntities, isMain } from './_lib.mjs';
+import { resolveTarget, readManifest, repoRoot, gitSafe, GIT_LOG_FLAGS, positional, flag, has, decodeEntities, isMain } from './_lib.mjs';
 
 /* Generic US given-name data (data/us-given-names.txt, SSA frequency list) minus ordinary-English homographs. */
 const DATA_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data');
@@ -108,7 +108,7 @@ export function loadRepoText(root, isOwn) {
   let total = 0;
   for (const f of listRepoFiles(root, (p) => (isOwn && isOwn(p)) || p.split(path.sep).some((s) => SKIP_DIRS.has(s)))) {
     if (!TEXT_EXT.has(path.extname(f).toLowerCase()) && path.basename(f) !== '.env.example') continue;
-    let st; try { st = statSync(f); } catch { continue; }
+    let st; try { st = lstatSync(f); } catch { continue; }   // lstat: a symlink in the repo is not read
     if (!st.isFile() || st.size > 1024 * 1024) continue;
     total += st.size;
     if (total > 80 * 1024 * 1024) break;
@@ -164,7 +164,7 @@ export function datasafety(arg, opts = {}) {
     if (hit) add('collision', String(n), `cast name "${n}" is also in the repo at ${hit.file}:${hit.line}; invent a different one`);
     if (opts.history) {
       try {
-        const log = gitSafe(root, ['log', ...GIT_NO_DRIVERS, '-S' + n, '--oneline', '-n', '3', '--', '.']);
+        const log = gitSafe(root, ['log', ...GIT_LOG_FLAGS, '-S' + n, '--oneline', '-n', '3', '--', '.']);
         if (log) add('collision', String(n), `cast name "${n}" appears in git history:\n        ${log.split('\n').join('\n        ')}`);
       } catch { /* not a git repo */ }
     }

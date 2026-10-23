@@ -22,7 +22,7 @@
 
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { resolveTarget, readManifest, repoRoot, gitSafe, gitTry, GIT_NO_DRIVERS, engineVersions, positional, has, isMain } from './_lib.mjs';
+import { resolveTarget, readManifest, repoRoot, gitSafe, gitTry, insideRoot, GIT_NO_DRIVERS, GIT_LOG_FLAGS, GIT_NO_SUBMODULES, engineVersions, positional, has, isMain } from './_lib.mjs';
 
 const git = (cwd, args) => gitSafe(cwd, args, { stderr: 'pipe' });
 const tryGit = gitTry;
@@ -47,16 +47,18 @@ export function staleReport(arg) {
 
   /* labels no longer in the source */
   for (const l of manifest.labels || []) {
-    const f = path.resolve(root, l.file || '');
+    const f = l.file ? insideRoot(root, l.file) : null;   // a path that resolves outside the repo (".." or a symlink) is treated as gone
     const target_ = l.scene ? scene(l.scene) : null;
-    const isFile = l.file && existsSync(f) && statSync(f).isFile();   // a missing or empty "file" must not resolve to a directory and crash the read
-    if (!isFile) { if (target_) { target_.stale = true; target_.reasons.push(`label "${l.text}": ${l.file || '(no file given)'} is gone or is not a file`); } continue; }
+    const isFile = l.file && f && statSync(f).isFile();   // a missing or empty "file" must not resolve to a directory and crash the read
+    if (!isFile) { if (target_) { target_.stale = true; target_.reasons.push(`label "${l.text}": ${l.file || '(no file given)'} is gone or is not a file (or resolves outside the repo)`); } continue; }
     if (!readFileSync(f, 'utf8').includes(l.text) && target_) { target_.stale = true; target_.reasons.push(`label "${l.text}" is no longer in ${l.file}`); }
   }
 
   /* file changes since the baseline */
   const base = manifest.builtAtCommit;
-  if (!base) {
+  if (base && !/^[0-9a-f]{7,64}$/i.test(String(base))) {
+    report.problems.push(`builtAtCommit "${base}" is not a commit hash; refusing to pass it to git`);
+  } else if (!base) {
     report.problems.push('no builtAtCommit in manifest.json: nothing to compare against (run stamp.mjs after a passing QA)');
   } else if (tryGit(root, ['rev-parse', '--is-inside-work-tree']) !== 'true') {
     report.problems.push(`${root} is not a git repo; cannot diff against ${base}`);
@@ -67,7 +69,7 @@ export function staleReport(arg) {
     for (const [id, files] of Object.entries(mirrors)) {
       if (!files.length) continue;
       const s = scene(id);
-      const status = git(root, ['diff', ...GIT_NO_DRIVERS, '--name-status', '-M', '--relative', base, 'HEAD', '--', ...files]).split('\n').filter(Boolean);
+      const status = git(root, ['diff', ...GIT_NO_DRIVERS, ...GIT_NO_SUBMODULES, '--name-status', '-M', '--relative', base, 'HEAD', '--', ...files]).split('\n').filter(Boolean);
       for (const line of status) {
         const [st, ...p] = line.split('\t');
         s.stale = true;
@@ -75,13 +77,13 @@ export function staleReport(arg) {
         else if (st.startsWith('R')) s.reasons.push(`${p[0]} was renamed to ${p[1]}`);
         else s.reasons.push(`${p[0]} changed`);
       }
-      const dirty = git(root, ['status', '--porcelain', '--', ...files]).split('\n').filter(Boolean);
+      const dirty = git(root, ['status', '--porcelain', ...GIT_NO_SUBMODULES, '--', ...files]).split('\n').filter(Boolean);
       for (const line of dirty) { s.stale = true; s.reasons.push(`${line.slice(3).trim()} has uncommitted edits`); }
       for (const f of files) {
         if (!existsSync(path.resolve(root, f)) && !s.reasons.some((r) => r.includes(f))) { s.stale = true; s.reasons.push(`${f} does not exist`); }
       }
       if (s.stale) {
-        const log = tryGit(root, ['log', ...GIT_NO_DRIVERS, '--format=%h %s', '-n', '5', `${base}..HEAD`, '--', ...files]);
+        const log = tryGit(root, ['log', ...GIT_LOG_FLAGS, '--format=%h %s', '-n', '5', `${base}..HEAD`, '--', ...files]);
         if (log) s.commits = log.split('\n');
       }
     }

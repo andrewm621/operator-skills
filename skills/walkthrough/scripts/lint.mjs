@@ -18,7 +18,7 @@
 
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { resolveTarget, readManifest, repoRoot, engineVersions, scriptById, styleBlocks, allScripts, ids, decodeEntities, reporter, isMain, TEMPLATE_DIR, findMotionDir } from './_lib.mjs';
+import { resolveTarget, readManifest, repoRoot, insideRoot, engineVersions, scriptById, styleBlocks, allScripts, ids, decodeEntities, reporter, isMain, TEMPLATE_DIR, findMotionDir } from './_lib.mjs';
 
 const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
 const REQUIRED_IDS = ['cv', 'wtShell', 'wtWrap', 'wtSizer', 'wtPlay', 'wtPrev', 'wtNext', 'wtRestart', 'wtSteps', 'wtDots', 'wtCapTx', 'wtCapEy', 'wtProg', 'wtCur', 'wtRip'];
@@ -191,8 +191,8 @@ function lintManifest(target, manifest, html, r) {
   for (const l of labels) {
     if (!visible.includes(l.text)) { r.fail('labels', `label "${l.text}" is pinned but not in the page`); bad = true; }
     if (!l.file) { r.fail('labels', `label "${l.text}" has no source file`); bad = true; continue; }
-    const f = path.resolve(root, l.file);
-    if (!existsSync(f) || !statSync(f).isFile()) { r.fail('labels', `label "${l.text}": source file ${l.file} is not a file under ${path.relative(target.dir, root) || '.'}`); bad = true; continue; }
+    const f = insideRoot(root, l.file);
+    if (!f || !statSync(f).isFile()) { r.fail('labels', `label "${l.text}": source file ${l.file} is not a file under ${path.relative(target.dir, root) || '.'}`); bad = true; continue; }
     if (!readFileSync(f, 'utf8').includes(l.text)) { r.fail('labels', `label "${l.text}" is not in ${l.file} any more (the app changed; update the walkthrough or the pin)`); bad = true; }
   }
   if (!bad) r.pass(`${labels.length} pinned labels are in the page and in the app source`);

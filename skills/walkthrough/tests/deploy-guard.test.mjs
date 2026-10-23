@@ -246,8 +246,9 @@ test('a Worker name that is not wt-<slug> is refused without --confirm-name, bef
   try {
     for (const via of ['opts', 'deploy.json']) {
       if (via === 'deploy.json') writeFileSync(path.join(dir, 'deploy.json'), JSON.stringify({ name: 'wt-other-name' }));
-      const { value } = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true, ...(via === 'opts' ? { name: 'wt-other-name' } : {}) }));
+      const { value, lines } = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true, ...(via === 'opts' ? { name: 'wt-other-name' } : {}) }));
       assert.equal(value.refused, 'name-override', via); assert.equal(value.deployed, false);
+      assert.match(lines.join('\n'), /Ask the user before re-running with --confirm-name wt-other-name/, 'the message tells an agent to ask, not to just add the flag');
     }
     assert.equal(calls().length, 0);
     const wrong = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, name: 'wt-other-name', confirmName: 'wt-different' }));
@@ -267,7 +268,7 @@ test('a fork with the same root commit and no local record is refused on an owne
     assert.equal(readOwned()[`${ACCT}/wt-${SLUG}`], undefined, 'no local record in the temp HOME');
     const no = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));
     assert.equal(no.value.state, 'owned'); assert.equal(no.value.refused, 'not-adopted'); assert.equal(no.value.deployed, false);
-    assert.match(no.lines.join('\n'), /--adopt/);
+    assert.match(no.lines.join('\n'), /Ask the user before re-running with --adopt/);
     assert.ok(!calls().some((c) => c.args[0] === 'deploy'));
     const dry = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT }));
     assert.equal(dry.value.refused, 'not-adopted', 'a dry run shows the refusal too');

@@ -201,7 +201,7 @@ export async function deploy(arg, opts = {}) {
   if (name !== `wt-${slug}`) {
     if (opts.confirmName !== name) {
       log(`  \u2717 REFUSING: the Worker name "${name}" differs from the default "wt-${slug}" (it came from ${opts.name ? '--name' : 'deploy.json'}).`);
-      log(`    If that is really the Worker to publish to, re-run with --confirm-name ${name}`);
+      log(`    Ask the user before re-running with --confirm-name ${name}: an agent must not add it on its own.`);
       result.refused = 'name-override';
       return result;
     }
@@ -251,7 +251,7 @@ export async function deploy(arg, opts = {}) {
       else if (opts.adopt) log(`  ! --adopt: taking over "${name}" although ${rec ? `this machine's record says repo ${rec}` : 'this machine has no record of deploying it'}`);
       else {
         log(`  \u2717 REFUSING: "${name}" carries this repo's tag, but ${rec ? `this machine's record says it belongs to repo ${rec}` : 'this machine has no record of deploying it'}.`);
-        log('    A fork or clone shares the tag. If this really is yours (another machine, a fresh checkout, a changed repo id), re-run with --adopt.');
+        log('    A fork or clone shares the tag. Ask the user before re-running with --adopt (another machine, a fresh checkout, a changed repo id): an agent must not add it on its own.');
         result.refused = 'not-adopted';
         return result;
       }
