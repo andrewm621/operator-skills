@@ -6,80 +6,88 @@
    Reads manifest.json:
      cast             the invented people (and addresses) the walkthrough shows
      realNames        strings that must never appear (client name, staff names)
-     allow            phrases to ignore (product vocabulary that merely looks like a name; never a person)
+     allow            street-address-looking phrases to ignore (product vocabulary; matched as a whole word
+                      against address findings ONLY, so it cannot hide a name, email, phone or real name)
      datasafety.acknowledged   findings a human reviewed, as "kind:text" (printed for you below)
      mode             "shots" for screenshot walkthroughs: also needs datasafety.attestNoRealData: true
 
    Findings (all block publishing until fixed or acknowledged):
-     real-name      a manifest.realNames entry (or one from --real-names) appears (checked before "allow")
-     allow          a manifest.allow entry that contains a given name or real name; it is ignored and cannot hide anything
+     real-name      a manifest.realNames entry (or one from --real-names) appears
      collision      a cast name is also in the app repo's data or docs (possibly a real person)
      email, phone, address   contact details in the page
      name           a given name that is not in the cast (a likely real person; cites repo docs that name them too)
      no-cast        manifest.json lists no cast, so invented and real cannot be told apart
    --history also searches the repo's git history for each cast name.
 
-   Scanned raw: script bodies (the JSON spec, owner scripts), HTML comments, every attribute value
-   except class/id/style/src/href, and the page text.
+   Scanned raw (nothing is removed before scanning): script bodies (the JSON spec, owner scripts), HTML
+   comments, every attribute value except class/id/style/src/href, CSS `content:` strings in <style>
+   blocks and style attributes, and the page text. Given names come from data/us-given-names.txt
+   (generic frequency data) minus data/name-homographs.txt (ordinary English words like "Mark").
 
    It is a heuristic net, not proof: a real name that is not in its built-in list and not in
    realNames gets through, so the skill's step 6 has the human read the visible text too.
    Exit 1 while any finding is unacknowledged. */
 
-import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, statSync, readdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
-import { resolveTarget, readManifest, repoRoot, positional, flag, has, decodeEntities, isMain } from './_lib.mjs';
+import { fileURLToPath } from 'node:url';
+import { resolveTarget, readManifest, repoRoot, gitSafe, GIT_NO_DRIVERS, positional, flag, has, decodeEntities, isMain } from './_lib.mjs';
 
-/* Common US given names. Ambiguous words (Mark, Will, Grant, Rose, Hunter, Bill, Pat, ...) are left out on purpose. */
-const FIRST_NAMES = new Set(`aaron abigail adam alan albert alexander alexis alice alyssa amanda amber amy andrea andrew angela anna
-anthony arthur ashley austin barbara benjamin betty billy bobby brandon brenda brian brittany bruce bryan carl
-carol carolyn catherine chad charles charlotte christian christina christine christopher clarence clayton
-colton crystal cynthia daniel danielle darrell david deborah debra denise dennis derek diana diane donald
-donna dorothy douglas dustin dwayne dylan edward elijah emily emma eric ethan eugene evelyn frank gabriel gary
-george gerald gloria gregory hannah harold heather helen henry isabella jacob jacqueline james jane janet
-janice jason jeffrey jennifer jeremy jerry jesse jessica john johnny jonathan jordan jose joseph joshua joyce
-juan judy julie justin karen kate katherine kathleen kayla keith kelly kenneth kevin kimberly kyle lance larry
-laura lauren lawrence leon lisa logan louis madison marcus margaret maria marie martha matthew megan melissa
-michael michelle monica nancy natalie nathan nicholas nicole noah olivia pamela patricia patrick paul peter
-philip rachel ralph randy raymond rebecca rhonda richard ricky robert roger ronald roy russell ruth ryan
-samantha samuel sandra sarah scott sean sharon shawn sherry shirley sophia stephanie stephen steven susan
-tammy teresa terry thomas tiffany timothy todd tommy tonya travis trevor tyler victoria vincent walter wanda
-wayne william willie zachary`.split(/\s+/));
+/* Generic US given-name data (data/us-given-names.txt, SSA frequency list) minus ordinary-English homographs. */
+const DATA_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data');
+const wordList = (f) => new Set(readFileSync(path.join(DATA_DIR, f), 'utf8').split('\n').map((l) => l.trim().toLowerCase()).filter((l) => l && !l.startsWith('#')));
+const HOMOGRAPHS = wordList('name-homographs.txt');
+const FIRST_NAMES = new Set([...wordList('us-given-names.txt')].filter((n) => !HOMOGRAPHS.has(n)));
 
 const TEXT_EXT = new Set(['.md', '.txt', '.json', '.csv', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.sql', '.yaml', '.yml', '.html', '.toml', '.env', '.sample']);
 const SKIP_DIRS = new Set(['node_modules', '.git', '.next', 'dist', 'build', '.wt', '.wrangler', 'coverage']);
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-/* (555)123-4567, 555-123-4567, 555.123.4567, 5551234567, +1 415 555 0132, +442071838750 */
-const PHONE_RE = /\+\d[\d\s().-]{7,16}\d|\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g;
+/* Phones. International needs a country code right after the "+" (+1 415 555 0132, +442071838750).
+   Formatted US numbers need a separator or parentheses: (555)123-4567, 555-123-4567, 555.123.4567.
+   A bare 10-digit run (5551234567) is only treated as a phone in prose, not inside script bodies, where
+   epoch seconds and timing math look exactly like one. */
+const PHONE_INTL = /(?<![\w)\]])\+[1-9]\d{0,2}[\s().-]*\d[\d\s().-]{5,14}\d/g;
+const PHONE_FORMATTED = /\(\d{3}\)\s?\d{3}[\s.-]?\d{4}|\b\d{3}[\s.-]\d{3}[\s.-]?\d{4}\b|\b\d{3}[\s.-]?\d{3}[\s.-]\d{4}\b/g;
+const PHONE_BARE = /(?<![\w.])\d{10}(?![\w.])/g;
 const NOT_TEXT_ATTRS = new Set(['class', 'id', 'style', 'src', 'href']);
 const TAG_RE = /<\/?[a-zA-Z!][^>]*>/g;          // a tag starts with a letter: "2 < 3 Karen" is text, not a tag
 const ATTR_RE = /([^\s"'<>\/=]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
 
-/** Everything a viewer or the source-viewer could read, scanned raw:
-    script bodies (captions live in the JSON spec and in owner scripts), HTML comments, every
-    attribute value except class/id/style/src/href (single-quoted, double-quoted or bare),
-    and the markup's text. Only <style> blocks are dropped. */
-export function visibleText(html) {
+const CSS_CONTENT_RE = /content\s*:\s*(["'])(.*?)\1/gs;
+
+/** The page split into the places text hides: markup text, attribute values, comments, CSS
+    `content:` strings, and script bodies (kept apart because they are code, not prose). */
+export function pageParts(html) {
   const comments = [...html.matchAll(/<!--([\s\S]*?)-->/g)].map((m) => m[1]);
   let rest = html.replace(/<!--[\s\S]*?-->/g, ' ');
   const scripts = [...rest.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
+  const styles = [...rest.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => m[1]);
   rest = rest.replace(/<script\b[\s\S]*?<\/script>/gi, ' ').replace(/<style\b[\s\S]*?<\/style>/gi, ' ');
-  const attrs = [];
+  const attrs = [], styleAttrs = [];
   for (const tag of rest.matchAll(TAG_RE)) {
     for (const m of tag[0].matchAll(ATTR_RE)) {
-      if (!NOT_TEXT_ATTRS.has(m[1].toLowerCase())) attrs.push(m[2] ?? m[3] ?? m[4] ?? '');
+      const v = m[2] ?? m[3] ?? m[4] ?? '', k = m[1].toLowerCase();
+      if (k === 'style') styleAttrs.push(v);
+      else if (!NOT_TEXT_ATTRS.has(k)) attrs.push(v);
     }
   }
+  const css = [...styles, ...styleAttrs].flatMap((c) => [...c.matchAll(CSS_CONTENT_RE)].map((m) => m[2]));
   const body = rest.replace(TAG_RE, ' ');
-  return decodeEntities([body, ...scripts, ...comments, ...attrs].join('\n'));
+  const dec = (a) => decodeEntities(a.join('\n'));
+  return { markup: dec([body, ...comments, ...attrs, ...css]), scripts: dec(scripts) };
+}
+
+/** Everything a viewer or the source-viewer could read, as one string. */
+export function visibleText(html) {
+  const p = pageParts(html);
+  return p.markup + '\n' + p.scripts;
 }
 
 function listRepoFiles(root, exclude) {
   try {
-    const out = execFileSync('git', ['-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '.'], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] });
+    const out = gitSafe(root, ['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', '.']);
     return out.split('\0').filter(Boolean).map((f) => path.join(root, f)).filter((f) => !exclude(f));
   } catch {
     const acc = [];
@@ -128,25 +136,19 @@ export function datasafety(arg, opts = {}) {
 
   const raw = visibleText(html);
 
-  /* "allow" is for product vocabulary that merely looks like a name. It must never be able to hide a person:
-     an entry that contains a given name or a known real name is ignored, and reported. */
+  /* Every scan runs on the raw text. "allow" is applied later, to address findings only. */
   const realNames = [...(manifest.realNames || [])];
   if (opts.realNames && existsSync(opts.realNames)) realNames.push(...readFileSync(opts.realNames, 'utf8').split('\n').map((s) => s.trim()).filter((s) => s && !s.startsWith('#')));
-  const allowOk = [];
-  for (const phrase of manifest.allow || []) {
-    const toks = String(phrase).toLowerCase().match(/[a-z]+/g) || [];
-    const bad = toks.some((t) => FIRST_NAMES.has(t)) || realNames.some((n) => String(phrase).toLowerCase().includes(String(n).toLowerCase()));
-    if (bad) add('allow', String(phrase), `manifest.allow entry "${phrase}" contains a given name or a known real name, so it is ignored. "allow" cannot hide a person; only a human adding this finding's key to datasafety.acknowledged can clear it`);
-    else allowOk.push(phrase);
-  }
-  let text = raw;
-  for (const phrase of allowOk) text = text.split(phrase).join(' ');
+  const parts = pageParts(html);
+  const text = raw;
+  const proseOnly = parts.markup;
+  const allowWord = (a) => (manifest.allow || []).some((p) => String(p).trim() && new RegExp(`(?<!\\w)${escapeRe(String(p).trim())}(?!\\w)`, 'i').test(a));
 
   /* cast */
   if (!cast.length) add('no-cast', 'manifest.cast', 'list every invented person the walkthrough shows in manifest.json "cast"');
   const castTokens = new Set(cast.flatMap((n) => String(n).toLowerCase().split(/\s+/)));
 
-  /* known real names: checked on the UNFILTERED text */
+  /* known real names */
   for (const n of realNames) {
     if (new RegExp(`\\b${escapeRe(n)}\\b`, 'i').test(raw)) add('real-name', n, 'listed as a real name (manifest.realNames / --real-names) and it appears in the page');
   }
@@ -162,24 +164,25 @@ export function datasafety(arg, opts = {}) {
     if (hit) add('collision', String(n), `cast name "${n}" is also in the repo at ${hit.file}:${hit.line}; invent a different one`);
     if (opts.history) {
       try {
-        const log = execFileSync('git', ['-C', root, 'log', '-S' + n, '--oneline', '-n', '3', '--', '.'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+        const log = gitSafe(root, ['log', ...GIT_NO_DRIVERS, '-S' + n, '--oneline', '-n', '3', '--', '.']);
         if (log) add('collision', String(n), `cast name "${n}" appears in git history:\n        ${log.split('\n').join('\n        ')}`);
       } catch { /* not a git repo */ }
     }
   }
 
   /* contact details */
-  const dedupe = (re) => [...new Set([...text.matchAll(re)].map((m) => m[0].trim()))];
-  for (const e of dedupe(/[\w.+-]+@[\w-]+\.[\w.-]+/g)) add('email', e, 'an email address');
-  for (const p of dedupe(PHONE_RE)) add('phone', p, 'a phone number');
-  for (const a of dedupe(/\b\d{1,6}\s+(?:[A-Z][a-z]+\s+){1,3}(?:St|Street|Rd|Road|Ave|Avenue|Blvd|Dr|Drive|Ln|Lane|Ct|Court|Way|Pkwy|Hwy|Cir|Pl)\b\.?/g)) {
-    if (!cast.some((c) => String(c).includes(a))) add('address', a, 'a street address; use one that is plainly invented (or list it in cast) and acknowledge it');
+  const dedupe = (t, re) => [...new Set([...t.matchAll(re)].map((m) => m[0].trim()))];
+  for (const e of dedupe(text, /[\w.+-]+@[\w-]+\.[\w.-]+/g)) add('email', e, 'an email address');
+  const phones = new Set([...dedupe(text, PHONE_INTL), ...dedupe(text, PHONE_FORMATTED), ...dedupe(proseOnly, PHONE_BARE)]);
+  for (const p of phones) add('phone', p, 'a phone number');
+  for (const a of dedupe(text, /\b\d{1,6}\s+(?:[A-Z][a-z]+\s+){1,3}(?:St|Street|Rd|Road|Ave|Avenue|Blvd|Dr|Drive|Ln|Lane|Ct|Court|Way|Pkwy|Hwy|Cir|Pl)\b\.?/g)) {
+    if (!cast.some((c) => String(c).includes(a)) && !allowWord(a)) add('address', a, 'a street address; use one that is plainly invented (or list it in cast) and acknowledge it');
   }
 
   /* given names that are not in the cast */
   const seen = new Set();
-  for (const m of text.matchAll(/\b([A-Z][a-z]{1,14})(?=\b|['’]s)/g)) {
-    const w = m[1], lw = w.toLowerCase();
+  for (const m of text.matchAll(/\b([A-Z][a-z]{1,14}|[A-Z]{2,15})(?=\b|['’]s)/g)) {
+    const lw = m[1].toLowerCase(), w = lw[0].toUpperCase() + lw.slice(1);
     if (!FIRST_NAMES.has(lw) || castTokens.has(lw) || seen.has(lw)) continue;
     seen.add(lw);
     const hit = findInRepo(repoText, new RegExp(`\\b${w}\\b`));

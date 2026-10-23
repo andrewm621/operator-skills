@@ -1,11 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync, existsSync, statSync, symlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { checkOwnership, deploy, resolveAccount, slugify, buildSite, repoIdentity, tagFor } from '../scripts/deploy.mjs';
+import { checkOwnership, deploy, resolveAccount, slugify, buildSite, repoIdentity, tagFor, readOwned, recordOwned, ownedFile, assertNoSymlinks } from '../scripts/deploy.mjs';
 import { copyFixture, editManifest, rm, quiet, HERE } from './_helpers.mjs';
+
+/* deploy.mjs keeps a per-user ownership record under $HOME/.config; tests must never touch the real one. */
+const freshHome = () => { process.env.HOME = mkdtempSync(path.join(tmpdir(), 'wt-home-')); };
+freshHome();
+assert.ok(ownedFile().startsWith(process.env.HOME), 'ownership record must live under the temp HOME');
 
 const STUB = ['node', path.join(HERE, 'stub-wrangler.mjs')];
 const ACCT = 'a'.repeat(32);
@@ -55,7 +60,7 @@ test('FAIL-OPEN guard: the reverse mix is unknown too', async () => {
 /* ---- deploy() end to end against the stub ---- */
 async function gitFixture() {
   const dir = copyFixture({ git: true });
-  const repoId = repoIdentity(path.join(dir, 'app-src'));
+  const repoId = repoIdentity(dir, dir);
   assert.match(repoId, /^[0-9a-f]{8}$/);
   return { dir, repoId, tag: tagFor(SLUG, repoId) };
 }
@@ -114,10 +119,15 @@ test('with --yes on a free name it deploys with the walkthrough:<slug>:<repo id>
   } finally { rm(dir); }
 });
 
-test('with --yes on an owned Worker it redeploys', async () => {
-  const { dir, tag } = await gitFixture();
-  const calls = scenario('owned-tag', { STUB_TAG: tag });
+test('a successful deploy records ownership locally, and a later redeploy of the owned Worker works', async () => {
+  freshHome();
+  const first = scenario('absent');
+  const { dir, repoId, tag } = await gitFixture();
   try {
+    await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));
+    assert.equal(readOwned()[`${ACCT}/wt-${SLUG}`], repoId, 'record written after the deploy');
+    assert.ok(first().some((c) => c.args[0] === 'deploy'));
+    const calls = scenario('owned-tag', { STUB_TAG: tag });
     const { value } = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));
     assert.equal(value.state, 'owned'); assert.equal(value.deployed, true);
     assert.ok(calls().some((c) => c.args[0] === 'deploy'));
@@ -207,3 +217,104 @@ test('the published site is noindex three ways', () => {
 });
 
 test('slugify makes a safe Worker name part', () => { assert.equal(slugify('Acme Weekly_Plan!'), 'acme-weekly-plan'); });
+
+/* ---- the repo id is validated ---- */
+test('tagFor and checkOwnership refuse a missing or malformed repo id', async () => {
+  for (const bad of [undefined, null, '', 'undefined', 'DEADBEEF', 'deadbee', 'deadbeef0', '../x']) {
+    assert.throws(() => tagFor(SLUG, bad), /8 hex/, String(bad));
+  }
+  scenario('owned-tag', { STUB_TAG: `walkthrough:${SLUG}:undefined` });
+  await assert.rejects(checkOwnership({ wrangler: STUB, name: 'wt-x', slug: SLUG, repoId: undefined, account: ACCT }), /8 hex/);
+});
+
+test('the repo id depends on where the walkthrough sits in the repo, not only on the root commit', () => {
+  const d = mkdtempSync(path.join(tmpdir(), 'wt-rid2-'));
+  const g = (...a) => execFileSync('git', ['-C', d, '-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { stdio: 'ignore' });
+  mkdirSync(path.join(d, 'a')); mkdirSync(path.join(d, 'b'));
+  try {
+    g('init', '-q'); writeFileSync(path.join(d, 'x'), '1'); g('add', '-A'); g('commit', '-qm', 'i');
+    const top = repoIdentity(d, d), a = repoIdentity(d, path.join(d, 'a')), b = repoIdentity(d, path.join(d, 'b'));
+    assert.equal(new Set([top, a, b]).size, 3);
+    assert.equal(a, repoIdentity(d, path.join(d, 'a')));
+  } finally { rm(d); }
+});
+
+/* ---- name override and local ownership record ---- */
+test('a Worker name that is not wt-<slug> is refused without --confirm-name, before any wrangler call', async () => {
+  const calls = scenario('absent');
+  const { dir } = await gitFixture();
+  try {
+    for (const via of ['opts', 'deploy.json']) {
+      if (via === 'deploy.json') writeFileSync(path.join(dir, 'deploy.json'), JSON.stringify({ name: 'wt-other-name' }));
+      const { value } = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true, ...(via === 'opts' ? { name: 'wt-other-name' } : {}) }));
+      assert.equal(value.refused, 'name-override', via); assert.equal(value.deployed, false);
+    }
+    assert.equal(calls().length, 0);
+    const wrong = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, name: 'wt-other-name', confirmName: 'wt-different' }));
+    assert.equal(wrong.value.refused, 'name-override');
+    const ok = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, name: 'wt-other-name', confirmName: 'wt-other-name' }));
+    assert.equal(ok.value.refused, undefined);
+    assert.match(ok.lines.join('\n'), /name override confirmed: "wt-other-name"/);
+    assert.match(ok.lines.join('\n'), /worker\s+wt-other-name/);
+  } finally { rm(dir); }
+});
+
+test('a fork with the same root commit and no local record is refused on an owned Worker, unless --adopt', async () => {
+  freshHome();
+  const { dir, repoId, tag } = await gitFixture();
+  const calls = scenario('owned-tag', { STUB_TAG: tag });   // the remote tag matches: a fork computes the same id
+  try {
+    assert.equal(readOwned()[`${ACCT}/wt-${SLUG}`], undefined, 'no local record in the temp HOME');
+    const no = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));
+    assert.equal(no.value.state, 'owned'); assert.equal(no.value.refused, 'not-adopted'); assert.equal(no.value.deployed, false);
+    assert.match(no.lines.join('\n'), /--adopt/);
+    assert.ok(!calls().some((c) => c.args[0] === 'deploy'));
+    const dry = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT }));
+    assert.equal(dry.value.refused, 'not-adopted', 'a dry run shows the refusal too');
+
+    const yes = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true, adopt: true }));
+    assert.equal(yes.value.deployed, true);
+    assert.equal(readOwned()[`${ACCT}/wt-${SLUG}`], repoId);
+  } finally { rm(dir); }
+});
+
+test('a local record that names a different repo is also refused without --adopt', async () => {
+  freshHome();
+  const { dir, tag } = await gitFixture();
+  scenario('owned-tag', { STUB_TAG: tag });
+  recordOwned(`${ACCT}/wt-${SLUG}`, '11111111');
+  try {
+    const r = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));
+    assert.equal(r.value.refused, 'not-adopted');
+    assert.match(r.lines.join('\n'), /belongs to repo 11111111/);
+  } finally { rm(dir); }
+});
+
+test('the deploy identity comes from the git top-level, not manifest.repo, and an escaping manifest.repo is refused', async () => {
+  scenario('absent');
+  const { dir, repoId } = await gitFixture();
+  try {
+    const ok = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT }));
+    assert.equal(ok.value.repoId, repoId, 'manifest.repo "app-src" does not change the identity');
+    editManifest(dir, (m) => { m.repo = '../../elsewhere'; });
+    await assert.rejects(quiet(() => deploy(dir, { wrangler: STUB, account: ACCT })), /outside|does not exist/);
+    editManifest(dir, (m) => { m.repo = tmpdir(); });
+    await assert.rejects(quiet(() => deploy(dir, { wrangler: STUB, account: ACCT })), /absolute/);
+  } finally { rm(dir); }
+});
+
+test('the ownership record is written outside any repo with owner-only permissions', () => {
+  recordOwned('x/y', 'abcdef12');
+  assert.equal(readOwned()['x/y'], 'abcdef12');
+  assert.equal(statSync(ownedFile()).mode & 0o077, 0);
+});
+
+test('a staging directory that contains a symlink is refused', () => {
+  const out = mkdtempSync(path.join(tmpdir(), 'wt-site-'));
+  try {
+    const site = buildSite('<title>x</title><p>hi</p>', out);
+    assertNoSymlinks(site);   // clean: fine
+    symlinkSync('/etc/hosts', path.join(site, 'leak.txt'));
+    assert.throws(() => assertNoSymlinks(site), /symlink/);
+  } finally { rmSync(out, { recursive: true, force: true }); }
+});

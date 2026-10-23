@@ -10,17 +10,17 @@ import { engineVersions } from '../scripts/_lib.mjs';
 
 const git = (cwd, ...a) => execFileSync('git', ['-C', cwd, '-c', 'user.name=t', '-c', 'user.email=t@example.com', ...a], { encoding: 'utf8' }).trim();
 
-/** A temp app repo with two mirrored files, and a walkthrough dir beside it. */
+/** A temp app repo with two mirrored files and a walkthrough dir inside it (app/docs/wt). */
 function setup() {
   const root = mkdtempSync(path.join(tmpdir(), 'wt-stale-'));
-  const app = path.join(root, 'app'), wt = path.join(root, 'wt');
-  mkdirSync(path.join(app, 'src'), { recursive: true }); mkdirSync(wt);
+  const app = path.join(root, 'app'), wt = path.join(app, 'docs', 'wt');
+  mkdirSync(path.join(app, 'src'), { recursive: true }); mkdirSync(wt, { recursive: true });
   writeFileSync(path.join(app, 'src/Board.tsx'), 'export const a = "Mark final";\n');
   writeFileSync(path.join(app, 'src/Nav.tsx'), 'export const b = "Job sites";\n');
   git(app, 'init', '-q'); git(app, 'add', '.'); git(app, 'commit', '-qm', 'init');
   writeFileSync(path.join(wt, 'walkthrough.src.html'), '<title>x</title>');
   writeFileSync(path.join(wt, 'manifest.json'), JSON.stringify({
-    slug: 't', repo: '../app', engine: engineVersions(),
+    slug: 't', engine: engineVersions(),
     mirrors: { plan: ['src/Board.tsx'], nav: ['src/Nav.tsx'] },
     labels: [{ text: 'Mark final', file: 'src/Board.tsx', scene: 'plan' }, { text: 'Job sites', file: 'src/Nav.tsx', scene: 'nav' }],
   }, null, 2));

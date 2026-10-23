@@ -12,11 +12,10 @@
    would point at code that is not committed); --force stamps anyway. It only edits
    manifest.json. It never commits, pushes or publishes. */
 
-import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { resolveTarget, readManifest, repoRoot, engineVersions, positional, has, isMain } from './_lib.mjs';
+import { resolveTarget, readManifest, repoRoot, gitSafe, engineVersions, positional, has, isMain } from './_lib.mjs';
 
-function git(cwd, args) { return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim(); }
+const git = (cwd, args) => gitSafe(cwd, args, { stderr: 'pipe' });
 
 export function stamp(arg, { force = false, today = new Date().toISOString().slice(0, 10) } = {}) {
   const target = resolveTarget(arg);

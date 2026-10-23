@@ -2,7 +2,7 @@
 /* Publish a walkthrough to a public Cloudflare Workers static-assets site.
    Deliberately slow and paranoid. Without --yes it changes nothing.
 
-     node deploy.mjs <dir> [--name wt-<slug>] [--account <id>] [--yes] [--confirm-screenshots] [--wrangler <bin>]
+     node deploy.mjs <dir> [--name <n> --confirm-name <n>] [--account <id>] [--yes] [--confirm-screenshots] [--adopt] [--wrangler <bin>]
 
    What it does, in order:
      1. refuses if datasafety.mjs has unresolved findings (real names, collisions, contact details)
@@ -18,8 +18,11 @@
         If the Worker exists and none of its versions carries the exact tag
         walkthrough:<slug>:<repo id> it REFUSES, so it will not overwrite a Worker this skill did
         not create, nor one created from another repo that happens to share the slug. <repo id>
-        is 8 hex digits of the app repo's root commit. Any other answer (auth error, network,
-        one list found and the other not, anything unrecognised) also refuses.
+        is 8 hex digits of sha1(root commit + walkthrough path inside the repo). Any other answer
+        (auth error, network, one list found and the other not, anything unrecognised) also refuses.
+        The id is public (a fork has it too), so an existing Worker is only updated when this
+        machine's ~/.config/walkthrough/owned.json says it deployed it from this repo, or with --adopt.
+        A Worker name other than wt-<slug> needs --confirm-name <that name>.
      5. with --yes: wrangler deploy --tag walkthrough:<slug>:<repo id> --message "operator-walkthrough ...",
         then fetches /robots.txt and the headers of / from the live URL and reports them.
         A screenshot-mode walkthrough (manifest mode "shots") also needs --confirm-screenshots.
@@ -27,13 +30,13 @@
    deploy.json (optional, next to manifest.json): { "name": "...", "accountId": "..." }
    Test hook: --wrangler <path> (or WT_WRANGLER) swaps the wrangler binary for a stub. */
 
-import { execFile, execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, realpathSync, renameSync } from 'node:fs';
+import { tmpdir, homedir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { resolveTarget, readManifest, repoRoot, flag, has, positional, isMain } from './_lib.mjs';
+import { resolveTarget, readManifest, repoRoot, gitSafe, gitTry, gitTopLevel, findSymlink, flag, has, positional, isMain } from './_lib.mjs';
 import { wrap, SKELETON_HEAD, SKELETON_TAIL } from './wrap.mjs';
 import { datasafety } from './datasafety.mjs';
 
@@ -41,20 +44,56 @@ const execFileP = promisify(execFile);
 const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
 
 export const slugify = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'walkthrough';
-export const tagFor = (slug, repoId) => `walkthrough:${slug}:${repoId}`;
+const REPO_ID_RE = /^[0-9a-f]{8}$/;
+export const tagFor = (slug, repoId) => {
+  if (!REPO_ID_RE.test(String(repoId))) throw new Error(`repo id "${repoId}" is not 8 hex digits; refusing to build a Worker tag from it`);
+  return `walkthrough:${slug}:${repoId}`;
+};
 
-/** A stable identity for the app repo the walkthrough lives in: 8 hex digits of its root commit.
-    Two repos that both call a walkthrough "weekly" must not be able to overwrite each other's Worker. */
-export function repoIdentity(root) {
+/** A stable identity for one walkthrough in one app repo: 8 hex digits of
+    sha1(root commit + ":" + the walkthrough dir relative to the git top-level). The dir is part of it so
+    two walkthroughs (or monorepo packages) in one repo differ. `top` must be the git top-level that
+    contains the walkthrough, never a path from manifest.json.
+    This is NOT a secret: a fork or a template clone shares the root commit and the path, so the same
+    id. That is why deploy.mjs also keeps a local per-user ownership record (see ownedFile).
+    It fails closed, never open: a shallow clone has a different root commit, the origin-URL fallback
+    (used only when there is no commit) changes once a first commit exists, and an SSH and an HTTPS
+    URL for one remote hash differently. Each case reads as "not the same repo": it refuses until you
+    pass --adopt. */
+export function repoIdentity(top, dir = top) {
+  let rel = '';
+  try { rel = path.relative(realpathSync(top), realpathSync(dir)).split(path.sep).join('/'); } catch { /* keep '' */ }
+  const h = (x) => createHash('sha1').update(x + ':' + rel).digest('hex').slice(0, 8);
   try {
-    const roots = execFileSync('git', ['-C', root, 'rev-list', '--max-parents=0', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().split('\n').filter(Boolean).sort();
-    if (roots.length) return roots[0].slice(0, 8);
+    const roots = gitSafe(top, ['rev-list', '--max-parents=0', 'HEAD']).split('\n').filter(Boolean).sort();
+    if (roots.length) return h(roots[0]);
   } catch { /* no commits, or not a git repo */ }
-  try {
-    const url = execFileSync('git', ['-C', root, 'remote', 'get-url', 'origin'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-    if (url) return createHash('sha1').update(url.replace(/\.git$/, '').toLowerCase()).digest('hex').slice(0, 8);
-  } catch { /* no origin */ }
+  const url = gitTry(top, ['remote', 'get-url', 'origin']);
+  if (url) return h(url.replace(/\.git$/, '').toLowerCase());
   return null;
+}
+
+/* ---- local ownership record -------------------------------------------------
+   The Worker tag lives on Cloudflare and the repo id is public (a root commit), so the tag alone does
+   not prove this machine's user made the Worker. After a successful deploy we remember
+   "<account>/<worker>" -> repo id in ~/.config/walkthrough/owned.json, outside any repo. A redeploy
+   needs the remote tag to match AND this record to match, or an explicit --adopt. */
+export const ownedFile = () => path.join(homedir(), '.config', 'walkthrough', 'owned.json');
+export function readOwned() {
+  try { const v = JSON.parse(readFileSync(ownedFile(), 'utf8')); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; } catch { return {}; }
+}
+export function recordOwned(key, repoId) {
+  const f = ownedFile();
+  mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 });
+  const tmp = f + '.' + process.pid + '.tmp';
+  writeFileSync(tmp, JSON.stringify({ ...readOwned(), [key]: repoId }, null, 2) + '\n', { mode: 0o600 });
+  renameSync(tmp, f);
+}
+
+/** Refuse to upload a staging dir that contains a symlink. */
+export function assertNoSymlinks(dir) {
+  const l = findSymlink(dir);
+  if (l) throw new Error(`the staging directory contains a symlink (${l}); refusing to upload`);
 }
 
 async function runWrangler(bin, args, { cwd, env } = {}) {
@@ -151,10 +190,23 @@ export async function deploy(arg, opts = {}) {
   const slug = slugify(manifest.slug || path.basename(target.dir));
   const name = opts.name || deployJson.name || `wt-${slug}`;
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(name)) throw new Error(`"${name}" is not a valid Worker name (lowercase letters, digits, dashes)`);
-  const repoId = repoIdentity(repoRoot(target, manifest));
+  repoRoot(target, manifest);   // throws when manifest.repo points outside the repo that contains the walkthrough
+  const top = gitTopLevel(target.dir);   // identity comes from the repo that really contains the walkthrough, never from manifest.repo
+  const repoId = top ? repoIdentity(top, target.dir) : null;
   if (!repoId) throw new Error('cannot derive a repo identity (the app repo has no commits and no origin remote); commit first so the Worker tag can name this repo');
   const tag = tagFor(slug, repoId);
   const result = { name, tag, slug, repoId, state: null, deployed: false, url: null };
+
+  /* a Worker name that is not the default wt-<slug> (from --name or deploy.json, a repo file) must be re-typed by the user */
+  if (name !== `wt-${slug}`) {
+    if (opts.confirmName !== name) {
+      log(`  \u2717 REFUSING: the Worker name "${name}" differs from the default "wt-${slug}" (it came from ${opts.name ? '--name' : 'deploy.json'}).`);
+      log(`    If that is really the Worker to publish to, re-run with --confirm-name ${name}`);
+      result.refused = 'name-override';
+      return result;
+    }
+    log(`  ! Worker name override confirmed: "${name}" (default would be "wt-${slug}")`);
+  }
 
   /* 1. real data gate */
   const ds = datasafety(target.dir);
@@ -171,6 +223,7 @@ export async function deploy(arg, opts = {}) {
   const work = mkdtempSync(path.join(tmpdir(), 'wt-deploy-'));
   try {
     const site = buildSite(page, work);
+    assertNoSymlinks(site);
     log(`  ✓ site built: index.html (${(Buffer.byteLength(page) / 1024).toFixed(0)} KB, noindex), 404.html, robots.txt, _headers`);
 
     /* 3. account */
@@ -188,7 +241,21 @@ export async function deploy(arg, opts = {}) {
       result.refused = own.state;
       return result;
     }
-    log(`  ✓ guard: ${own.state === 'absent' ? 'name is free' : 'existing Worker is ours'} (${own.detail})`);
+    log(`  ✓ guard: ${own.state === 'absent' ? 'name is free' : 'existing Worker carries our tag'} (${own.detail})`);
+
+    /* the remote tag is public information (a fork has the same id), so a redeploy also needs this machine's record */
+    const ownKey = `${acct.id}/${name}`;
+    if (own.state === 'owned') {
+      const rec = readOwned()[ownKey];
+      if (rec === repoId) log(`  ✓ ownership record: this machine deployed ${name} from this repo before`);
+      else if (opts.adopt) log(`  ! --adopt: taking over "${name}" although ${rec ? `this machine's record says repo ${rec}` : 'this machine has no record of deploying it'}`);
+      else {
+        log(`  \u2717 REFUSING: "${name}" carries this repo's tag, but ${rec ? `this machine's record says it belongs to repo ${rec}` : 'this machine has no record of deploying it'}.`);
+        log('    A fork or clone shares the tag. If this really is yours (another machine, a fresh checkout, a changed repo id), re-run with --adopt.');
+        result.refused = 'not-adopted';
+        return result;
+      }
+    }
 
     const config = { name, compatibility_date: new Date().toISOString().slice(0, 10), account_id: acct.id, assets: { directory: './site', not_found_handling: '404-page' }, workers_dev: true };
     writeFileSync(path.join(work, 'wrangler.jsonc'), JSON.stringify(config, null, 2));
@@ -210,6 +277,7 @@ export async function deploy(arg, opts = {}) {
     const r = await runWrangler(wrangler, args, { cwd: work, env: { CLOUDFLARE_ACCOUNT_ID: acct.id } });
     if (r.code !== 0) { log(`  ✗ wrangler deploy failed:\n${(r.out + r.err).trim().slice(0, 800)}`); result.refused = 'deploy-failed'; return result; }
     result.deployed = true;
+    try { recordOwned(ownKey, repoId); } catch (e) { log(`  ! deployed, but could not write the local ownership record (${e.message}); the next redeploy will need --adopt`); }
     const url = (r.out + r.err).match(/https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev/i);
     result.url = url ? url[0] : null;
     log(`  ✓ deployed ${result.url || '(URL not found in wrangler output)'}`);
@@ -231,7 +299,7 @@ export async function deploy(arg, opts = {}) {
 if (isMain(import.meta.url)) {
   const argv = process.argv.slice(2);
   try {
-    const r = await deploy(positional(argv, ['name', 'account', 'wrangler'])[0], { name: flag(argv, 'name'), account: flag(argv, 'account'), wrangler: flag(argv, 'wrangler'), yes: has(argv, 'yes'), confirmScreenshots: has(argv, 'confirm-screenshots') });
+    const r = await deploy(positional(argv, ['name', 'account', 'wrangler', 'confirm-name'])[0], { name: flag(argv, 'name'), confirmName: flag(argv, 'confirm-name'), adopt: has(argv, 'adopt'), account: flag(argv, 'account'), wrangler: flag(argv, 'wrangler'), yes: has(argv, 'yes'), confirmScreenshots: has(argv, 'confirm-screenshots') });
     process.exit(r.refused ? 1 : 0);
   } catch (e) {
     console.error('deploy: ' + e.message);

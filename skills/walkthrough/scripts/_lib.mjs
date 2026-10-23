@@ -1,7 +1,7 @@
 /* Shared helpers for the walkthrough scripts. Zero dependencies, Node 22+. */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, readdirSync, realpathSync, lstatSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -137,14 +137,82 @@ export function readManifest(target, { required = false } = {}) {
   catch (e) { throw new Error('manifest.json is not valid JSON: ' + e.message); }
 }
 
-/** The app repo root that manifest labels and mirrors are relative to: manifest.repo
-    (relative to the walkthrough dir, or absolute) if set, else the git top-level the
-    walkthrough lives in (docs/walkthroughs/<slug>/ sits inside the app repo), else the dir. */
-export function repoRoot(target, manifest) {
-  if (manifest.repo) return path.resolve(target.dir, manifest.repo);
+/* ---- git, hardened ------------------------------------------------------
+   Walkthroughs come from repos we may not trust, and git runs code named in a repo's own
+   .git/config (core.fsmonitor, core.hooksPath, core.sshCommand, aliases, pagers, diff.external,
+   textconv). Every git call in these scripts goes through gitSafe: execFile with no shell,
+   those settings forced off on the command line (which outranks repo config), every
+   filter.<name> driver the config defines replaced by a plain `cat`, a scrubbed environment, and
+   external diff and textconv drivers disabled by the callers' flags. */
+
+export const GIT_HARDEN = [
+  '-c', 'core.fsmonitor=false',
+  '-c', 'core.hooksPath=/dev/null',
+  '-c', 'safe.bareRepository=explicit',
+  '-c', 'core.pager=cat',
+  '-c', 'core.sshCommand=false',
+  '-c', 'core.editor=false',
+  '-c', 'protocol.ext.allow=never',
+  '-c', 'diff.external=',
+];
+/** Flags every diff/log call adds so repo-defined external diff and textconv drivers never run. */
+export const GIT_NO_DRIVERS = ['--no-ext-diff', '--no-textconv'];
+
+function gitEnv() {
+  const env = { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0', GIT_PAGER: 'cat' };
+  for (const k of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_EXTERNAL_DIFF', 'GIT_SSH', 'GIT_SSH_COMMAND', 'GIT_ASKPASS', 'GIT_EDITOR', 'GIT_EXEC_PATH', 'GIT_CONFIG_COUNT']) delete env[k];
+  return env;
+}
+
+/** Names of the filter drivers (clean/smudge/process) the repo or user config defines. Listing config runs nothing. */
+function filterOverrides(cwd) {
+  let names = [];
   try {
-    return execFileSync('git', ['-C', target.dir, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch { return target.dir; }
+    const out = execFileSync('git', ['-C', cwd, ...GIT_HARDEN, 'config', '--name-only', '--get-regexp', '^filter\\.'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env: gitEnv() });
+    names = [...new Set(out.split('\n').map((l) => /^filter\.(.+)\.[^.]+$/.exec(l.trim())).filter(Boolean).map((m) => m[1]))];
+  } catch { /* no filters, or not a repo */ }
+  return names.flatMap((n) => ['-c', `filter.${n}.clean=cat`, '-c', `filter.${n}.smudge=cat`, '-c', `filter.${n}.process=`, '-c', `filter.${n}.required=false`]);
+}
+
+/** Run git in `cwd`. Throws on a non-zero exit. Returns trimmed stdout. */
+export function gitSafe(cwd, args, { stderr = 'ignore', maxBuffer = 256 * 1024 * 1024 } = {}) {
+  return execFileSync('git', ['-C', cwd, ...GIT_HARDEN, ...filterOverrides(cwd), ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', stderr], env: gitEnv(), maxBuffer }).trim();
+}
+/** Like gitSafe, but null instead of throwing. */
+export function gitTry(cwd, args, opts) { try { return gitSafe(cwd, args, opts); } catch { return null; } }
+/** The git top-level that actually contains `dir`, or null. Never derived from manifest.json. */
+export function gitTopLevel(dir) { return gitTry(dir, ['rev-parse', '--show-toplevel']); }
+
+/** The first symlink anywhere under `dir` (by lstat, not following), or null. */
+export function findSymlink(dir) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isSymbolicLink()) return p;
+    if (e.isDirectory()) { const f = findSymlink(p); if (f) return f; }
+  }
+  return null;
+}
+
+/** The app repo root that manifest labels and mirrors are relative to.
+    Default: the git top-level the walkthrough lives in (docs/walkthroughs/<slug>/ sits inside the
+    app repo), else the walkthrough dir. manifest.repo may only narrow that: it must be a relative
+    path that stays inside the top-level (or inside the dir when there is no git repo), must not
+    escape through symlinks, and must not be a nested repository of its own. A manifest from an
+    untrusted repo cannot point the scripts (and so git) at some other directory. */
+export function repoRoot(target, manifest) {
+  const dirReal = realpathSync(target.dir);
+  const top = gitTopLevel(target.dir);
+  const topReal = top ? realpathSync(top) : dirReal;
+  if (!manifest.repo) return top || target.dir;
+  const rel = String(manifest.repo);
+  if (path.isAbsolute(rel) || /^[a-zA-Z]:/.test(rel)) throw new Error(`manifest.repo "${rel}" must be a relative path inside the app repo, not an absolute one`);
+  const resolved = path.resolve(target.dir, rel);
+  if (!existsSync(resolved)) throw new Error(`manifest.repo "${rel}" does not exist`);
+  const real = realpathSync(resolved);
+  const inside = (p, base) => p === base || p.startsWith(base + path.sep);
+  if (!inside(real, topReal)) throw new Error(`manifest.repo "${rel}" resolves outside the repo that contains the walkthrough (${topReal}); refusing`);
+  if (real !== topReal && existsSync(path.join(real, '.git'))) throw new Error(`manifest.repo "${rel}" is a nested git repository; refusing`);
+  return resolved;
 }
 
 /* ---- tiny HTML helpers -------------------------------------------------- */
@@ -172,14 +240,33 @@ export function decodeEntities(s) {
 
 /* ---- static server: scripts load pages over http so they behave like a deploy ---- */
 
+/** The real file for a request path, or null. Never follows a symlink: every component below the
+    root must lstat as a plain file or directory, and the final realpath must sit under the real root. */
+function servePath(root, rel) {
+  const base = path.resolve(root);
+  let baseReal;
+  try { baseReal = realpathSync(base); } catch { return null; }
+  const file = path.resolve(base, '.' + path.sep + rel);
+  if (!file.startsWith(base + path.sep)) return null;
+  try {
+    let cur = base;
+    for (const part of path.relative(base, file).split(path.sep)) {
+      cur = path.join(cur, part);
+      if (lstatSync(cur).isSymbolicLink()) return null;
+    }
+    const real = realpathSync(file);
+    if (!real.startsWith(baseReal + path.sep) || !statSync(real).isFile()) return null;
+    return real;
+  } catch { return null; }
+}
+
 export function serveDir(root) {
   const types = { '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.txt': 'text/plain' };
   return new Promise((resolve) => {
     const srv = createServer((req, res) => {
-      const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-      const base = path.resolve(root);
-      const file = path.resolve(base, '.' + path.sep + rel);
-      if (!file.startsWith(base + path.sep) || !existsSync(file) || statSync(file).isDirectory()) { res.writeHead(404); res.end('not found'); return; }
+      let file = null;
+      try { file = servePath(root, decodeURIComponent(new URL(req.url, 'http://x').pathname)); } catch { /* malformed URL */ }
+      if (!file) { res.writeHead(404); res.end('not found'); return; }
       res.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
       res.end(readFileSync(file));
     });

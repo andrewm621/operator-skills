@@ -5,7 +5,9 @@
 
    Reads manifest.json:
      builtAtCommit   the app commit the walkthrough was last QA'd against (stamp.mjs writes it)
-     repo            the app repo root, relative to the walkthrough dir (default: the dir itself)
+     repo            optional: a subfolder of the app repo that contains the walkthrough (e.g. a monorepo
+                     package), relative to the walkthrough dir. Default: the git top-level. It must stay
+                     inside that repo; an absolute path, an escaping ".." or a symlink out is refused.
      mirrors         { sceneId: [files in the app the scene copies] }
      labels          [{ text, file, scene }] strings copied from the app
      engine          { motion, player } pinned runtime versions
@@ -18,15 +20,12 @@
 
    Exit code: 0 unless --ci, which exits 1 when anything is stale or drifted. */
 
-import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { resolveTarget, readManifest, repoRoot, engineVersions, positional, has, isMain } from './_lib.mjs';
+import { resolveTarget, readManifest, repoRoot, gitSafe, gitTry, GIT_NO_DRIVERS, engineVersions, positional, has, isMain } from './_lib.mjs';
 
-function git(cwd, args) {
-  return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-}
-function tryGit(cwd, args) { try { return git(cwd, args); } catch { return null; } }
+const git = (cwd, args) => gitSafe(cwd, args, { stderr: 'pipe' });
+const tryGit = gitTry;
 
 export function staleReport(arg) {
   const target = resolveTarget(arg);
@@ -68,7 +67,7 @@ export function staleReport(arg) {
     for (const [id, files] of Object.entries(mirrors)) {
       if (!files.length) continue;
       const s = scene(id);
-      const status = git(root, ['diff', '--name-status', '-M', '--relative', base, 'HEAD', '--', ...files]).split('\n').filter(Boolean);
+      const status = git(root, ['diff', ...GIT_NO_DRIVERS, '--name-status', '-M', '--relative', base, 'HEAD', '--', ...files]).split('\n').filter(Boolean);
       for (const line of status) {
         const [st, ...p] = line.split('\t');
         s.stale = true;
@@ -82,7 +81,7 @@ export function staleReport(arg) {
         if (!existsSync(path.resolve(root, f)) && !s.reasons.some((r) => r.includes(f))) { s.stale = true; s.reasons.push(`${f} does not exist`); }
       }
       if (s.stale) {
-        const log = tryGit(root, ['log', '--format=%h %s', '-n', '5', `${base}..HEAD`, '--', ...files]);
+        const log = tryGit(root, ['log', ...GIT_NO_DRIVERS, '--format=%h %s', '-n', '5', `${base}..HEAD`, '--', ...files]);
         if (log) s.commits = log.split('\n');
       }
     }

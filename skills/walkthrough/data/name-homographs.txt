@@ -1,0 +1,32 @@
+# Given names that are also ordinary English words or product vocabulary ("Mark final", "Grant access",
+# "Chase the invoice", "Dean's list"). datasafety.mjs skips these in its given-name scan, because a UI
+# full of them would drown the real findings. This is a vocabulary list, not a judgement about any person:
+# a real person with one of these names is still caught by manifest.realNames and by the human read-through
+# in the skill's step 6. One lowercase word per line.
+amber
+april
+chase
+cole
+crystal
+dale
+dawn
+dean
+drew
+faith
+frank
+glen
+grace
+grant
+holly
+hunter
+jack
+joy
+lance
+lee
+mark
+mason
+max
+penny
+ray
+rose
+ruby

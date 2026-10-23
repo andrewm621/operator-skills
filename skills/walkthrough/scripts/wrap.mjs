@@ -14,9 +14,9 @@
    template/player.js. Nothing is forked: the engine version is pinned in
    manifest.json and lint.mjs fails if it drifts. */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, lstatSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { findMotionDir, engineVersions, TEMPLATE_DIR, resolveTarget, readManifest, isMain } from './_lib.mjs';
+import { findSymlink, findMotionDir, engineVersions, TEMPLATE_DIR, resolveTarget, readManifest, isMain } from './_lib.mjs';
 
 export const SKELETON_HEAD = '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
   + '<style>:root{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>\n</head><body>\n';
@@ -45,7 +45,13 @@ export function wrap(arg) {
   const banner = `<!-- BUILT by wrap.mjs from walkthrough.src.html: motion ${v.motion}, player ${v.player}. Edit the source, not this file. -->\n`;
   const page = banner + src.replace(marker, () => inlined);
 
+  /* .wt/ must be a real directory, any symlink inside it is removed, and nothing we write may be one: a planted
+     link would redirect the write, or later make the static server hand out a file outside .wt/. */
+  const isLink = (p) => { try { return lstatSync(p).isSymbolicLink(); } catch { return false; } };
+  for (const p of [target.scratch, target.built]) if (isLink(p)) throw new Error(`${p} is a symlink; refusing to build through it (delete it and re-run)`);
   mkdirSync(target.scratch, { recursive: true });
+  for (let l; (l = findSymlink(target.scratch)); ) rmSync(l, { force: true });   // drop planted links, keep earlier shots
+  for (const p of [target.test, target.testNarrow]) if (isLink(p)) rmSync(p, { force: true });
   writeFileSync(target.built, page);
   writeFileSync(target.test, SKELETON_HEAD + page + SKELETON_TAIL);
   writeFileSync(target.testNarrow, SKELETON_HEAD + '<script>window.__WT_MODE="narrow";</script>\n' + page + SKELETON_TAIL);
