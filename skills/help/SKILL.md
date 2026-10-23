@@ -14,7 +14,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  45 custom commands
+ SKILL CATALOG  46 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -49,6 +49,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /ai-export <plat> <url>  Export AI chat threads (ChatGPT verified) → markdown + vault
  /document <subject>      Write docs to dev-notes, Notion, inline, or README
  /motion-artifact [fmt]   Animated demo scene → deterministic GIF/MP4/WebM
+ /walkthrough <app>       Guided app walkthrough → storyboard → QA → artifact
  /collateral-set <client> Anchor-first set of client HTML artifacts → gated publish
  /email-triage [scope]    Triage Gmail into NEEDS YOU/WAITING/FYI/NOISE — report only
 
@@ -112,6 +113,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  Big decision        /pre-mortem <decision> → resolve Tier 1 → decide
  Status report      /report <project or topic> → opens in browser
  Client collateral  fact sheet → /collateral-set → /motion-artifact for GIFs
+ Show a flow         /walkthrough <app> → approve storyboard → QA → artifact
  Design system      /rebel-new-component → /parallel-check all
  Cross-project      /search-all → /deps align → /parallel build-check
  Wire up feedback   /gleap install → /env-check → /gleap audit

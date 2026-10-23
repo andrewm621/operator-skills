@@ -1,0 +1,28 @@
+{
+  "slug": "lendhand-fixture",
+  "app": "Lendhand (fictional)",
+  "repo": "app-src",
+  "engine": { "motion": "2.0.0", "player": "1.0.0" },
+  "cast": ["Maya Okafor", "Theo Brandt"],
+  "labels": [
+    { "text": "Tool library", "file": "Browse.tsx", "scene": "browse" },
+    { "text": "Search 214 tools", "file": "Browse.tsx", "scene": "browse" },
+    { "text": "Pick your days", "file": "Reserve.tsx", "scene": "reserve" },
+    { "text": "Return by", "file": "Reserve.tsx", "scene": "reserve" },
+    { "text": "Reserve", "file": "Reserve.tsx", "scene": "reserve" },
+    { "text": "Pickup pass", "file": "PickupPass.tsx", "scene": "pickup" },
+    { "text": "At the desk", "file": "PickupPass.tsx", "scene": "pickup" },
+    { "text": "My loans", "file": "Loans.tsx", "scene": "return" },
+    { "text": "Check-in", "file": "Loans.tsx", "scene": "return" },
+    { "text": "Battery charged", "file": "Loans.tsx", "scene": "return" },
+    { "text": "Check in", "file": "Loans.tsx", "scene": "return" }
+  ],
+  "mirrors": {
+    "browse": ["Browse.tsx"],
+    "reserve": ["Reserve.tsx"],
+    "pickup": ["PickupPass.tsx"],
+    "return": ["Loans.tsx"]
+  },
+  "allow": ["Lendhand", "Hall B", "Hand saw", "Step ladder", "Pressure washer", "Tile cutter", "Hammer drill", "Cordless drill", "Power tools", "Hand tools"],
+  "datasafety": { "acknowledged": [] }
+}

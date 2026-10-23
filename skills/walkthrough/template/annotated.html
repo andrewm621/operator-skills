@@ -1,0 +1,42 @@
+<!--
+  SCREENSHOT MODE canvas fragment. Use when there is no app code to mirror (set "mode": "shots" in manifest.json).
+  Paste the <style> into #app-css and the markup between the wt:canvas markers of walkthrough.src.html.
+
+  - One <img> per screen, inlined as a data: URI. Use webp, about 1000px wide, and keep every image under ~60 KB
+    (lint.mjs fails the page at 500 KB). Never link an image: external references fail lint.
+  - .hot is a hotspot box in PERCENT coordinates over the image. Moves and clicks target the hotspots
+    ("#hotSave"), so the cursor lands where the product's real control is.
+  - .redact is a solid box over anything that must not show (names, emails, balances). Cover it even if you
+    think it is fictional; datasafety.mjs cannot read pixels, so manifest.json must carry
+    "datasafety": { "attestNoRealData": true } and a human has to mean it.
+  - Public deploy of a screenshot walkthrough needs a second, explicit confirmation (deploy.mjs --confirm-screenshots).
+-->
+<style>
+.shotwrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--app-bg)}
+.shot{position:absolute;inset:0;opacity:0;visibility:hidden}
+.shot img{display:block;width:100%;height:100%;object-fit:contain}
+.hot{position:absolute;border-radius:6px}          /* left/top/width/height in % set inline */
+.hot.ringed{box-shadow:0 0 0 3px var(--wt-accent)}
+.redact{position:absolute;background:#1a1a1a;border-radius:3px}
+</style>
+
+<div class="shotwrap">
+  <div class="shot" id="shotOne">
+    <img alt="" src="data:image/webp;base64,REPLACE_WITH_BASE64">
+    <span class="hot" id="hotSave" style="left:72%;top:84%;width:18%;height:8%"></span>
+    <span class="redact" style="left:8%;top:30%;width:22%;height:4%"></span>
+  </div>
+  <div class="shot" id="shotTwo">
+    <img alt="" src="data:image/webp;base64,REPLACE_WITH_BASE64">
+    <span class="hot" id="hotDone" style="left:40%;top:60%;width:20%;height:8%"></span>
+  </div>
+</div>
+
+<!-- Owner: crossfade the screens on scene marks, and ring a hotspot while a beat talks about it.
+WT.own("shots", function (t, k) {
+  var two = k.at("second", 0);
+  op($("#shotOne"), win(t, -1, two + 250, 1, 250));
+  op($("#shotTwo"), win(t, two + 150, null, 300));
+  cls($("#hotSave"), "ringed", t >= k.at("first", 5000) && t < k.at("first", 7500));
+});
+-->

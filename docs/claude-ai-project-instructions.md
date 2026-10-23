@@ -5,7 +5,7 @@
 
 ---
 
-You have 46 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 47 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -37,6 +37,7 @@ You have 46 operator skills for software projects. Use them when a user's reques
 | `/report` | Interactive HTML reports and dashboards |
 | `/motion-artifact` | Animated product-demo scenes in HTML → deterministic GIF/MP4/WebM export |
 | `/collateral-set` | Cohesive set of client-facing HTML artifacts — anchor-first, parallel fan-out, gated central publish |
+| `/walkthrough` | Guided, auto-playing app walkthrough — storyboard first, real-data gate, headless QA, private artifact, optional guarded public link |
 | `/git-sync` | Full git report — branches, ahead/behind, stashes |
 | `/changelog` | Categorized changelog from git commits |
 | `/env-check` | Compare expected vs actual env vars (no secrets shown) |
@@ -100,12 +101,13 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 | Export AI threads | `/ai-export chatgpt <project URL>` → approve the download → converted notes + raw archive → file into the vault |
 | Show a feature | `/motion-artifact <feature> gif` → preview → render → paste into Slack or the release note |
 | Client collateral | fact sheet → `/collateral-set <client>` → approve anchor → fan-out → gate → publish → `/motion-artifact` for any GIF cut |
+| Show a flow | `/walkthrough <app>` → approve storyboard → QA → artifact → optional public |
 
 ---
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 46, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 47, see the uploaded Knowledge file.
 
 ### /orchestrate
 

@@ -2,3 +2,7 @@
 
 # Generated reports (build artifacts, not source)
 reports/
+
+# /walkthrough build output (walkthrough.html is built by scripts/wrap.mjs; .wt/ holds test pages and screenshots)
+skills/walkthrough/fixtures/*/walkthrough.html
+.wt/
