@@ -1,0 +1,641 @@
+<title>Lendhand walkthrough (fixture)</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!--
+  Lendhand · a fictional neighbourhood tool library. This is the CI fixture for the /walkthrough skill:
+  five scenes (browse, reserve, pickup, return, recap), about 62 seconds, built on template v1.0.0.
+  Fictional people and data only. The "app source" it mirrors is the tiny app-src/ folder next to it.
+  Keys: Space play/pause, Left/Right previous/next step, R restart.
+-->
+<!-- wt:fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&display=swap">
+<!-- /wt:fonts -->
+<style id="wt-chrome">
+/* ---------- Walkthrough chrome tokens. Override the pairs below in #app-css to brand it. ---------- */
+:root{
+  --wt-bg:#f7f4ee; --wt-ink:#1a2332; --wt-muted:#5f6673; --wt-line:#e2ddd3;
+  --wt-accent:#b9551f; --wt-accent-dark:#ec8a55; --wt-sub:#2f4a3c; --wt-sub-dark:#93c3a3;
+  --wt-band:#1a2332; --wt-band-ink:#f7f4ee; --wt-band-dim:#b7bdc8; --wt-band-accent:#f2a774;
+  --wt-band-btn:rgba(255,255,255,.10); --wt-band-btn-hover:rgba(255,255,255,.20);
+  --wt-shadow:rgba(26,35,50,.10); --wt-cursor:#1a2332;
+  --wt-serif:"Instrument Serif",Georgia,"Times New Roman",serif;
+  --wt-sans:"DM Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  --wt-mono:"DM Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+:root[data-theme="dark"]{
+  --wt-bg:#16140f; --wt-ink:#eee8dd; --wt-muted:#a8a296; --wt-line:#38332b;
+  --wt-accent:var(--wt-accent-dark); --wt-sub:var(--wt-sub-dark);
+  --wt-band:#0c0b09; --wt-band-ink:#eee8dd; --wt-band-dim:#a8a296;
+  --wt-band-btn:rgba(255,255,255,.08); --wt-band-btn-hover:rgba(255,255,255,.16);
+  --wt-shadow:rgba(0,0,0,.45); --wt-cursor:#1a2332; color-scheme:dark;
+}
+:root[data-theme="light"]{color-scheme:light}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--wt-bg);color:var(--wt-ink);font-family:var(--wt-sans);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0}
+:focus-visible{outline:3px solid var(--wt-accent);outline-offset:2px;border-radius:6px}
+
+/* ---------- Page shell: presenter bar, narration + scaled canvas, caption band ---------- */
+.wt-shell{height:100%;display:flex;flex-direction:column}
+.wt-pbar{flex:none;display:flex;align-items:center;gap:14px;padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--wt-line)}
+.wt-brand{display:flex;flex-direction:column;line-height:1.1}
+.wt-brand small{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--wt-sub)}
+.wt-brand b{font-family:var(--wt-serif);font-weight:400;font-size:23px;letter-spacing:.01em}
+.wt-badge{font-size:12px;font-weight:600;color:var(--wt-muted);border:1px dashed var(--wt-muted);border-radius:99px;padding:3px 10px;white-space:nowrap}
+.wt-meta{margin-left:auto;font-size:13px;color:var(--wt-muted);white-space:nowrap}
+
+.wt-stage{flex:1;min-height:0;display:grid;grid-template-columns:280px minmax(0,1fr);gap:28px;padding-block:18px;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
+.wt-narr{display:flex;flex-direction:column;justify-content:center;min-height:0;min-width:0}
+.wt-eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--wt-accent);margin:0 0 8px}
+.wt-narr h1{font-family:var(--wt-serif);font-weight:400;font-size:38px;line-height:1.05;letter-spacing:.005em;margin:0 0 10px;text-wrap:balance}
+.wt-lede{font-size:15.5px;color:var(--wt-muted);margin:0 0 18px;max-width:34ch}
+.wt-steps{list-style:none;margin:0;padding:0;border-top:1px solid var(--wt-line)}
+.wt-steps li{border-bottom:1px solid var(--wt-line)}
+.wt-steps button{display:flex;gap:12px;align-items:baseline;width:100%;text-align:left;padding:8px 2px;font-size:14.5px;color:var(--wt-muted)}
+.wt-steps button:hover{color:var(--wt-ink)}
+.wt-k{font-family:var(--wt-mono);font-size:12px;color:var(--wt-accent);min-width:22px}
+.wt-steps li.on button{color:var(--wt-ink);font-weight:700}
+.wt-steps li.done .wt-k::after{content:" \2713"}
+.wt-foot{margin:16px 0 0;font-size:12.5px;color:var(--wt-muted)}
+
+.wt-devwrap{position:relative;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center}
+.wt-sizer{position:relative;flex:none}
+
+.wt-tour{position:relative;flex:none;display:flex;align-items:center;gap:20px;min-height:84px;padding-block:12px;padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px));background:var(--wt-band);color:var(--wt-band-ink)}
+.wt-prog{position:absolute;left:0;right:0;top:0;height:3px;background:var(--wt-band-btn)}
+.wt-prog i{display:block;height:100%;width:0;background:var(--wt-band-accent)}
+.wt-cap{flex:1;min-width:0;min-height:calc(2.6em + 19px);font-size:19px;line-height:1.3;font-weight:500}
+.wt-cap small{display:block;font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--wt-band-accent);margin-bottom:4px}
+.wt-dots{display:flex;align-items:center;gap:6px}
+.wt-dot{position:relative;width:10px;height:10px;border-radius:99px;border:1.5px solid var(--wt-band-dim);overflow:hidden}
+.wt-dot i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--wt-band-accent)}
+.wt-dot.done{border-color:var(--wt-band-accent);background:var(--wt-band-accent)}
+.wt-dot.on{width:30px;border-color:var(--wt-band-accent)}
+.wt-dot::before{content:"";position:absolute;inset:-10px -3px}
+.wt-ctl{display:flex;gap:6px}
+.wt-ctl button{display:grid;place-items:center;width:42px;height:42px;border-radius:10px;background:var(--wt-band-btn)}
+.wt-ctl button:hover{background:var(--wt-band-btn-hover)}
+.wt-ctl button:focus-visible,.wt-dot:focus-visible{outline-color:var(--wt-band-accent)}
+.wt-ctl svg{width:18px;height:18px}
+
+/* ---------- Canvas: the app, scaled as one unit. Size is set by WT.define canvas. ---------- */
+.wt-cv{position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden;border:1px solid var(--wt-line);border-radius:16px;box-shadow:0 18px 50px var(--wt-shadow);background:var(--app-bg,var(--wt-bg));color:var(--app-ink,var(--wt-ink));font-size:14px;line-height:1.4}
+.wt-cv.is-narrow{border-radius:20px}
+.wt-rip{position:absolute;left:-15px;top:-15px;z-index:49;width:30px;height:30px;border-radius:99px;border:3px solid var(--wt-accent);opacity:0;pointer-events:none}
+.wt-cur{position:absolute;left:0;top:0;z-index:50;width:24px;height:24px;pointer-events:none}
+.wt-cur svg{width:24px;height:24px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+
+/* ---------- Narrow layout (phone): hide the narration column, stack the controls ---------- */
+.wt-shell[data-mode="narrow"] .wt-pbar{padding-block:8px;gap:10px}
+.wt-shell[data-mode="narrow"] .wt-brand b{font-size:19px}
+.wt-shell[data-mode="narrow"] .wt-meta{display:none}
+.wt-shell[data-mode="narrow"] .wt-badge{margin-left:auto}
+.wt-shell[data-mode="narrow"] .wt-stage{display:flex;flex-direction:column;gap:0;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wt-shell[data-mode="narrow"] .wt-narr{display:none}
+.wt-shell[data-mode="narrow"] .wt-devwrap{flex:1}
+.wt-shell[data-mode="narrow"] .wt-tour{flex-wrap:wrap;gap:10px 12px;padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wt-shell[data-mode="narrow"] .wt-cap{flex-basis:100%;font-size:15.5px;min-height:3.9em}
+.wt-shell[data-mode="narrow"] .wt-dots{flex:1}
+.wt-shell[data-mode="narrow"] .wt-ctl button{width:44px;height:44px}
+
+/* ---------- Wide, smaller viewports ---------- */
+@media (min-width:760px) and (max-width:1100px){
+  .wt-shell[data-mode="wide"] .wt-stage{grid-template-columns:230px minmax(0,1fr);gap:20px}
+  .wt-shell[data-mode="wide"] .wt-narr h1{font-size:30px}
+  .wt-shell[data-mode="wide"] .wt-lede{font-size:14px}
+  .wt-shell[data-mode="wide"] .wt-steps button{font-size:13.5px;padding:6px 2px}
+}
+@media (min-width:760px) and (max-width:1100px) and (orientation:portrait){
+  .wt-shell[data-mode="wide"] .wt-stage{display:flex;flex-direction:column;gap:14px}
+  .wt-shell[data-mode="wide"] .wt-narr{flex:none}
+  .wt-shell[data-mode="wide"] .wt-lede,.wt-shell[data-mode="wide"] .wt-steps,.wt-shell[data-mode="wide"] .wt-foot{display:none}
+  .wt-shell[data-mode="wide"] .wt-narr h1{margin:0}
+  .wt-shell[data-mode="wide"] .wt-devwrap{flex:1}
+}
+@media (min-width:760px) and (max-height:760px){
+  .wt-shell[data-mode="wide"] .wt-lede{display:none}
+  .wt-shell[data-mode="wide"] .wt-narr h1{font-size:30px}
+  .wt-shell[data-mode="wide"] .wt-tour{min-height:72px;padding-block:10px}
+  .wt-shell[data-mode="wide"] .wt-cap{font-size:17px}
+}
+
+/* ---------- Export mode (motion-artifact's render.mjs sets window.__motionExport): bare canvas at native size ---------- */
+.wt-export .wt-pbar,.wt-export .wt-narr,.wt-export .wt-tour{display:none}
+.wt-export .wt-stage{display:block;padding:0}
+.wt-export .wt-cv{position:fixed;left:0;top:0;border:0;border-radius:0;box-shadow:none}
+</style>
+
+<style id="app-css">
+/* APP: Lendhand tokens. Dark values are written once, under :root[data-theme="dark"]. */
+:root{
+  --app-bg:#fbfaf6; --app-surface:#ffffff; --app-ink:#17302b; --app-muted:#586a64; --app-line:#e0e6df;
+  --app-accent:#1f7a68; --app-accent-tint:#dcf0ea; --app-ok:#2b7a3d; --app-ok-tint:#e3f2e6;
+  --app-warn:#8f5700; --app-warn-tint:#fbefd9; --app-chip:#eef2ed; --app-scrim:rgba(23,48,43,.40); --app-shadow:rgba(23,48,43,.12);
+  --app-serif:var(--wt-serif); --app-sans:var(--wt-sans); --app-mono:var(--wt-mono);
+  /* chrome branding */
+  --wt-accent:#1f7a68; --wt-accent-dark:#5fd0b8; --wt-sub:#2b5d52; --wt-sub-dark:#8fd6c5; --wt-band:#12302b; --wt-band-accent:#6fd9c0;
+}
+:root[data-theme="dark"]{
+  --app-bg:#14201d; --app-surface:#1b2b27; --app-ink:#e8f0ec; --app-muted:#9db3ab; --app-line:#2f423d;
+  --app-accent:#5fd0b8; --app-accent-tint:#1d3d36; --app-ok:#83d296; --app-ok-tint:#1d3524; --app-warn:#efb45a; --app-warn-tint:#3b2d14;
+  --app-chip:#233632; --app-scrim:rgba(0,0,0,.55); --app-shadow:rgba(0,0,0,.45);
+  --wt-bg:#101a17; --wt-band:#08100e;
+}
+
+#cv{display:flex;flex-direction:column}
+#cv .abar{flex:none;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:10px 20px 0;background:var(--app-surface);border-bottom:1px solid var(--app-line)}
+#cv .brandrow{padding-bottom:10px;display:flex;align-items:baseline;gap:8px}
+#cv .logo{font-family:var(--app-serif);font-size:24px;line-height:1.1}
+#cv .logo-sub{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--app-muted)}
+#cv .tabs{display:flex;gap:2px}
+#cv .tab{font-size:13.5px;font-weight:600;color:var(--app-muted);padding:8px 10px 11px;border-bottom:2px solid transparent;white-space:nowrap}
+#cv .tab.on{color:var(--app-accent);border-bottom-color:var(--app-accent)}
+#cv .scrs{position:relative;flex:1;min-height:0}
+#cv .scr{position:absolute;inset:0;padding:18px 22px;display:flex;flex-direction:column;gap:14px;opacity:0;visibility:hidden}
+#cv h2{font-family:var(--app-serif);font-weight:400;font-size:30px;line-height:1.05;margin:0}
+#cv .sub{margin:4px 0 0;font-size:13px;color:var(--app-muted)}
+#cv .head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#cv .badge{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;padding:2px 10px;border-radius:99px;background:var(--app-chip);color:var(--app-muted);white-space:nowrap;line-height:1.6}
+#cv .b-ok{background:var(--app-ok-tint);color:var(--app-ok)}
+#cv .b-warn{background:var(--app-warn-tint);color:var(--app-warn)}
+#cv .b-acc{background:var(--app-accent-tint);color:var(--app-accent)}
+#cv .card{position:relative;background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;padding:14px 16px}
+#cv .ctitle{font-family:var(--app-serif);font-size:20px;line-height:1.1;margin:0 0 8px}
+#cv .btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:0 18px;border-radius:9px;font-size:13.5px;font-weight:700;border:1px solid var(--app-line);background:var(--app-surface);color:var(--app-ink);white-space:nowrap}
+#cv .btn.pri{background:var(--app-accent);border-color:var(--app-accent);color:#fff}
+:root[data-theme="dark"] #cv .btn.pri{color:#06201a}
+#cv .btn.dis{opacity:.55}
+#cv .btn.pressed{box-shadow:0 0 0 4px var(--app-accent-tint)}
+#cv .spin{display:none;width:13px;height:13px;border-radius:99px;border:2px solid currentColor;border-right-color:transparent}
+#cv .ringed{box-shadow:0 0 0 3px var(--app-accent)}
+
+/* Browse */
+#cv .search{position:relative;display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;background:var(--app-surface);border:1px solid var(--app-line);border-radius:10px;font-size:15px}
+#cv .search svg{flex:none;width:18px;height:18px;color:var(--app-muted)}
+#cv .search.focus{border-color:var(--app-accent);box-shadow:0 0 0 3px var(--app-accent-tint)}
+#cv .search .ph{position:absolute;left:46px;color:var(--app-muted)}
+#cv .search .tx{min-height:1.4em;font-weight:500}
+#cv .count{font-size:12.5px;color:var(--app-muted);min-height:1.4em}
+#cv .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+#cv .tool{position:relative;background:var(--app-surface);border:1px solid var(--app-line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;min-height:116px}
+#cv .tool.hit{border-color:var(--app-accent)}
+#cv .tool .nm{font-weight:700;font-size:15px}
+#cv .tool .cat{font-size:12px;color:var(--app-muted)}
+#cv .tool .avail{margin-top:auto;align-self:flex-start}
+
+/* Reserve */
+#cv .two{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;align-items:start}
+#cv .col{display:flex;flex-direction:column;gap:14px;min-width:0}
+#cv .desc{margin:0;font-size:13.5px;color:var(--app-muted)}
+#cv .chips{display:flex;gap:8px;flex-wrap:wrap}
+#cv .chip{display:inline-flex;flex-direction:column;align-items:center;min-width:64px;padding:8px 12px;border-radius:10px;border:1px solid var(--app-line);background:var(--app-surface);font-weight:700;font-size:15px;line-height:1.15}
+#cv .chip small{font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--app-muted)}
+#cv .chip.sel{background:var(--app-accent-tint);border-color:var(--app-accent);color:var(--app-accent)}
+#cv .chip.sel small{color:var(--app-accent)}
+#cv .dl{display:grid;grid-template-columns:auto 1fr;gap:8px 18px;margin:0 0 14px;font-size:13.5px}
+#cv .dl dt{color:var(--app-muted)}
+#cv .dl dd{margin:0;font-weight:700;padding:1px 4px;margin-left:-4px;border-radius:5px}
+#cv .dl dd.ringed{box-shadow:none;background:var(--app-accent-tint);outline:3px solid var(--app-accent-tint)}
+#cv .act{position:relative;min-height:40px}
+#cv .act .btn{position:absolute;left:0;top:0}
+#cv .act .done{position:absolute;left:0;top:0;display:inline-flex;align-items:center;min-height:38px;padding:0 14px;border-radius:9px;background:var(--app-ok-tint);color:var(--app-ok);font-weight:700;font-size:13.5px;opacity:0;visibility:hidden}
+
+/* Pickup pass (bottom-right drawer over the reserve screen) */
+#cv .scrim{position:absolute;inset:0;z-index:18;background:var(--app-scrim);opacity:0;visibility:hidden}
+#cv .drawer{position:absolute;right:0;top:0;bottom:0;z-index:20;width:380px;background:var(--app-surface);border-left:1px solid var(--app-line);box-shadow:-18px 0 40px var(--app-shadow);padding:20px 22px;display:flex;flex-direction:column;gap:14px;visibility:hidden}
+#cv .drawer h3{font-family:var(--app-serif);font-weight:400;font-size:28px;line-height:1.05;margin:0}
+#cv .dtop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+#cv .xbtn{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;border:1px solid var(--app-line)}
+#cv .xbtn svg{width:14px;height:14px}
+#cv .code{display:flex;gap:10px;padding:6px;border-radius:12px;justify-content:center}
+#cv .digit{display:grid;place-items:center;width:62px;height:76px;border-radius:12px;border:1px solid var(--app-line);background:var(--app-bg);font-family:var(--app-mono);font-size:38px;font-weight:500;opacity:0}
+#cv .desk{margin:0;padding:12px 14px;border-radius:10px;background:var(--app-bg);border:1px solid var(--app-line);font-size:13.5px}
+#cv .desk b{display:block;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--app-accent);margin-bottom:3px}
+#cv .desk.ringed{border-color:var(--app-accent);box-shadow:0 0 0 3px var(--app-accent-tint)}
+
+/* Loans */
+#cv .loan{display:flex;align-items:center;gap:14px}
+#cv .loan .tt{flex:1;min-width:0}
+#cv .loan .nm{font-weight:700;font-size:16px}
+#cv .loan .due{font-size:13px;color:var(--app-muted)}
+#cv .chk{display:flex;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--app-line);font-size:14.5px}
+#cv .chk:last-of-type{border-bottom:0}
+#cv .box{flex:none;display:grid;place-items:center;width:22px;height:22px;border-radius:6px;border:1.5px solid var(--app-muted);color:transparent}
+#cv .box svg{width:14px;height:14px}
+#cv .chk.on .box{background:var(--app-accent);border-color:var(--app-accent);color:#fff}
+:root[data-theme="dark"] #cv .chk.on .box{color:#06201a}
+#cv .sbar{display:flex;align-items:center;gap:12px;margin-top:12px}
+#cv .note{display:inline-flex;align-items:center;min-height:38px;padding:0 14px;border-radius:9px;background:var(--app-ok-tint);color:var(--app-ok);font-weight:700;font-size:13.5px;opacity:0}
+
+/* Closing card */
+#cv .closing{position:absolute;inset:0;z-index:40;background:var(--app-bg);display:flex;align-items:center;justify-content:center;padding:40px;opacity:0;visibility:hidden}
+#cv .closing .box2{max-width:760px}
+#cv .closing .ey{font-size:12.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--app-accent);margin:0}
+#cv .closing h2{font-size:62px;line-height:1.02;margin:6px 0 18px}
+#cv .closing h2 em{color:var(--app-accent)}
+#cv .loop{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 20px;font-weight:600;font-size:13px}
+#cv .loop span{padding:5px 10px;border-radius:99px;background:var(--app-surface);border:1px solid var(--app-line)}
+#cv .loop em{font-style:normal;color:var(--app-accent)}
+#cv .closing p.fine{margin:0;color:var(--app-muted);font-size:15px}
+
+/* Narrow canvas (390x720) */
+#cv.is-narrow{border-radius:20px}
+#cv.is-narrow .abar{flex-direction:column;align-items:stretch;gap:0;padding:8px 12px 0}
+#cv.is-narrow .brandrow{padding-bottom:4px}
+#cv.is-narrow .tab{font-size:12.5px;padding:6px 8px 8px}
+#cv.is-narrow .scr{padding:12px;gap:10px}
+#cv.is-narrow h2{font-size:25px}
+#cv.is-narrow .sub{display:none}
+#cv.is-narrow .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+#cv.is-narrow .tool{padding:9px 11px;min-height:86px}
+#cv.is-narrow .tool .nm{font-size:14px}
+#cv.is-narrow .two{grid-template-columns:minmax(0,1fr);gap:10px}
+#cv.is-narrow .col{gap:10px}
+#cv.is-narrow .desc{display:none}
+#cv.is-narrow .card{padding:11px 13px}
+#cv.is-narrow .dl{margin-bottom:10px}
+#cv.is-narrow .drawer{left:0;right:0;top:auto;width:auto;height:430px;border-left:0;border-top:1px solid var(--app-line);border-radius:16px 16px 0 0;box-shadow:0 -18px 40px var(--app-shadow);padding:16px}
+#cv.is-narrow .digit{width:54px;height:66px;font-size:32px}
+#cv.is-narrow .closing{padding:24px}
+#cv.is-narrow .closing h2{font-size:42px}
+</style>
+
+<script id="wt-theme">
+/* Sets <html data-theme> before first paint. ?theme=light|dark overrides the OS. */
+(function () {
+  var q = new URLSearchParams(location.search).get("theme");
+  var mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)");
+  function set() { document.documentElement.setAttribute("data-theme", q === "light" || q === "dark" ? q : (mq && mq.matches ? "dark" : "light")); }
+  set();
+  if (mq && mq.addEventListener && !q) mq.addEventListener("change", set);
+})();
+</script>
+
+<div class="wt-shell" id="wtShell" data-mode="wide">
+  <header class="wt-pbar">
+    <div class="wt-brand"><small id="wtBrandEy"></small><b id="wtBrandName"></b></div>
+    <span class="wt-badge" id="wtBadge"></span>
+    <span class="wt-meta" id="wtMeta"></span>
+  </header>
+
+  <div class="wt-stage">
+    <aside class="wt-narr">
+      <p class="wt-eyebrow" id="wtEy"></p>
+      <h1 id="wtTitle"></h1>
+      <p class="wt-lede" id="wtLede"></p>
+      <ol class="wt-steps" id="wtSteps"></ol>
+      <p class="wt-foot" id="wtFoot"></p>
+    </aside>
+
+    <div class="wt-devwrap" id="wtWrap">
+      <div class="wt-sizer" id="wtSizer">
+        <section class="wt-cv cv" id="cv" aria-label="Animated sample of the app" aria-hidden="true">
+<!-- wt:canvas -->
+          <div class="abar">
+            <div class="brandrow"><span class="logo">Lendhand</span><span class="logo-sub">Tool library</span></div>
+            <nav class="tabs"><span class="tab" id="tabBrowse">Browse</span><span class="tab" id="tabLoans">My loans</span><span class="tab" id="tabDesk">Volunteer desk</span></nav>
+          </div>
+
+          <div class="scrs">
+            <!-- ============ BROWSE ============ -->
+            <div class="scr" id="scrBrowse">
+              <div><h2>Tool library</h2><p class="sub">Borrow anything on the shelf for up to three days. Free for members.</p></div>
+              <div class="search" id="search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <span class="ph" id="searchPh">Search 214 tools</span>
+                <span class="tx" id="searchTx"></span>
+              </div>
+              <div class="count" id="count">Showing 214 tools</div>
+              <div class="grid" id="grid">
+                <div class="tool hit-yes" id="cardDrill"><span class="nm">Cordless drill</span><span class="cat">Power tools</span><span class="badge b-ok avail" id="availDrill">In now</span></div>
+                <div class="tool hit-yes" id="cardHammer"><span class="nm">Hammer drill</span><span class="cat">Power tools</span><span class="badge b-warn avail">Out until Tue</span></div>
+                <div class="tool" id="cardSaw"><span class="nm">Hand saw</span><span class="cat">Hand tools</span><span class="badge b-ok avail">In now</span></div>
+                <div class="tool" id="cardLadder"><span class="nm">Step ladder</span><span class="cat">Ladders</span><span class="badge b-ok avail">In now</span></div>
+                <div class="tool" id="cardWasher"><span class="nm">Pressure washer</span><span class="cat">Outdoor</span><span class="badge b-warn avail">Out until Mon</span></div>
+                <div class="tool" id="cardTile"><span class="nm">Tile cutter</span><span class="cat">Hand tools</span><span class="badge b-ok avail">In now</span></div>
+              </div>
+            </div>
+
+            <!-- ============ RESERVE ============ -->
+            <div class="scr" id="scrReserve">
+              <div class="head"><h2>Cordless drill</h2><span class="badge b-ok">In now</span></div>
+              <div class="two">
+                <div class="col">
+                  <p class="desc">18 volt, two batteries and a case. Bits are in the lid. Please charge the battery before it comes back.</p>
+                  <div class="card">
+                    <h3 class="ctitle">Pick your days</h3>
+                    <div class="chips">
+                      <span class="chip" id="chipFri"><small>Fri</small>23</span>
+                      <span class="chip" id="chipSat"><small>Sat</small>24</span>
+                      <span class="chip" id="chipSun"><small>Sun</small>25</span>
+                      <span class="chip" id="chipMon"><small>Mon</small>26</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="card">
+                    <h3 class="ctitle">Your loan</h3>
+                    <dl class="dl">
+                      <dt>Pick up</dt><dd id="pickRow">Choose a day</dd>
+                      <dt>Return by</dt><dd id="retRow">Choose a day</dd>
+                      <dt>Deposit</dt><dd>$0</dd>
+                    </dl>
+                    <div class="act">
+                      <button class="btn pri" id="reserveBtn" tabindex="-1"><span class="spin" id="spRes"></span><span id="reserveTx">Reserve</span></button>
+                      <span class="done" id="resBadge">Reserved for Maya</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="scrim" id="dScrim"></div>
+              <div class="drawer" id="drawer">
+                <div class="dtop"><div><h3>Pickup pass</h3><p class="sub">Cordless drill, Sat 24 to Sun 25</p></div><span class="xbtn" id="dClose"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span></div>
+                <div class="code" id="passCode"><span class="digit">7</span><span class="digit">4</span><span class="digit">2</span><span class="digit">9</span></div>
+                <p class="desk" id="passDesk"><b>At the desk</b>Volunteer desk, Hall B. Show this code and Theo hands over the drill.</p>
+              </div>
+            </div>
+
+            <!-- ============ LOANS ============ -->
+            <div class="scr" id="scrLoans">
+              <div class="head"><h2>My loans</h2><span class="badge b-acc" id="openBadge">Open loans <b id="openCount">1</b></span></div>
+              <div class="card loan" id="loanCard">
+                <div class="tt"><div class="nm">Cordless drill</div><div class="due">Due Sun 25, 5 pm</div></div>
+                <span class="badge b-warn" id="loanStatus">Out</span>
+              </div>
+              <div class="card">
+                <h3 class="ctitle">Check-in</h3>
+                <div class="chk" id="chk1"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Battery charged</div>
+                <div class="chk" id="chk2"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>Case closed</div>
+                <div class="chk" id="chk3"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>All bits returned</div>
+                <div class="sbar">
+                  <span class="act" style="min-width:150px"><button class="btn pri" id="checkinBtn" tabindex="-1"><span class="spin" id="spChk"></span><span id="checkinTx">Check in</span></button></span>
+                  <span class="note" id="doneNote">Loan closed. Thanks, Maya.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ============ CLOSING ============ -->
+          <div class="closing" id="closing">
+            <div class="box2">
+              <p class="ey" id="clEy">Lendhand · the loan in four steps</p>
+              <h2 id="clH">Borrow it.<br><em>Bring it back.</em></h2>
+              <div class="loop" id="clLoop"><span>Search</span><em>&rarr;</em><span>Reserve</span><em>&rarr;</em><span>Pick up</span><em>&rarr;</em><span>Return</span></div>
+              <p class="fine" id="clP">A fictional walkthrough with invented people and tools.</p>
+            </div>
+          </div>
+<!-- /wt:canvas -->
+          <div class="wt-rip" id="wtRip"></div>
+          <div class="wt-cur" id="wtCur"><svg viewBox="0 0 24 24"><path d="M4 2l15 11-7 1-4 7z" fill="var(--wt-cursor)" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div class="wt-tour" role="region" aria-label="Walkthrough controls">
+    <div class="wt-prog"><i id="wtProg"></i></div>
+    <div class="wt-cap"><small id="wtCapEy"></small><span id="wtCapTx" aria-live="polite"></span></div>
+    <div class="wt-dots" id="wtDots"></div>
+    <div class="wt-ctl">
+      <button type="button" id="wtRestart" aria-label="Restart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+      <button type="button" id="wtPrev" aria-label="Previous step"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+      <button type="button" id="wtPlay" aria-label="Pause"></button>
+      <button type="button" id="wtNext" aria-label="Next step"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<!-- wt:runtime -->
+
+<!-- SPEC: pure JSON, read by WT.start() and by lint.mjs with JSON.parse (it is never executed, so no comments or functions in it).
+     Times in beats, moves, clicks and marks are SCENE-relative milliseconds.
+     moves: [at, dur, "#selector", fx, fy, {"follow": true}]   clicks: [at, "#selector"]   beats: [at, "caption"] -->
+<script type="application/json" id="wt-spec">
+{
+  "brand": { "eyebrow": "Tool library", "name": "Lendhand" },
+  "badge": "Walkthrough · sample data",
+  "foot": "Fictional people and tools. Sample data only.",
+  "canvas": {
+    "wide": [1000, 560],
+    "narrow": [390, 640],
+    "narrowBelow": 760
+  },
+  "park": {
+    "wide": [760, 500],
+    "narrow": [300, 560]
+  },
+  "scenes": [
+    {
+      "id": "browse",
+      "name": "Browse",
+      "title": "Find the right tool",
+      "lede": "Search the shelf. Cards show what is in and when the rest are back.",
+      "len": 13000,
+      "beats": [
+        [0, "Maya needs a drill for the weekend, so she searches the library."],
+        [4000, "Typing narrows the shelf as she goes."],
+        [8000, "Each card shows what is in now and when the rest are back."]
+      ],
+      "moves": [
+        [300, 900, "#search", 0.4, 0.5],
+        [4600, 800, "#cardDrill", 0.5, 0.45],
+        [8300, 800, "#availDrill"],
+        [10200, 700, "#cardDrill", 0.5, 0.3]
+      ],
+      "clicks": [
+        [1300, "#search"],
+        [10900, "#cardDrill"]
+      ],
+      "marks": { "typed": 3700, "open": 11400 }
+    },
+    {
+      "id": "reserve",
+      "name": "Reserve",
+      "title": "Pick the days",
+      "lede": "Choose the days and the return time follows. Reserving holds the tool, nothing is charged.",
+      "len": 13000,
+      "beats": [
+        [0, "She opens the drill and picks the days she needs it."],
+        [4500, "Saturday to Sunday. The return time follows her choice."],
+        [8500, "Reserve holds it for her. Nothing is charged."]
+      ],
+      "moves": [
+        [400, 800, "#chipSat"],
+        [2400, 700, "#chipSun"],
+        [5000, 700, "#retRow", 0.5, 0.5],
+        [8600, 800, "#reserveBtn"]
+      ],
+      "clicks": [
+        [1400, "#chipSat"],
+        [3200, "#chipSun"],
+        [9600, "#reserveBtn"]
+      ],
+      "marks": { "sat": 1400, "sun": 3200, "press": 9600, "reserved": 10400 }
+    },
+    {
+      "id": "pickup",
+      "name": "Pick up",
+      "title": "Show the pass",
+      "lede": "A short code is all the volunteer needs. The loan then lives under My loans.",
+      "len": 12000,
+      "beats": [
+        [0, "A pickup pass opens with a four digit code."],
+        [4000, "At the desk, Theo checks the code and hands over the drill."],
+        [8000, "The loan now shows under My loans."]
+      ],
+      "moves": [
+        [500, 700, "#passCode"],
+        [4200, 700, "#passDesk", 0.5, 0.5],
+        [8100, 800, "#tabLoans"]
+      ],
+      "clicks": [
+        [8900, "#tabLoans"]
+      ],
+      "marks": { "open": 300, "toLoans": 9400 }
+    },
+    {
+      "id": "return",
+      "name": "Return",
+      "title": "Bring it back",
+      "lede": "A three line check-in closes the loan and the open count drops back to zero.",
+      "len": 14000,
+      "beats": [
+        [0, "On Sunday Maya brings it back and opens her loan."],
+        [4000, "A short check-in confirms the battery, the case and the bits."],
+        [8500, "Check in closes the loan on the spot."],
+        [11500, "The open loans counter drops back to zero."]
+      ],
+      "moves": [
+        [300, 700, "#loanCard", 0.5, 0.4],
+        [4200, 700, "#chk1", 0.12, 0.5],
+        [5400, 500, "#chk2", 0.12, 0.5],
+        [6400, 500, "#chk3", 0.12, 0.5],
+        [8600, 700, "#checkinBtn"],
+        [11600, 700, "#openCount"]
+      ],
+      "clicks": [
+        [4900, "#chk1"],
+        [5900, "#chk2"],
+        [6900, "#chk3"],
+        [9400, "#checkinBtn"]
+      ],
+      "marks": { "press": 9400, "closed": 10100, "zero": 11700 }
+    },
+    {
+      "id": "recap",
+      "name": "Recap",
+      "title": "Borrow it, bring it back",
+      "lede": "Search, reserve, pick up, return.",
+      "len": 10000,
+      "beats": [
+        [0, "Search, reserve, pick up, return. Four steps, no spreadsheet."]
+      ]
+    }
+  ],
+  "closing": "recap"
+}
+</script>
+<script id="wt-owners">
+/* BEHAVIOUR: each owner is the only writer of what it touches. */
+(function () {
+  "use strict";
+  var h = WT.h, rp = h.rp, win = h.win, pick = h.pick, op = h.op, css = h.css, txt = h.txt, cls = h.cls, tr = h.tr, rev = h.rev, num = h.num, spin = h.spin;
+  var $ = WT.$, $$ = WT.$$;
+
+  /* Screens and tabs. A screen is visible between two marks; the tab follows the scene the viewer is in. */
+  var scrBrowse = $("#scrBrowse"), scrReserve = $("#scrReserve"), scrLoans = $("#scrLoans");
+  var tabBrowse = $("#tabBrowse"), tabLoans = $("#tabLoans");
+  WT.own("screens", function (t, k) {
+    var toReserve = k.at("browse", "open"), toLoans = k.at("pickup", "toLoans");
+    op(scrBrowse, win(t, -1, toReserve + 250, 1, 250));
+    op(scrReserve, win(t, toReserve + 150, toLoans + 250, 300, 250));
+    op(scrLoans, win(t, toLoans + 150, null, 300));
+    cls(tabBrowse, "on", t < toLoans);
+    cls(tabLoans, "on", t >= toLoans);
+  });
+
+  /* Browse: cards rise in, the query is typed, non-matching cards dim. */
+  var search = $("#search"), searchPh = $("#searchPh"), searchTx = $("#searchTx"), count = $("#count");
+  var cards = $$("#grid .tool"), availDrill = $("#availDrill");
+  WT.own("browse", function (t, k) {
+    var s0 = k.start("browse"), L = k.local(t, "browse");
+    cls(search, "focus", L >= 1300 && L < 10000);
+    op(searchPh, L >= 1700 ? 0 : 1);
+    txt(searchTx, "drill".slice(0, Math.round(5 * rp(t, s0 + 1700, 1800, "lin"))));
+    var typed = t >= k.at("browse", "typed");
+    txt(count, typed ? "2 of 214 tools match" : "Showing 214 tools");
+    cards.forEach(function (c, i) {
+      var hit = c.classList.contains("hit-yes");
+      var rise = rp(t, s0 + 200 + i * 90, 420, "out");
+      var dim = typed && !hit ? 1 - 0.7 * rp(t, k.at("browse", "typed"), 400, "lin") : 1;
+      op(c, Math.min(rise, dim) * 1);
+      tr(c, 0, (1 - rise) * 10);
+      cls(c, "hit", typed && hit);
+    });
+    cls(availDrill, "ringed", L >= 8500 && L < 10000);
+  });
+
+  /* Reserve: day chips, the summary text, the Reserve button. */
+  var chipSat = $("#chipSat"), chipSun = $("#chipSun"), pickRow = $("#pickRow"), retRow = $("#retRow");
+  var reserveBtn = $("#reserveBtn"), reserveTx = $("#reserveTx"), spRes = $("#spRes"), resBadge = $("#resBadge");
+  WT.own("reserve", function (t, k) {
+    var sat = k.at("reserve", "sat"), sun = k.at("reserve", "sun"), press = k.at("reserve", "press"), done = k.at("reserve", "reserved");
+    cls(chipSat, "sel", t >= sat);
+    cls(chipSun, "sel", t >= sun);
+    txt(pickRow, t >= sat ? "Sat 24, 10 am" : "Choose a day");
+    txt(retRow, t >= sun ? "Sun 25, 5 pm" : t >= sat ? "Sat 24, 5 pm" : "Choose a day");
+    cls(retRow, "ringed", t >= k.at("reserve", 5000) && t < k.at("reserve", 8000));
+    txt(reserveTx, t >= press && t < done ? "Reserving" : "Reserve");
+    spin(spRes, t, press, done);
+    cls(reserveBtn, "pressed", t >= press && t < press + 200);
+    op(reserveBtn, t >= done ? 0 : 1);
+    op(resBadge, rp(t, done, 300, "lin"));
+  });
+
+  /* Pickup pass: scrim and drawer, then the four digits. */
+  var dScrim = $("#dScrim"), drawer = $("#drawer"), digits = $$("#passCode .digit"), passCode = $("#passCode"), passDesk = $("#passDesk");
+  WT.own("pass", function (t, k) {
+    var open = k.at("pickup", "open"), close = k.at("pickup", "toLoans") - 500;
+    var p = rp(t, open, 480, "out") * (1 - rp(t, close, 420, "inOut"));
+    op(dScrim, p);
+    css(drawer, "visibility", p <= 0 ? "hidden" : "visible");
+    if (k.mode() === "wide") tr(drawer, (1 - p) * 420, 0); else tr(drawer, 0, (1 - p) * 460);
+    digits.forEach(function (d, i) { op(d, rp(t, open + 700 + i * 200, 260, "lin")); });
+    cls(passCode, "ringed", t >= k.at("pickup", 1800) && t < k.at("pickup", 3800));
+    cls(passDesk, "ringed", t >= k.at("pickup", 4400) && t < k.at("pickup", 7600));
+  });
+
+  /* Return: the loan card, three ticks, Check in, the open count. */
+  var chks = [$("#chk1"), $("#chk2"), $("#chk3")], checkinBtn = $("#checkinBtn"), checkinTx = $("#checkinTx"), spChk = $("#spChk");
+  var loanStatus = $("#loanStatus"), doneNote = $("#doneNote"), openCount = $("#openCount");
+  WT.own("return", function (t, k) {
+    var press = k.at("return", "press"), closed = k.at("return", "closed"), zero = k.at("return", "zero");
+    [4900, 5900, 6900].forEach(function (at, i) { cls(chks[i], "on", t >= k.at("return", at)); });
+    txt(checkinTx, t >= press && t < closed ? "Checking in" : "Check in");
+    spin(spChk, t, press, closed);
+    cls(checkinBtn, "pressed", t >= press && t < press + 200);
+    op(checkinBtn, t >= closed ? 0 : 1);
+    op(doneNote, rp(t, closed, 300, "lin"));
+    txt(loanStatus, t >= closed ? "Returned" : "Out");
+    cls(loanStatus, "b-ok", t >= closed); cls(loanStatus, "b-warn", t < closed);
+    txt(openCount, t >= zero ? "0" : "1");
+  });
+
+  /* Closing card. */
+  var closing = $("#closing"), clEy = $("#clEy"), clH = $("#clH"), clLoop = $("#clLoop"), clP = $("#clP");
+  WT.own("closing", function (t, k) {
+    var s = k.start("recap");
+    op(closing, rp(t, s, 600, "lin"));
+    rev(clEy, t, s + 300, 500, 10);
+    rev(clH, t, s + 500, 600, 14);
+    rev(clLoop, t, s + 1300, 500, 10);
+    rev(clP, t, s + 1800, 500, 10);
+  });
+
+  WT.start();   // last line
+})();
+</script>
