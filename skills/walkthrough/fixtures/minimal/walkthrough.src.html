@@ -411,50 +411,133 @@ button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;paddin
 
 <!-- wt:runtime -->
 
-<script id="wt-spec">
-/* DATA ONLY: no DOM access, no functions. lint.mjs evaluates this block on its own.
-   Times in beats, moves, clicks and marks are SCENE-relative milliseconds. */
-WT.define({
-  brand: { eyebrow: "Tool library", name: "Lendhand" },
-  badge: "Walkthrough · sample data",
-  foot: "Fictional people and tools. Sample data only.",
-  canvas: { wide: [1000, 560], narrow: [390, 640], narrowBelow: 760 },
-  park: { wide: [760, 500], narrow: [300, 560] },
-  scenes: [
-    { id: "browse", name: "Browse", title: "Find the right tool", lede: "Search the shelf. Cards show what is in and when the rest are back.", len: 13000,
-      beats: [[0, "Maya needs a drill for the weekend, so she searches the library."],
-              [4000, "Typing narrows the shelf as she goes."],
-              [8000, "Each card shows what is in now and when the rest are back."]],
-      moves: [[300, 900, "#search", 0.4, 0.5], [4600, 800, "#cardDrill", 0.5, 0.45], [8300, 800, "#availDrill"], [10200, 700, "#cardDrill", 0.5, 0.3]],
-      clicks: [[1300, "#search"], [10900, "#cardDrill"]],
-      marks: { typed: 3700, open: 11400 } },
-    { id: "reserve", name: "Reserve", title: "Pick the days", lede: "Choose the days and the return time follows. Reserving holds the tool, nothing is charged.", len: 13000,
-      beats: [[0, "She opens the drill and picks the days she needs it."],
-              [4500, "Saturday to Sunday. The return time follows her choice."],
-              [8500, "Reserve holds it for her. Nothing is charged."]],
-      moves: [[400, 800, "#chipSat"], [2400, 700, "#chipSun"], [5000, 700, "#retRow", 0.5, 0.5], [8600, 800, "#reserveBtn"]],
-      clicks: [[1400, "#chipSat"], [3200, "#chipSun"], [9600, "#reserveBtn"]],
-      marks: { sat: 1400, sun: 3200, press: 9600, reserved: 10400 } },
-    { id: "pickup", name: "Pick up", title: "Show the pass", lede: "A short code is all the volunteer needs. The loan then lives under My loans.", len: 12000,
-      beats: [[0, "A pickup pass opens with a four digit code."],
-              [4000, "At the desk, Theo checks the code and hands over the drill."],
-              [8000, "The loan now shows under My loans."]],
-      moves: [[500, 700, "#passCode"], [4200, 700, "#passDesk", 0.5, 0.5], [8100, 800, "#tabLoans"]],
-      clicks: [[8900, "#tabLoans"]],
-      marks: { open: 300, toLoans: 9400 } },
-    { id: "return", name: "Return", title: "Bring it back", lede: "A three line check-in closes the loan and the open count drops back to zero.", len: 14000,
-      beats: [[0, "On Sunday Maya brings it back and opens her loan."],
-              [4000, "A short check-in confirms the battery, the case and the bits."],
-              [8500, "Check in closes the loan on the spot."],
-              [11500, "The open loans counter drops back to zero."]],
-      moves: [[300, 700, "#loanCard", 0.5, 0.4], [4200, 700, "#chk1", 0.12, 0.5], [5400, 500, "#chk2", 0.12, 0.5], [6400, 500, "#chk3", 0.12, 0.5], [8600, 700, "#checkinBtn"], [11600, 700, "#openCount"]],
-      clicks: [[4900, "#chk1"], [5900, "#chk2"], [6900, "#chk3"], [9400, "#checkinBtn"]],
-      marks: { press: 9400, closed: 10100, zero: 11700 } },
-    { id: "recap", name: "Recap", title: "Borrow it, bring it back", lede: "Search, reserve, pick up, return.", len: 10000,
-      beats: [[0, "Search, reserve, pick up, return. Four steps, no spreadsheet."]] }
+<!-- SPEC: pure JSON, read by WT.start() and by lint.mjs with JSON.parse (it is never executed, so no comments or functions in it).
+     Times in beats, moves, clicks and marks are SCENE-relative milliseconds.
+     moves: [at, dur, "#selector", fx, fy, {"follow": true}]   clicks: [at, "#selector"]   beats: [at, "caption"] -->
+<script type="application/json" id="wt-spec">
+{
+  "brand": { "eyebrow": "Tool library", "name": "Lendhand" },
+  "badge": "Walkthrough · sample data",
+  "foot": "Fictional people and tools. Sample data only.",
+  "canvas": {
+    "wide": [1000, 560],
+    "narrow": [390, 640],
+    "narrowBelow": 760
+  },
+  "park": {
+    "wide": [760, 500],
+    "narrow": [300, 560]
+  },
+  "scenes": [
+    {
+      "id": "browse",
+      "name": "Browse",
+      "title": "Find the right tool",
+      "lede": "Search the shelf. Cards show what is in and when the rest are back.",
+      "len": 13000,
+      "beats": [
+        [0, "Maya needs a drill for the weekend, so she searches the library."],
+        [4000, "Typing narrows the shelf as she goes."],
+        [8000, "Each card shows what is in now and when the rest are back."]
+      ],
+      "moves": [
+        [300, 900, "#search", 0.4, 0.5],
+        [4600, 800, "#cardDrill", 0.5, 0.45],
+        [8300, 800, "#availDrill"],
+        [10200, 700, "#cardDrill", 0.5, 0.3]
+      ],
+      "clicks": [
+        [1300, "#search"],
+        [10900, "#cardDrill"]
+      ],
+      "marks": { "typed": 3700, "open": 11400 }
+    },
+    {
+      "id": "reserve",
+      "name": "Reserve",
+      "title": "Pick the days",
+      "lede": "Choose the days and the return time follows. Reserving holds the tool, nothing is charged.",
+      "len": 13000,
+      "beats": [
+        [0, "She opens the drill and picks the days she needs it."],
+        [4500, "Saturday to Sunday. The return time follows her choice."],
+        [8500, "Reserve holds it for her. Nothing is charged."]
+      ],
+      "moves": [
+        [400, 800, "#chipSat"],
+        [2400, 700, "#chipSun"],
+        [5000, 700, "#retRow", 0.5, 0.5],
+        [8600, 800, "#reserveBtn"]
+      ],
+      "clicks": [
+        [1400, "#chipSat"],
+        [3200, "#chipSun"],
+        [9600, "#reserveBtn"]
+      ],
+      "marks": { "sat": 1400, "sun": 3200, "press": 9600, "reserved": 10400 }
+    },
+    {
+      "id": "pickup",
+      "name": "Pick up",
+      "title": "Show the pass",
+      "lede": "A short code is all the volunteer needs. The loan then lives under My loans.",
+      "len": 12000,
+      "beats": [
+        [0, "A pickup pass opens with a four digit code."],
+        [4000, "At the desk, Theo checks the code and hands over the drill."],
+        [8000, "The loan now shows under My loans."]
+      ],
+      "moves": [
+        [500, 700, "#passCode"],
+        [4200, 700, "#passDesk", 0.5, 0.5],
+        [8100, 800, "#tabLoans"]
+      ],
+      "clicks": [
+        [8900, "#tabLoans"]
+      ],
+      "marks": { "open": 300, "toLoans": 9400 }
+    },
+    {
+      "id": "return",
+      "name": "Return",
+      "title": "Bring it back",
+      "lede": "A three line check-in closes the loan and the open count drops back to zero.",
+      "len": 14000,
+      "beats": [
+        [0, "On Sunday Maya brings it back and opens her loan."],
+        [4000, "A short check-in confirms the battery, the case and the bits."],
+        [8500, "Check in closes the loan on the spot."],
+        [11500, "The open loans counter drops back to zero."]
+      ],
+      "moves": [
+        [300, 700, "#loanCard", 0.5, 0.4],
+        [4200, 700, "#chk1", 0.12, 0.5],
+        [5400, 500, "#chk2", 0.12, 0.5],
+        [6400, 500, "#chk3", 0.12, 0.5],
+        [8600, 700, "#checkinBtn"],
+        [11600, 700, "#openCount"]
+      ],
+      "clicks": [
+        [4900, "#chk1"],
+        [5900, "#chk2"],
+        [6900, "#chk3"],
+        [9400, "#checkinBtn"]
+      ],
+      "marks": { "press": 9400, "closed": 10100, "zero": 11700 }
+    },
+    {
+      "id": "recap",
+      "name": "Recap",
+      "title": "Borrow it, bring it back",
+      "lede": "Search, reserve, pick up, return.",
+      "len": 10000,
+      "beats": [
+        [0, "Search, reserve, pick up, return. Four steps, no spreadsheet."]
+      ]
+    }
   ],
-  closing: "recap"
-});
+  "closing": "recap"
+}
 </script>
 <script id="wt-owners">
 /* BEHAVIOUR: each owner is the only writer of what it touches. */

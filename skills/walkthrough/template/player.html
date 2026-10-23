@@ -6,7 +6,7 @@
     2. wt:fonts       the web fonts (system fallbacks stay in the --wt-* font stacks)
     3. #app-css       app tokens (--app-*) and the CSS for the canvas
     4. wt:canvas      the canvas DOM: the app, mirrored from the real components
-    5. #wt-spec       WT.define({...}): data only, no DOM access
+    5. #wt-spec       the spec as JSON (scenes, beats, moves, clicks, marks); never executed as code
     6. #wt-owners     WT.own(...) behaviours, then WT.start()
   Everything else is the walkthrough chrome. wrap.mjs inlines motion.js and player.js at wt:runtime.
 
@@ -206,26 +206,56 @@ button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;paddin
 
 <!-- wt:runtime -->
 
-<script id="wt-spec">
-/* DATA ONLY: no DOM access, no functions. lint.mjs evaluates this block on its own.
-   Times in beats, moves, clicks and marks are SCENE-relative milliseconds. */
-WT.define({
-  brand: { eyebrow: "Company", name: "App name" },
-  badge: "Walkthrough · sample data",
-  foot: "Fictional sample data only.",
-  canvas: { wide: [1000, 620], narrow: [390, 720], narrowBelow: 760 },
-  park: { wide: [760, 560], narrow: [300, 640] },
-  scenes: [
-    { id: "one", name: "First", title: "First step", lede: "One sentence on what this step shows.", len: 12000,
-      beats: [[0, "A caption of about ten words."], [4000, "Another caption."], [8000, "A third caption."]],
-      moves: [[300, 800, "#someTarget"]],
-      clicks: [[1200, "#someTarget"]],
-      marks: { done: 6000 } },
-    { id: "recap", name: "Recap", title: "The one line", lede: "The closing principle.", len: 8000,
-      beats: [[0, "The closing principle, one line."]] }
+<!-- SPEC: pure JSON, read by WT.start() and by lint.mjs with JSON.parse (it is never executed, so no comments or functions in it).
+     Times in beats, moves, clicks and marks are SCENE-relative milliseconds.
+     moves: [at, dur, "#selector", fx, fy, {"follow": true}]   clicks: [at, "#selector"]   beats: [at, "caption"] -->
+<script type="application/json" id="wt-spec">
+{
+  "brand": { "eyebrow": "Company", "name": "App name" },
+  "badge": "Walkthrough · sample data",
+  "foot": "Fictional sample data only.",
+  "canvas": {
+    "wide": [1000, 620],
+    "narrow": [390, 720],
+    "narrowBelow": 760
+  },
+  "park": {
+    "wide": [760, 560],
+    "narrow": [300, 640]
+  },
+  "scenes": [
+    {
+      "id": "one",
+      "name": "First",
+      "title": "First step",
+      "lede": "One sentence on what this step shows.",
+      "len": 12000,
+      "beats": [
+        [0, "A caption of about ten words."],
+        [4000, "Another caption."],
+        [8000, "A third caption."]
+      ],
+      "moves": [
+        [300, 800, "#someTarget"]
+      ],
+      "clicks": [
+        [1200, "#someTarget"]
+      ],
+      "marks": { "done": 6000 }
+    },
+    {
+      "id": "recap",
+      "name": "Recap",
+      "title": "The one line",
+      "lede": "The closing principle.",
+      "len": 8000,
+      "beats": [
+        [0, "The closing principle, one line."]
+      ]
+    }
   ],
-  closing: "recap"
-});
+  "closing": "recap"
+}
 </script>
 <script id="wt-owners">
 /* BEHAVIOUR: each owner is the only writer of what it touches. helpers: rp win pick op css txt cls tr rev num spin.
@@ -237,6 +267,6 @@ WT.define({
 
   // WT.own("first.screen", function (t, k) { ... });
 
-  WT.start();   // last line
+  WT.start();   // last line: reads #wt-spec
 })();
 </script>

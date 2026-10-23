@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { lint } from '../scripts/lint.mjs';
 import { copyFixture, edit, editManifest, rm, quiet, FIXTURE } from './_helpers.mjs';
 
+/** Edit the JSON spec as data. */
+const spec = (fn) => (h) => h.replace(/(<script type="application\/json" id="wt-spec">)([\s\S]*?)(<\/script>)/, (m, a, body, c) => { const o = JSON.parse(body); fn(o); return a + '\n' + JSON.stringify(o, null, 1) + '\n' + c; });
+
 const run = async (dir) => { const { value, lines } = await quiet(() => lint(dir)); return { r: value, text: lines.join('\n') }; };
 
 test('the fixture passes lint with no warnings', async () => {
@@ -19,15 +22,16 @@ const MUTATIONS = [
   ['Date.now in an owner', (h) => h.replace('  WT.start();', '  WT.own("clock", function () { var n = Date.now(); });\n  WT.start();'), /purity/],
   ['setInterval in an owner', (h) => h.replace('  WT.start();', '  setInterval(function () {}, 10);\n  WT.start();'), /purity/],
   ['fetch in an owner', (h) => h.replace('  WT.start();', '  fetch("/x");\n  WT.start();'), /purity|network/],
-  ['too few scenes', (h) => h.replace(/\{ id: "recap"[\s\S]*?\]\] \}\n/, '').replace('closing: "recap"', 'closing: "return"').replace('marks: { press: 9400, closed: 10100, zero: 11700 } },', 'marks: { press: 9400, closed: 10100, zero: 11700 } }'), /scenes|beats|closing|length/],
-  ['beats out of order', (h) => h.replace('[4000, "Typing narrows the shelf as she goes."]', '[9000, "Typing narrows the shelf as she goes."]'), /beats/],
-  ['move past the scene end', (h) => h.replace('[10200, 700, "#cardDrill", 0.5, 0.3]', '[12800, 700, "#cardDrill", 0.5, 0.3]'), /moves/],
-  ['move to a missing id', (h) => h.replace('[300, 900, "#search", 0.4, 0.5]', '[300, 900, "#searchh", 0.4, 0.5]'), /moves/],
-  ['wrong total length', (h) => h.replace('len: 10000,', 'len: 1000,').replace(/beats: \[\[0, "Search, reserve/, 'beats: [[0, "Search, reserve'), /length/],
-  ['spec that touches the DOM', (h) => h.replace('WT.define({\n  brand', 'document.title = "x";\nWT.define({\n  brand'), /spec/],
+  ['too few scenes', spec((o) => { o.scenes.splice(1, 3); }), /scenes/],
+  ['beats out of order', spec((o) => { o.scenes[0].beats[1][0] = 9000; }), /beats/],
+  ['move past the scene end', spec((o) => { o.scenes[0].moves[3][0] = 12800; }), /moves/],
+  ['move to a missing id', spec((o) => { o.scenes[0].moves[0][2] = '#searchh'; }), /moves/],
+  ['wrong total length', spec((o) => { o.scenes[4].len = 1000; }), /length/],
+  ['spec with code in it (not JSON)', (h) => h.replace('<script type="application/json" id="wt-spec">\n{', '<script type="application/json" id="wt-spec">\nWT.define({'), /not valid JSON/],
+  ['spec script without type=application/json', (h) => h.replace('<script type="application/json" id="wt-spec">', '<script id="wt-spec">'), /type="application\/json"/],
   ['doctype in the artifact page', (h) => '<!doctype html>\n' + h, /contract/],
   ['duplicate id', (h) => h.replace('id="chipFri"', 'id="chipSat"'), /ids/],
-  ['over-long caption speed (warning only)', (h) => h.replace('"Typing narrows the shelf as she goes."', '"Typing narrows the whole shelf down to only the matching tools as she keeps on typing one letter after another."'), null],
+  ['over-long caption speed (warning only)', spec((o) => { o.scenes[0].beats[1][1] = 'Typing narrows the whole shelf down to only the matching tools as she keeps on typing one letter after another.'; }), null],
 ];
 
 for (const [name, mutate, rule] of MUTATIONS) {
@@ -67,5 +71,25 @@ test('lint fails when an engine pin drifts', async () => {
     editManifest(dir, (m) => { m.engine.motion = '1.0.0'; });
     const { r, text } = await run(dir);
     assert.ok(r.fails > 0); assert.match(text, /engine\.motion is pinned at 1\.0\.0/);
+  } finally { rm(dir); }
+});
+
+test('a malicious spec is rejected and never executed', async () => {
+  const { existsSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const path = await import('node:path');
+  const marker = path.join(tmpdir(), 'wt-pwned-' + process.pid);
+  const dir = copyFixture();
+  try {
+    // JS that would write a file if anything ran it, in the places a vm-based reader would have run it
+    const evil = `{"scenes":[]} ; this.constructor.constructor("process.mainModule.require('fs').writeFileSync('${marker}','x')")()`;
+    edit(dir, 'walkthrough.src.html', (h) => h.replace(/(<script type="application\/json" id="wt-spec">)[\s\S]*?(<\/script>)/, `$1\n${evil}\n$2`));
+    const { r, text } = await run(dir);
+    assert.ok(r.fails > 0); assert.match(text, /not valid JSON/);
+    assert.equal(existsSync(marker), false, 'the spec must never be executed');
+    // and a spec that is valid JSON but hostile-looking is just data
+    edit(dir, 'walkthrough.src.html', (h) => h.replace(/(<script type="application\/json" id="wt-spec">)[\s\S]*?(<\/script>)/, `$1\n{"__proto__":{"polluted":1},"constructor":{"prototype":{"x":1}},"scenes":[]}\n$2`));
+    await run(dir);
+    assert.equal({}.polluted, undefined);
   } finally { rm(dir); }
 });

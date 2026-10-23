@@ -10,11 +10,12 @@
    function of time. seek(t) paints identical DOM whether the viewer played to
    t, scrubbed back to it, or jumped there cold.
 
-   Authoring surface (two inline scripts in the walkthrough page):
+   Authoring surface (two inline blocks in the walkthrough page):
 
-     WT.define({...})            data only: scenes, beats, moves, clicks, marks
+     <script type="application/json" id="wt-spec">   the spec as JSON: scenes, beats, moves, clicks,
+                                                     marks. Parsed with JSON.parse, never executed.
      WT.own("name", fn(t, k))    behaviour: the ONLY writer of what it touches
-     WT.start()                  last line
+     WT.start()                  last line; reads #wt-spec
 
    Times in a scene (beats, moves, clicks, marks) are scene-relative
    milliseconds. k.at("scene", "mark") and k.local(t, "scene") convert. */
@@ -108,7 +109,7 @@
   };
 
   function define(spec) {
-    if (SPEC) throw new Error("WT: define() called twice");
+    if (SPEC) throw new Error("WT: the spec was defined twice");
     if (!spec || !spec.scenes || !spec.scenes.length) throw new Error("WT: define() needs scenes");
     SPEC = spec;
     var at = 0;
@@ -330,7 +331,11 @@
      --------------------------------------------------------------------- */
   function start() {
     if (started) throw new Error("WT: start() called twice");
-    if (!SPEC) throw new Error("WT: start() before define()");
+    if (!SPEC) {
+      var specEl = doc.getElementById("wt-spec");
+      if (!specEl) throw new Error('WT: no <script type="application/json" id="wt-spec"> found');
+      define(JSON.parse(specEl.textContent));
+    }
     started = true;
     CV = $("#cv"); SHELL = $("#wtShell"); WRAP = $("#wtWrap"); SIZER = $("#wtSizer");
     if (!CV || !SHELL) throw new Error("WT: the page is missing #cv or #wtShell (copy template/player.html)");

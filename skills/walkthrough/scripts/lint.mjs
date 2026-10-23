@@ -9,7 +9,7 @@
                    the authored scripts. (motion-artifact's check.mjs enforces the same two
                    CSS/JS rules for its own scenes; it assumes a canvas the size of the page,
                    so it does not fit a page with a shell. Duplicated here on purpose.)
-   Spec            WT.define evaluated on its own: 5-8 scenes, 3-5 beats each (the closing scene
+   Spec            the #wt-spec JSON (parsed, never executed): 5-8 scenes, 3-5 beats each (the closing scene
                    is exempt), 60-90 s total, ordered beats, moves/clicks/marks inside the scene,
                    caption reading speed, #selectors that exist
    Size            warn at 150 KB, fail at 500 KB (override: manifest limits.warnKB / limits.failKB)
@@ -17,7 +17,6 @@
                    the app source it was copied from (skipped in screenshot mode) */
 
 import { readFileSync, existsSync, statSync } from 'node:fs';
-import vm from 'node:vm';
 import path from 'node:path';
 import { resolveTarget, readManifest, repoRoot, engineVersions, scriptById, styleBlocks, allScripts, ids, decodeEntities, reporter, isMain, TEMPLATE_DIR, findMotionDir } from './_lib.mjs';
 
@@ -31,14 +30,16 @@ export function stripJsComments(code) {
 const stripCssComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 const stripHtmlComments = (html) => html.replace(/<!--[\s\S]*?-->/g, '');
 
+/** The spec is JSON in <script type="application/json" id="wt-spec">. It is parsed, never executed:
+    lint reads files from untrusted repos, and a JS spec would have to be run to be read. */
 export function evalSpec(html) {
-  const code = scriptById(html, 'wt-spec');
-  if (code === null) return { error: 'missing <script id="wt-spec"> (WT.define must live in its own data-only script)' };
-  let spec = null, calls = 0;
-  const ctx = vm.createContext({ WT: { define(s) { calls++; spec = s; } } });
-  try { vm.runInContext(code, ctx, { timeout: 1000 }); }
-  catch (e) { return { error: `wt-spec must be data only (no DOM, no functions from the page): ${e.message}` }; }
-  if (calls !== 1) return { error: `wt-spec must call WT.define exactly once (called ${calls}x)` };
+  const m = /<script\b([^>]*\bid=["']wt-spec["'][^>]*)>([\s\S]*?)<\/script>/.exec(html);
+  if (!m) return { error: 'missing <script type="application/json" id="wt-spec"> (the spec is JSON, not code)' };
+  if (!/\btype=["']application\/json["']/.test(m[1])) return { error: 'the wt-spec script must have type="application/json" (otherwise the browser tries to run it as JavaScript)' };
+  let spec;
+  try { spec = JSON.parse(m[2]); }
+  catch (e) { return { error: `wt-spec is not valid JSON (no comments, functions or trailing commas): ${e.message}` }; }
+  if (!spec || typeof spec !== 'object' || Array.isArray(spec)) return { error: 'wt-spec must be a JSON object' };
   return { spec };
 }
 
@@ -82,7 +83,7 @@ export function lint(arg, opts = {}) {
   else r.pass('no external references (Google Fonts excepted)');
 
   /* ---- authored scripts ---- */
-  const authored = allScripts(src).filter((s) => !/\bid=["'](?:wt-theme|wt-motion|wt-player)["']/.test(s.attrs));
+  const authored = allScripts(src).filter((s) => !/\bid=["'](?:wt-theme|wt-motion|wt-player)["']/.test(s.attrs) && !/\btype=["']application\/json["']/.test(s.attrs));
   const authoredJs = stripJsComments(authored.map((s) => s.body).join('\n'));
   const banned = [
     [/\bDate\.now\b|\bnew Date\b|\bperformance\.now\b/, 'reads the clock'],

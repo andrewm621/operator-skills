@@ -27,6 +27,18 @@ export const CONFIGS = {
   tablet: { width: 820, height: 1100, scheme: 'light', theme: 'light' },
 };
 
+/** Scene ids come from the page, which may come from an untrusted repo: never let one steer a file path or the contact sheet's markup. */
+export const safeName = (s) => String(s).replace(/[^\w-]/g, '_').slice(0, 60) || '_';
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** The PNG path for a frame, guaranteed to stay inside `out`. */
+export function frameFile(out, config, name) {
+  const root = path.resolve(out);
+  const file = path.resolve(root, `${safeName(config)}-${safeName(name)}.png`);
+  if (!file.startsWith(root + path.sep)) throw new Error(`refusing to write outside ${root}: ${file}`);
+  return file;
+}
+
 /** Frames to shoot, from the page's own metadata. */
 export function framePlan(meta, { scenes = null, beats = false } = {}) {
   const frames = [];
@@ -40,16 +52,16 @@ export function framePlan(meta, { scenes = null, beats = false } = {}) {
     const picks = beats ? idx.map((i, j) => ({ i, tag: 'b' + (j + 1) }))
       : [...new Set([idx[Math.floor((idx.length - 1) / 2)], idx[idx.length - 1]])].filter((x) => x !== undefined)
         .map((i) => ({ i, tag: i === idx[idx.length - 1] ? 'end' : 'mid' }));
-    for (const p of picks) frames.push({ name: `s${si + 1}-${id}-${p.tag}`, t: rest(p.i) });
+    for (const p of picks) frames.push({ name: `s${si + 1}-${safeName(id)}-${p.tag}`, t: rest(p.i) });
   });
   if (!scenes) frames.push({ name: '99-final', t: END });
   return frames;
 }
 
-function contactHtml(config, frames, size) {
+export function contactHtml(config, frames, size) {
   const cols = size.width >= 1000 ? 3 : 5;
   const imgW = size.width >= 1000 ? 520 : 200;
-  const cells = frames.map((f) => `<figure><img src="${config}-${f.name}.png" width="${imgW}"><figcaption>${f.name}</figcaption></figure>`).join('');
+  const cells = frames.map((f) => `<figure><img src="${encodeURIComponent(`${safeName(config)}-${safeName(f.name)}.png`)}" width="${imgW}"><figcaption>${esc(f.name)}</figcaption></figure>`).join('');
   return `<!doctype html><meta charset="utf-8"><style>body{margin:0;padding:14px;background:#222;font:12px system-ui;color:#ddd}main{display:grid;grid-template-columns:repeat(${cols},${imgW}px);gap:14px}figure{margin:0}img{display:block;border:1px solid #444}figcaption{padding:4px 0}</style><main>${cells}</main>`;
 }
 
@@ -79,19 +91,19 @@ export async function shoot(arg, opts = {}) {
       for (const f of frames) {
         await b.eval(`window.__walk.seek(${f.t}); window.__walk.t`);
         await new Promise((r) => setTimeout(r, 90));
-        const file = path.join(out, `${c}-${f.name}.png`);
+        const file = frameFile(out, c, f.name);
         await b.screenshot(file);
         written.push(file);
       }
       if (!opts.noContact) {
-        writeFileSync(path.join(out, `contact-${c}.html`), contactHtml(c, frames, cfg));
+        writeFileSync(path.join(out, `contact-${safeName(c)}.html`), contactHtml(c, frames, cfg));
         const cols = cfg.width >= 1000 ? 3 : 5;
         const rows = Math.ceil(frames.length / cols);
         const cellH = Math.round((cfg.width >= 1000 ? 520 : 200) * cfg.height / cfg.width) + 30;
         const wide = cfg.width >= 1000 ? 1640 : 1100;
         await b.open(`${outServer.origin}/contact-${c}.html`, { width: wide, height: rows * cellH + 30, scheme: 'dark' });
         await new Promise((r) => setTimeout(r, 400));
-        const sheet = path.join(out, `contact-${c}.png`);
+        const sheet = frameFile(out, 'contact', c);
         await b.screenshot(sheet);
         written.push(sheet);
       }
