@@ -50,3 +50,46 @@ jobs:
       # enough to gate every PR.
       - name: Purity
         run: node skills/motion-artifact/scenes/check.mjs --purity
+
+  walkthrough:
+    name: walkthrough skill
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # No browser needed: lint/wrap/stale/datasafety logic, the Cloudflare deploy
+      # guard (against a stubbed wrangler), and path/spec safety.
+      - name: Unit tests
+        run: node --test skills/walkthrough/tests/*.test.mjs
+
+      - name: Lint the fixture
+        run: node skills/walkthrough/scripts/lint.mjs skills/walkthrough/fixtures/minimal
+
+      - name: Data-safety gate on the fixture
+        run: node skills/walkthrough/scripts/datasafety.mjs skills/walkthrough/fixtures/minimal
+
+      - name: Locate Chrome
+        run: |
+          CHROME=$(command -v google-chrome || command -v chromium-browser || command -v chromium || true)
+          if [ -z "$CHROME" ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq chromium-browser
+            CHROME=$(command -v chromium-browser || command -v chromium)
+          fi
+          echo "Using $CHROME"
+          echo "CHROME_PATH=$CHROME" >> "$GITHUB_ENV"
+
+      # Both layouts, headless Chrome over CDP (agent-browser is a dev-machine tool).
+      - name: Audit the fixture
+        run: node skills/walkthrough/scripts/audit.mjs skills/walkthrough/fixtures/minimal --driver chrome
+
+      # motion-artifact's own purity check, unchanged, on the built walkthrough. If
+      # Motion.version or the player changes, the engine pin in the fixture fails lint first.
+      - name: Purity (wide and narrow)
+        run: |
+          node skills/walkthrough/scripts/wrap.mjs skills/walkthrough/fixtures/minimal
+          node skills/motion-artifact/scenes/purity.mjs skills/walkthrough/fixtures/minimal/.wt/test.html
+          node skills/motion-artifact/scenes/purity.mjs skills/walkthrough/fixtures/minimal/.wt/test.narrow.html
