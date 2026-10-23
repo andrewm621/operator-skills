@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync, existsSync, statSync, symlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync, existsSync, statSync, symlinkSync, realpathSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -125,7 +125,7 @@ test('a successful deploy records ownership locally, and a later redeploy of the
   const { dir, repoId, tag } = await gitFixture();
   try {
     await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));
-    assert.equal(readOwned()[`${ACCT}/wt-${SLUG}`], repoId, 'record written after the deploy');
+    assert.deepEqual(readOwned()[`${ACCT}/wt-${SLUG}`], { id: repoId, path: realpathSync(dir) }, 'record written after the deploy: id and real path');
     assert.ok(first().some((c) => c.args[0] === 'deploy'));
     const calls = scenario('owned-tag', { STUB_TAG: tag });
     const { value } = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));
@@ -275,7 +275,7 @@ test('a fork with the same root commit and no local record is refused on an owne
 
     const yes = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true, adopt: true }));
     assert.equal(yes.value.deployed, true);
-    assert.equal(readOwned()[`${ACCT}/wt-${SLUG}`], repoId);
+    assert.deepEqual(readOwned()[`${ACCT}/wt-${SLUG}`], { id: repoId, path: realpathSync(dir) });
   } finally { rm(dir); }
 });
 
@@ -283,7 +283,7 @@ test('a local record that names a different repo is also refused without --adopt
   freshHome();
   const { dir, tag } = await gitFixture();
   scenario('owned-tag', { STUB_TAG: tag });
-  recordOwned(`${ACCT}/wt-${SLUG}`, '11111111');
+  recordOwned(`${ACCT}/wt-${SLUG}`, '11111111', realpathSync(dir));
   try {
     const r = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));
     assert.equal(r.value.refused, 'not-adopted');
@@ -305,8 +305,8 @@ test('the deploy identity comes from the git top-level, not manifest.repo, and a
 });
 
 test('the ownership record is written outside any repo with owner-only permissions', () => {
-  recordOwned('x/y', 'abcdef12');
-  assert.equal(readOwned()['x/y'], 'abcdef12');
+  recordOwned('x/y', 'abcdef12', '/some/repo');
+  assert.deepEqual(readOwned()['x/y'], { id: 'abcdef12', path: '/some/repo' });
   assert.equal(statSync(ownedFile()).mode & 0o077, 0);
 });
 
@@ -318,4 +318,44 @@ test('a staging directory that contains a symlink is refused', () => {
     symlinkSync('/etc/hosts', path.join(site, 'leak.txt'));
     assert.throws(() => assertNoSymlinks(site), /symlink/);
   } finally { rmSync(out, { recursive: true, force: true }); }
+});
+
+test('a repo whose .git is a "gitdir:" pointer at another repo computes that repo\'s id but is still refused without --adopt (the record also stores the real path)', async () => {
+  freshHome();
+  const { dir: victim, repoId, tag } = await gitFixture();
+  const attacker = copyFixture();   // no git of its own, same walkthrough path as the victim
+  try {
+    scenario('absent');
+    await quiet(() => deploy(victim, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));   // the user's own deploy writes the record
+    writeFileSync(path.join(attacker, '.git'), `gitdir: ${path.join(victim, '.git')}\n`);
+    assert.equal(repoIdentity(attacker, attacker), repoId, 'the pointer really does reproduce the victim\'s id');
+
+    const calls = scenario('owned-tag', { STUB_TAG: tag });
+    const no = await quiet(() => deploy(attacker, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));
+    assert.equal(no.value.refused, 'not-adopted'); assert.equal(no.value.deployed, false);
+    assert.match(no.lines.join('\n'), /deployed from .*, not /);
+    assert.match(no.lines.join('\n'), /Ask the user before re-running with --adopt/);
+    assert.ok(!calls().some((c) => c.args[0] === 'deploy'));
+
+    const mine = await quiet(() => deploy(victim, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));
+    assert.equal(mine.value.deployed, true, 'the real owner still redeploys without --adopt');
+  } finally { rm(victim); rm(attacker); }
+});
+
+test('an older ownership record (a bare id, no path) never matches: it needs --adopt once, then is upgraded', async () => {
+  freshHome();
+  const { dir, repoId, tag } = await gitFixture();
+  try {
+    mkdirSync(path.dirname(ownedFile()), { recursive: true });
+    writeFileSync(ownedFile(), JSON.stringify({ [`${ACCT}/wt-${SLUG}`]: repoId }));
+    const calls = scenario('owned-tag', { STUB_TAG: tag });
+    const no = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));
+    assert.equal(no.value.refused, 'not-adopted'); assert.match(no.lines.join('\n'), /older record .* no repo path/);
+    assert.ok(!calls().some((c) => c.args[0] === 'deploy'));
+    const yes = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true, adopt: true }));
+    assert.equal(yes.value.deployed, true);
+    assert.deepEqual(readOwned()[`${ACCT}/wt-${SLUG}`], { id: repoId, path: realpathSync(dir) });
+    const again = await quiet(() => deploy(dir, { wrangler: STUB, account: ACCT, yes: true, noVerify: true }));
+    assert.equal(again.value.deployed, true, 'upgraded record matches without --adopt');
+  } finally { rm(dir); }
 });

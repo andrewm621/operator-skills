@@ -21,7 +21,7 @@
         is 8 hex digits of sha1(root commit + walkthrough path inside the repo). Any other answer
         (auth error, network, one list found and the other not, anything unrecognised) also refuses.
         The id is public (a fork has it too), so an existing Worker is only updated when this
-        machine's ~/.config/walkthrough/owned.json says it deployed it from this repo, or with --adopt.
+        machine's ~/.config/walkthrough/owned.json says it deployed it from this repo (same id AND same repo path), or with --adopt.
         A Worker name other than wt-<slug> needs --confirm-name <that name>.
      5. with --yes: wrangler deploy --tag walkthrough:<slug>:<repo id> --message "operator-walkthrough ...",
         then fetches /robots.txt and the headers of / from the live URL and reports them.
@@ -76,17 +76,21 @@ export function repoIdentity(top, dir = top) {
 /* ---- local ownership record -------------------------------------------------
    The Worker tag lives on Cloudflare and the repo id is public (a root commit), so the tag alone does
    not prove this machine's user made the Worker. After a successful deploy we remember
-   "<account>/<worker>" -> repo id in ~/.config/walkthrough/owned.json, outside any repo. A redeploy
-   needs the remote tag to match AND this record to match, or an explicit --adopt. */
+   "<account>/<worker>" -> { id, path } in ~/.config/walkthrough/owned.json, outside any repo, where
+   path is the real path of the repo's top-level. A redeploy needs the remote tag to match AND this
+   record to match on BOTH the id and the path, or an explicit --adopt. The path matters because a
+   repo whose .git is a "gitdir: ../other/.git" pointer computes the other repo's id. A record
+   from an older version (a bare id string, no path) never matches: it needs --adopt once. */
+const sameOwner = (rec, repoId, topPath) => !!rec && typeof rec === 'object' && rec.id === repoId && rec.path === topPath;
 export const ownedFile = () => path.join(homedir(), '.config', 'walkthrough', 'owned.json');
 export function readOwned() {
   try { const v = JSON.parse(readFileSync(ownedFile(), 'utf8')); return v && typeof v === 'object' && !Array.isArray(v) ? v : {}; } catch { return {}; }
 }
-export function recordOwned(key, repoId) {
+export function recordOwned(key, repoId, topPath) {
   const f = ownedFile();
   mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 });
   const tmp = f + '.' + process.pid + '.tmp';
-  writeFileSync(tmp, JSON.stringify({ ...readOwned(), [key]: repoId }, null, 2) + '\n', { mode: 0o600 });
+  writeFileSync(tmp, JSON.stringify({ ...readOwned(), [key]: { id: repoId, path: topPath } }, null, 2) + '\n', { mode: 0o600 });
   renameSync(tmp, f);
 }
 
@@ -194,6 +198,7 @@ export async function deploy(arg, opts = {}) {
   const top = gitTopLevel(target.dir);   // identity comes from the repo that really contains the walkthrough, never from manifest.repo
   const repoId = top ? repoIdentity(top, target.dir) : null;
   if (!repoId) throw new Error('cannot derive a repo identity (the app repo has no commits and no origin remote); commit first so the Worker tag can name this repo');
+  const topReal = realpathSync(top);
   const tag = tagFor(slug, repoId);
   const result = { name, tag, slug, repoId, state: null, deployed: false, url: null };
 
@@ -247,10 +252,14 @@ export async function deploy(arg, opts = {}) {
     const ownKey = `${acct.id}/${name}`;
     if (own.state === 'owned') {
       const rec = readOwned()[ownKey];
-      if (rec === repoId) log(`  ✓ ownership record: this machine deployed ${name} from this repo before`);
-      else if (opts.adopt) log(`  ! --adopt: taking over "${name}" although ${rec ? `this machine's record says repo ${rec}` : 'this machine has no record of deploying it'}`);
+      const why = !rec ? 'this machine has no record of deploying it'
+        : typeof rec !== 'object' || !rec.path ? `this machine has an older record (repo ${typeof rec === 'object' ? rec.id : rec}) with no repo path, so it cannot be matched`
+        : rec.id !== repoId ? `this machine's record says it belongs to repo ${rec.id}`
+        : `this machine's record says it was deployed from ${rec.path}, not ${topReal}`;
+      if (sameOwner(rec, repoId, topReal)) log(`  ✓ ownership record: this machine deployed ${name} from this repo (${topReal}) before`);
+      else if (opts.adopt) log(`  ! --adopt: taking over "${name}" although ${why}`);
       else {
-        log(`  \u2717 REFUSING: "${name}" carries this repo's tag, but ${rec ? `this machine's record says it belongs to repo ${rec}` : 'this machine has no record of deploying it'}.`);
+        log(`  \u2717 REFUSING: "${name}" carries this repo's tag, but ${why}.`);
         log('    A fork or clone shares the tag. Ask the user before re-running with --adopt (another machine, a fresh checkout, a changed repo id): an agent must not add it on its own.');
         result.refused = 'not-adopted';
         return result;
@@ -277,7 +286,7 @@ export async function deploy(arg, opts = {}) {
     const r = await runWrangler(wrangler, args, { cwd: work, env: { CLOUDFLARE_ACCOUNT_ID: acct.id } });
     if (r.code !== 0) { log(`  ✗ wrangler deploy failed:\n${(r.out + r.err).trim().slice(0, 800)}`); result.refused = 'deploy-failed'; return result; }
     result.deployed = true;
-    try { recordOwned(ownKey, repoId); } catch (e) { log(`  ! deployed, but could not write the local ownership record (${e.message}); the next redeploy will need --adopt`); }
+    try { recordOwned(ownKey, repoId, topReal); } catch (e) { log(`  ! deployed, but could not write the local ownership record (${e.message}); the next redeploy will need --adopt`); }
     const url = (r.out + r.err).match(/https:\/\/[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev/i);
     result.url = url ? url[0] : null;
     log(`  ✓ deployed ${result.url || '(URL not found in wrangler output)'}`);

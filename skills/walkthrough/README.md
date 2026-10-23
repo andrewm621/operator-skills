@@ -38,7 +38,7 @@ and restamp the fixture's `manifest.json` `engine.player`.
 
 ## Deploy guard
 
-`deploy.mjs` tags every Worker `walkthrough:<slug>:<repo id>` and refuses to touch one without that exact tag. The id is public, so a redeploy also needs the per-user record in `~/.config/walkthrough/owned.json` or `--adopt`; tests point `HOME` at a temp dir. The ownership check
+`deploy.mjs` tags every Worker `walkthrough:<slug>:<repo id>` and refuses to touch one without that exact tag. The id is public, so a redeploy also needs the per-user record (id and repo path) in `~/.config/walkthrough/owned.json` or `--adopt`; tests point `HOME` at a temp dir. The ownership check
 reads `wrangler versions list` and `deployments list` (`workers/tag`, or the tag token in `workers/message`); a
 not-found answer is recognised by Cloudflare's `[code: 10007]` text, anything else (auth, network) refuses. Test it with
 `tests/stub-wrangler.mjs`; do not deploy test Workers to a real account from CI.
