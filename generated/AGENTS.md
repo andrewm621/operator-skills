@@ -46,6 +46,7 @@ reads this file.
 - **/dark-mode** — Add a Light / Dark / System theme toggle to the current project, defaulting to the OS preference and persisting the user's explicit choice — flash-free, across Next.js, Vite/React, and plain HTML.
 - **/report** — Generate a polished, interactive HTML report for: {the text you type after the command}
 - **/motion-artifact** — Animate a product feature or process as a self-contained HTML scene, then export it deterministically to GIF, MP4, WebM, or PNG frames. For demo clips, release notes, launch posts, and slides — without hand-animating.
+- **/premium-video-ad** — Make a premium motion-design video ad, promo cut or product walkthrough for a product or brand, in 16:9 and 9:16, from bundled code-rendered engines (six beat, timeline, continuous flow) with a beat-locked synthesized soundtrack. Use for a video ad, promo, Reels or Instagram ad, explainer or walkthrough video, or a new skin of an earlier cut. Not for editing user-supplied footage.
 
 ### Git & Infrastructure
 
