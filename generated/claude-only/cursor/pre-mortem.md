@@ -4,6 +4,8 @@ Run a pre-mortem: assume the decision has already failed, then work backward to 
 
 Decision: {the text you type after the command} (a decision, plan, or commitment — e.g. a new client, a hire, a financial commitment, a restructure, a kill/keep call)
 
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
+
 ## Steps
 
 1. **Parse the decision** — From `{the text you type after the command}`, determine:
@@ -24,7 +26,7 @@ Decision: {the text you type after the command} (a decision, plan, or commitment
    | Advisor | Domain Lens | Kill Question | Best For |
    |---------|-------------|----------------|----------|
    | **The Steward** | Burnout, human limits, relationship spillover | "How does this cost you your health, your household, or your team's trust before it costs you money?" | Big commitments, hires, anything that eats hours you don't have |
-   | **Tommy (the Operator)** | Execution capacity, delivery triage | "What existing commitment quietly breaks because you said yes to this one?" | New clients, new projects, anything added to an already-full plate |
+   | **The Operator** | Execution capacity, delivery triage | "What existing commitment quietly breaks because you said yes to this one?" | New clients, new projects, anything added to an already-full plate |
    | **Naval** | Leverage, opportunity cost, single-front focus | "What's the one compounding thing this distracts you from?" | Anything that splits focus across fronts |
    | **Jeff Bezos** | Long-term regret, irreversibility | "In three years, which choice do you regret — and can you even undo this one?" | One-way-door decisions: restructures, kills, hires, partnerships |
    | **Hormozi** | Cash velocity, margin, unit economics | "Where does cash actually stop flowing, and how fast do you find out?" | Deals, pricing changes, hires, anything with a burn rate |
@@ -35,11 +37,11 @@ Decision: {the text you type after the command} (a decision, plan, or commitment
    | **The Distributor** | Market exposure, GTM, reputation | "Who finds out you overcommitted, and what does it cost you with them?" | Public commitments, launches, anything visible outside the building |
 
    **Selection heuristic:**
-   - New client / deal → Hormozi, Tommy, Tyrion, The Craftsman, The Steward
-   - Hire / people decision → The Steward, Tommy, Hormozi, The Historian, Jeff Bezos
+   - New client / deal → Hormozi, The Operator, Tyrion, The Craftsman, The Steward
+   - Hire / people decision → The Steward, The Operator, Hormozi, The Historian, Jeff Bezos
    - Kill/keep a project → Naval, Jeff Bezos, Hormozi, The Questioner, The Historian
    - Restructure / pricing / structural change → Tyrion, Hormozi, Naval, The Distributor, Jeff Bezos
-   - Big financial or time commitment → The Steward, Hormozi, Tommy, The Questioner, Jeff Bezos
+   - Big financial or time commitment → The Steward, Hormozi, The Operator, The Questioner, Jeff Bezos
 
 3. **Display the analysis plan** — Before spawning agents:
 
@@ -51,7 +53,7 @@ Decision: {the text you type after the command} (a decision, plan, or commitment
     Spawning 6 advisors in parallel, each arguing ONLY how this kills you:
 
     [1] The Steward — "How does this cost you your health or household first?"
-    [2] Tommy — "What existing commitment breaks because you said yes?"
+    [2] The Operator — "What existing commitment breaks because you said yes?"
     [3] Hormozi — "Where does cash stop flowing, and how fast do you find out?"
     [4] Tyrion — "Which term has no exit ramp if this goes wrong?"
     [5] The Craftsman — "What ships broken because you're stretched thin?"
@@ -122,7 +124,7 @@ Decision: {the text you type after the command} (a decision, plan, or commitment
 
    **When the decision is abstract:** direct the agent to reason from the decision as stated and any conversation context — it should still stay in-voice and concrete, not vague.
 
-5. **Aggregate results** — As advisors complete, merge all findings into a unified report. De-duplicate overlapping causes of death across advisors (e.g., if both Hormozi and Tommy flag the same capacity/cash-flow collision, merge them and note both caught it — that's a severity amplifier, not redundancy).
+5. **Aggregate results** — As advisors complete, merge all findings into a unified report. De-duplicate overlapping causes of death across advisors (e.g., if both Hormozi and The Operator flag the same capacity/cash-flow collision, merge them and note both caught it — that's a severity amplifier, not redundancy).
 
    **Ranking algorithm:**
    - FATAL + likely = Tier 1 (do not proceed without resolving this first)
@@ -151,7 +153,7 @@ Decision: {the text you type after the command} (a decision, plan, or commitment
                              before signing.
 
     2. [FATAL] Capacity collision with an existing committed deadline
-       Advisors: Tommy
+       Advisors: The Operator
        Scenario: Taking this on means someone already promised elsewhere
                  gets bumped without being told, and finds out from a missed
                  deadline instead of a conversation.
@@ -197,13 +199,13 @@ Decision: {the text you type after the command} (a decision, plan, or commitment
 7. **Offer follow-up actions:**
 
    - "Resolve the Tier 1 findings before deciding?" → work through each kill-condition concretely
-   - "Save this as a decision record?" → write to `dev-notes/decisions/YYYY-MM-DD-pre-mortem-<subject>.md`
+   - "Save this as a decision record?" → write to `<notes>/decisions/YYYY-MM-DD-pre-mortem-<subject>.md`
    - "Re-run after terms change?" → re-run scoped to what changed (new contract terms, new capacity numbers)
    - "Run `/invert` too?" → if the decision has a technical/build component, pair a code-level inversion with this decision-level one
 
 ## Notes
 - This is `/invert`'s sibling for decisions instead of code: same inversion principle (Munger's "invert, always invert"), same parallel-subagent structure, same tiered-severity report — but the subject is a decision/plan/commitment, not a codebase, and the advisors argue in first-person persona voice rather than as anonymous technical lenses. Use `/invert` when the thing being stress-tested is a feature, system, or process; use `/pre-mortem` when it's a decision, deal, hire, or commitment.
-- This deliberately does **not** run a balanced multi-perspective deliberation. Andrew separately runs a council format for business/strategy decisions where a roster of named advisors each gives a genuine take (pros and cons both) and a chair synthesizes a recommendation — that's for "what should I do." `/pre-mortem` is single-purpose devil's advocate: every advisor argues only the failure case, on purpose, so the blind spots surface before the decision does. If you want the balanced version of this conversation, that's a different exercise — don't ask this skill to be both.
+- This deliberately does **not** run a balanced multi-perspective deliberation. A separate council format (if you run one) suits business/strategy decisions where a roster of named advisors each gives a genuine take (pros and cons both) and a chair synthesizes a recommendation — that's for "what should I do." `/pre-mortem` is single-purpose devil's advocate: every advisor argues only the failure case, on purpose, so the blind spots surface before the decision does. If you want the balanced version of this conversation, that's a different exercise — don't ask this skill to be both.
 - Named advisors are a fixed voice roster, not a debate — each one stays in their lane (their domain lens) and doesn't rebut the others. Overlap between advisors on the same finding is a signal to weight it higher, not to merge it away entirely.
 - For high-stakes, low-reversibility decisions (hires, partnerships, kills, restructures), be more conservative in the final recommendation — a Tier 2 finding on a one-way door deserves more weight than the same tier on something easily undone.
 - 5-7 advisors is the sweet spot — fewer misses lenses that matter, more produces redundant kill-conditions without adding real signal.

@@ -30,8 +30,10 @@ Two tiers. **Per-repo detail is authoritative; the global board is a derived
 projection.** Never hand-edit the global view — `/maestro sync` rebuilds it from the
 per-repo task files. One writer per fact; the two-writers problem never arises.
 
+`<projects>` below is `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`); the human's handle (`you` in the examples) is `owner.handle` (default `$USER`). See `docs/config.md`.
+
 ```
-~/Projects/.maestro/               # GLOBAL — control plane (DERIVED, do not hand-edit)
+<projects>/.maestro/               # GLOBAL — control plane (DERIVED, do not hand-edit)
   board.md                         # aggregated human dashboard, all repos
   index.jsonl                      # one line per task: id·repo·status·owner·updated
   registry.yaml                    # which repos participate + their absolute paths
@@ -52,7 +54,7 @@ Task worktrees are created as siblings, never inside the repo, to avoid nesting 
 worktree inside its own working copy:
 
 ```
-~/Projects/.maestro/worktrees/<repo>/T-014/    # git worktree, branch maestro/T-014-auth
+<projects>/.maestro/worktrees/<repo>/T-014/    # git worktree, branch maestro/T-014-auth
 ```
 
 ---
@@ -84,8 +86,13 @@ provider_hint: codex               # suggested best-fit provider (advisory, not 
 worktree: null                     # abs path once spun, else null
 branch: null                       # maestro/T-014-auth once spun
 issue: null                        # optional external link, e.g. gh#231 (Codex handoff)
-depends_on: []                     # [T-011] — blockers by id
+depends_on: []                     # [T-011, other-repo/T-3] — local or global ids; load-bearing (§14.2)
 priority: 2                        # 1 (now) .. 4 (someday)
+# Optional (§14.1) — scalars or inline lists only, no commas inside values:
+# client: acme                   project: sdr-forecast         deadline: 2026-10-23
+# scope: [src/auth/**]             uses: [composio:acme]       wu: AD-005
+# blocked_by: [@andrew]            blocked_reason: waiting on creds
+# budget_minutes: 90               budget_usd: 5
 created: 2026-08-28T09:00
 updated: 2026-08-28T09:00
 ---
@@ -94,7 +101,7 @@ updated: 2026-08-28T09:00
 One paragraph: the true intent, not the surface ask.
 
 ## Context pointers        ← the "read this first" that saves every cold session
-- repo: liberty networking (read its CLAUDE.md first)
+- repo: acme app (read its CLAUDE.md first)
 - touch: src/auth/**, proxy.ts
 - prior art: dev-notes/decisions/2026-08-01-neon-auth.md
 
@@ -132,40 +139,53 @@ distributed lock — no Paxos here, just a courteous heartbeat).
   "owner": "codex@term-2",
   "provider": "codex",
   "pid": 48213,
+  "session": "7f3a9c1e",
   "claimed_at": "2026-08-28T13:40:00Z",
   "heartbeat": "2026-08-28T14:02:11Z",
   "ttl_seconds": 1800
 }
 ```
 
+`owner` is a role-level id, `<provider>@<short-host>` (§14.4); `session` is the ephemeral
+session that last asserted the claim.
+
 **Stale-claim rule:** if `now - heartbeat > ttl_seconds`, the claim is stale — the
 agent likely died. `/maestro sync` flags it; `/maestro claim --steal T-014` reclaims
 it. Heartbeat is refreshed by the worker on each todo update (cheap, event-driven —
 no daemon).
 
-### 4.4 Global index — `~/Projects/.maestro/index.jsonl`
+### 4.4 Global index — `<projects>/.maestro/index.jsonl`
 
 Derived cache. One JSON object per line (append-friendly, greppable, never
 hand-edited). Rebuilt wholesale by `/maestro sync`.
 
 ```jsonl
-{"id":"liberty/T-014","repo":"liberty networking","title":"Refactor auth to Neon Auth","status":"claimed","owner":"codex@term-2","progress":"3/12","priority":2,"updated":"2026-08-28T14:02"}
-{"id":"agencyos/T-021","repo":"agencyos","title":"Stripe webhook retries","status":"open","owner":null,"progress":"0/0","priority":1,"updated":"2026-08-28T11:10"}
+{"id":"acme/T-014","repo":"acme app","title":"Refactor auth to Neon Auth","status":"claimed","owner":"codex@term-2","progress":"3/12","priority":2,"updated":"2026-08-28T14:02","client":"acme","ready":false,"waiting_on":[]}
+{"id":"web-app/T-021","repo":"web-app","title":"Stripe webhook retries","status":"open","owner":null,"progress":"0/0","priority":1,"updated":"2026-08-28T11:10","client":null,"ready":true,"waiting_on":[]}
 ```
 
-### 4.5 Registry — `~/Projects/.maestro/registry.yaml`
+Every row also carries `needs_human`, `project`, `deadline`, `wu`, `scope`, `uses`,
+`depends_on` (normalized to global ids), `blocked_by`, `blocked_reason`, `budget_minutes`
+and `budget_usd` (§14.1–§14.2).
+
+### 4.5 Registry — `<projects>/.maestro/registry.yaml`
 
 The opt-in list of repos Maestro scans. Keeps sync bounded to participating projects
 instead of walking all 50+.
 
 ```yaml
 repos:
-  - name: liberty networking
-    path: /Users/andrewmiller/Projects/liberty networking
-  - name: agencyos
-    path: /Users/andrewmiller/Projects/agencyos
+  - name: acme app
+    path: ~/Projects/acme app
+  - name: web-app
+    path: ~/Projects/web-app
 id_prefix_from: name        # global ids namespaced by repo name
 ```
+
+### 4.6 Policy — `<projects>/.maestro/policy.yaml`
+
+Hand-kept, optional, flat. P1a reads only its `repos:` map (repo name → client). Documented
+example: [`maestro-policy.example.yaml`](maestro-policy.example.yaml). See §14.5.
 
 ---
 
@@ -190,8 +210,13 @@ id_prefix_from: name        # global ids namespaced by repo name
   task is taken).
 - **claimed → in-progress:** worktree spun, `PROMPT.md` seeded, agent launched.
 - **in-progress → review:** all acceptance boxes checked; branch pushed / diff ready.
-- **review → done:** merged to main, worktree torn down, branch deleted.
-- **→ blocked:** any state, with a `blocked_reason`; surfaces on the board.
+- **review → done:** merged to main, worktree torn down, branch deleted. This is the
+  `maestro done` verb and it is a **reviewer or human action** — workers stop at `review`
+  (§14.3).
+- **→ blocked:** any state, with `blocked_by` + `blocked_reason` (`maestro block`); surfaces
+  on the board.
+- **→ open (release):** `maestro release` drops the claim and keeps the worktree; the reaper
+  does the same for abandoned clean work (§14.6).
 
 ---
 
@@ -243,20 +268,20 @@ claude:  { bin: claude, folder_flag: null, prompt_mode: native_skill }
 
 ```bash
 # Cursor
-cd ~/Projects/.maestro/worktrees/liberty/T-014 && cat PROMPT.md | agent -p "Execute the attached task brief" --force --output-format json
+cd <projects>/.maestro/worktrees/acme/T-014 && cat PROMPT.md | agent -p "Execute the attached task brief" --force --output-format json
 
 # Grok Build
-cd ~/Projects/.maestro/worktrees/liberty/T-014 && cat PROMPT.md | grok -p "Execute the attached task brief" --cwd . --no-auto-update
+cd <projects>/.maestro/worktrees/acme/T-014 && cat PROMPT.md | grok -p "Execute the attached task brief" --cwd . --no-auto-update
 
 # Claude Code
-cd ~/Projects/.maestro/worktrees/liberty/T-014 && claude   # then: /maestro work T-014
+cd <projects>/.maestro/worktrees/acme/T-014 && claude   # then: /maestro work T-014
 
 # Codex
 /handoff T-014   # → GitHub issue #; then `codex` in the worktree referencing the issue
 ```
 
 **v1 dispatch is human-in-the-loop:** `/maestro route` prepares the worktree + seed and
-*prints* the launch string. Andrew opens the terminal/provider and runs it. No
+*prints* the launch string. The human opens the terminal/provider and runs it. No
 unattended cross-provider process spawning in v1 — get the substrate proven first.
 
 ---
@@ -325,7 +350,7 @@ script before landing.
 - **Heartbeat, not daemon:** the worker rewrites `heartbeat` on each todo update. No
   background process. If the session dies, the heartbeat goes stale.
 - **Stale reclaim:** `now - heartbeat > ttl_seconds` → `/maestro sync` marks the claim
-  stale on the board; `--steal` reclaims.
+  stale on the board; `--steal` reclaims. Past 2×TTL the reaper takes over (§14.6).
 - **Merge conflicts:** each task on its own branch/worktree, so conflicts surface only
   at `/maestro done` merge time — normal git, reviewed by a human or `reviewer` agent.
 - **No cross-machine sync in v1.** Single human, single machine, multiple terminals/
@@ -440,8 +465,8 @@ A repo only mirrors if its `registry.yaml` entry carries `mirror: github`:
 
 ```yaml
 repos:
-  - name: liberty networking
-    path: /Users/andrewmiller/Projects/liberty networking/liberty-networking-app
+  - name: acme app
+    path: ~/Projects/acme app/acme-app
     mirror: github        # opt-in — absent (the default) means mirror never touches this repo
 ```
 
@@ -477,9 +502,9 @@ then a managed footer —
 **Status:** in-progress
 **Priority:** 2
 **Progress:** 3/12
-**Local path:** /Users/andrewmiller/Projects/liberty networking/liberty-networking-app/.maestro/tasks (T-014)
+**Local path:** ~/Projects/acme app/acme-app/.maestro/tasks (T-014)
 
-<!-- maestro-task: liberty networking/T-014 -->
+<!-- maestro-task: acme app/T-014 -->
 ```
 
 The `<!-- maestro-task: <repo>/T-<id> -->` marker is how the mirror finds "its" issue
@@ -529,3 +554,147 @@ flipping `status: done` by hand (or once `done` ships) only closes the mirrored 
 the *next* `mirror` run, not the moment the status changes — expected, not a bug, given
 `mirror` is the only place this CLI talks to the network and nothing else triggers it
 automatically.
+
+---
+
+## 14. Agent Ops P1a — making the substrate true
+
+Added 2026-10-21 (design: the Agent Ops system design, §3–§4, §9). Everything here is a
+change to `maestro.mjs`; the sibling `events.mjs` (§14.7) is optional and owned elsewhere.
+
+### 14.1 New task frontmatter
+
+All optional, all flat (scalars or inline lists, no commas inside values), all preserved by
+`set`: `client`, `project`, `deadline`, `scope`, `uses`, `blocked_by`, `blocked_reason`,
+`budget_minutes`, `budget_usd`, `wu`. `set` takes them as flags (`--client`, `--scope a,b`,
+`--blocked-by x,y`, …; `none` clears one). `blocked_by` entries are `@person`,
+`external:<who>`, `resource:<name>`, a task id (`T-3` or `repo/T-3`), or — produced by `done`
+on a merge conflict — `conflict:<default-branch>` (e.g. `conflict:main`).
+
+### 14.2 Readiness
+
+`sync` computes, per task:
+
+```
+waiting_on = depends_on entries whose task is not done            (local or global ids; missing = unresolved)
+           + blocked_by entries (a task id that is done counts as resolved)
+ready      = status == open  AND  waiting_on is empty
+```
+
+Both go into `index.jsonl` (`ready`, `waiting_on`) and the board gains a **waiting on**
+column (ids in the task's own repo are shown without the repo prefix). A dependency **cycle**
+(including a self-dependency) makes every task in it `ready: false` with
+`waiting_on: ["cycle"]` and prints a warning on stderr.
+
+`claim`, `work` and `route` refuse a task whose `waiting_on` is non-empty. `--force` overrides
+and is logged (a `say` on the task channel and a `claim` event with `action: force`). The gate
+checks `waiting_on`, not `ready`, so a task you already hold can be re-entered, and
+`claim --resume` on your own claim skips it.
+
+`set --status <x>` on a `blocked` task clears `blocked_by`/`blocked_reason` unless the same
+call sets them. `release` keeps them (an open task that is still waiting stays not-ready).
+
+### 14.3 `done`, `block`, `release`
+
+- **`release T-id`** — drop the claim, status `open`, owner null; the worktree and branch stay.
+  Refused on a `done` task.
+- **`block T-id --by <blocker>[,…] "reason"`** — status `blocked`, `blocked_by` (replaced),
+  `blocked_reason`; the claim is kept. Each `@handle` blocker also files an `ask` on the task
+  channel, so it lands in `inbox`/the board's NEEDS YOU block.
+- **`done T-id [--no-merge]`** — a **reviewer or human action**; workers end at `review`.
+  Refuses (state untouched) unless: status is `review`; every Acceptance box is checked (the
+  live todos file when it has boxes, else the task's Acceptance section; zero boxes is a
+  refusal); the task channel has no open ask. Then, unless `--no-merge`:
+  1. the task worktree must have no uncommitted changes, the repo checkout must be on the
+     default branch (`origin/HEAD`, else `main`, else `master`) with no tracked changes outside
+     `.maestro/` — otherwise refuse and suggest `--no-merge` + a manual merge;
+  2. `git merge` the task branch (fast-forward when possible, merge commit otherwise). On a
+     conflict the merge is **aborted**, the task becomes `blocked` with
+     `blocked_by: [conflict:<default-branch>]`, a `say` and `error`/`state` events are recorded, and
+     the command exits non-zero;
+  3. `git worktree remove`, delete the branch, status `done`, claim released.
+  `--no-merge` skips step 1–3's git work: status and claim only. **Nothing destructive is driven
+  by the frontmatter `worktree:` value.** The worktree that is dirty-checked and removed is
+  derived from git: the `git worktree list` entry whose branch is the task's `branch:`, and only
+  if it sits at the exact path Maestro creates for the task
+  (`<projects>/.maestro/worktrees/<repo>/<task>`) and is not the main checkout. A recorded
+  `worktree:` that disagrees is ignored with a warning (for `reap` it makes the claim
+  "needs you"). `branch:` must be a plain branch name and, for `done`, this task's own
+  `maestro/T-<n>-*` branch; branches are always addressed as `refs/heads/<name>` so a same-named
+  tag cannot be merged instead. The branch is only reported deleted if `git branch -d` succeeded.
+  Git runs with user-config hooks, fsmonitor, external diff, submodule recursion and system
+  config disabled; this is **not** full isolation — filters and merge drivers defined in the
+  repository's shared `.git/config` still run, so don't point Maestro at an untrusted repo. `branch:` must be a plain branch name.
+
+`set --status done` remains a raw field edit that skips all of this.
+
+### 14.4 Actor ids and `--resume`
+
+The default owner is the role-level `<provider>@<short-host>` (`claude@macbook-air`,
+`codex@macbook-air`) instead of `<user>@claude`/`<user>@cli`. Provider comes from `--provider`,
+else `MAESTRO_PROVIDER`, else `claude`; host from `MAESTRO_HOST`, else the short hostname.
+The ephemeral **session** (`MAESTRO_SESSION`, else `CLAUDE_CODE_SESSION_ID` — what Claude Code
+exports — else `CLAUDE_SESSION_ID`, else a random 8-hex per process) is recorded in the claim file as `session` and on every event. Old owner strings keep
+displaying — the owner is never parsed.
+
+`claim --resume` (also `work --resume`) re-claims a task whose existing claim has the **same**
+owner string: no steal, status unchanged, `session`/`pid`/`heartbeat` refreshed. A **stale**
+claim, or one from the same session, resumes freely. A **live** claim held by a *different*
+session of the same role is refused unless `--takeover` is passed (role-level ids are shared by
+every session of a role, so that session may still be running); a takeover is logged like a
+steal (`claim` event, `action: steal`, `takeover: true`). A claim held by a different owner
+follows the normal live/stale rules. Provider for the default id: `--provider`, else
+`MAESTRO_PROVIDER`, else `claude` — Codex/Cursor/Grok have no reliable env marker, so they must
+export `MAESTRO_PROVIDER` (`route`'s launch strings do).
+
+### 14.5 Client and `policy.yaml`
+
+`sync` writes `client` into every index row: the task's own `client:` field, else
+`policy.yaml`'s `repos:` map, else `null`. The file is hand-kept and optional; see
+`maestro-policy.example.yaml`. Canonical form is `repos:` + `  repo: client` pairs; `  - repo: client` items and a `  client:` header followed by `    - repo` lines are also read. Unknown sections (`hard_terms:`, `clients:`) are ignored.
+
+### 14.6 `reap [--dry-run]`
+
+The ladder, per claim, using the claim's `heartbeat` and `ttl_seconds` (default 1800):
+
+| Condition | Action |
+|---|---|
+| heartbeat ≤ TTL | live — nothing |
+| TTL < heartbeat age ≤ 2×TTL | STALE (shown by `sync`) — nothing |
+| \> 2×TTL, an event file for the claim's session was written in the last 2×TTL (file name ends `-<token>.jsonl`, token = `sessionFileToken(session)` from `events.mjs`, else the first 8 chars of the session, lowercased) | treated as active — nothing |
+| \> 2×TTL, worktree **clean** (no uncommitted changes, no commits beyond the default branch that exist on no remote) | **release**: claim dropped, owner null, `claimed`/`in-progress` → `open` (a `review`/`blocked` status is kept), `say fleet "reaped <repo>/T-x from <owner>"`, `claim` event (`action: release`, `reason: reaped`) |
+| \> 2×TTL, worktree dirty, has unpushed commits, or cannot be verified | never automatic — listed under **⚑ needs you: abandoned work** |
+
+Seeded `PROMPT.md`/`AGENTS.md` do not count as dirty. Every non-dry run appends one JSON line
+(`ts, host, ok, scanned, live, stale, active, errors, released[], needs_you[], duration_ms`) to
+`<projects>/.maestro/events/_system/reaper.jsonl`; a dry run writes nothing. The `needs_you` array is a stable snapshot shape other tools read: each element is `{ id, owner, status, since, age_min, worktree, branch, reason }` (`id` = `<repo>/T-n`; `since` = ISO time of the claim's last heartbeat, i.e. when it went quiet — the line's own `ts` is "now"; fields may be `null`). The scheduled job
+(`skills/maestro/launchd/`) runs `sync && reap` every 300 s.
+
+### 14.7 Event hook points and the `events.mjs` contract
+
+`maestro.mjs` imports an optional sibling `./events.mjs` at start-up; absent or broken means
+every hook is a no-op. Hook points: claim acquire/steal/resume/release/force, heartbeat
+(throttled to one per 10 min per claim), `say`/`ask`/`answer` (`message`), `handoff`,
+`set --status`/`work`/`block`/`release`/`done` (`state`, `data.from`/`data.to`), conflict
+(`error`, `class: conflict`), reap (`claim`, `action: release`).
+
+```js
+appendEvent(evt, { projectsDir })   // MUST be synchronous (returns true/false); must never throw into the caller
+// evt = { type, task, actor, session, client, data, refs, to }
+//   type    claim | heartbeat | message | handoff | state | error
+//   task    global id "repo/T-3", or null (fleet messages)
+//   actor   role-level id (claude@host); for messages, the message author
+//   session MAESTRO_SESSION | CLAUDE_SESSION_ID | random 8-hex
+//   client  resolved client or null;  data: type-specific;  refs: [mid…];  to: addressee or null
+cmdEmit(argv, ctx)  cmdStatus(argv, ctx)  cmdWho(argv, ctx)   // may return a number = exit code
+// ctx = { projectsDir, handle, repo /* registry entry or null */, host, actor, session }
+```
+
+Steal/takeover events carry both `data.prev_owner` and `data.from` (same value). `appendEvent` must be synchronous: `fail()` exits immediately, so a promise it returned would be lost; Maestro only bounds-waits (500 ms) for a promise if one happens to be pending, to avoid hanging. Argument parsing: a bare `--` makes everything after it positional, and free text (`say`/`ask`/`answer`/`handoff`/`block`/`new`) starting with `-` is rejected without it.
+
+`maestro emit|status|who` forward their raw arguments and `ctx`; without the module they print
+`events module not installed` and exit 1.
+
+### 14.8 Not in P1a
+
+WIP limits, tiers, `next`, auto-`say` on unblock (a `sync` diff), budget gates, `brief`.

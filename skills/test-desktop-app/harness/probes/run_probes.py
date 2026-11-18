@@ -4,7 +4,7 @@
   python3 run_probes.py [--out DIR]
 
 Re-run this on a new macOS version (or a new WebView) to re-verify the facts in desktop-app-testing.guide.md.
-It builds ../fixtures/probe-app/Probe.app (bundle id co.andrewmiller.desktop-probe) into a PRIVATE dir, starts only
+It builds ../fixtures/probe-app/Probe.app (bundle id com.example.desktop-probe) into a PRIVATE dir, starts only
 its own instances, and never touches any other process.
 
 Focus policy: every step here uses background-safe techniques only (PID-targeted events, AX by PID,

@@ -1,0 +1,29 @@
+{
+  "client": "Northfield Bakery",
+  "title": "Northfield prototypes",
+  "slug": "northfield-2026-01",
+  "purpose": "Show the owner ways the morning order sheet could work, before a meeting on Tuesday.",
+  "sources": [
+    "/absolute/path/to/client-repo/docs/call-notes-2026-01-12.md",
+    "/absolute/path/to/client-repo/docs/scope.md"
+  ],
+  "tracks": [
+    { "key": "orders", "title": "Morning orders", "ask": "What the owner described on the Jan 12 call: orders in by 6, the baker sees one list." }
+  ],
+  "optionsPerTrack": 3,
+  "criticRounds": 1,
+  "devices": ["desktop", "ipadL", "ipadP", "phone"],
+  "rules": [
+    "Nothing writes to the point-of-sale system. Show it read-only, with a source and a time.",
+    "Customers' home addresses never appear, even made-up ones."
+  ],
+  "denyTerms": ["Northfield", "Dana", "Marcus", "Hillcrest Cafe"],
+  "denyPatterns": [
+    { "pattern": "\\bORD-\\d{5}\\b", "why": "A real order number" }
+  ],
+  "allowPhrases": ["Only if Dana approves"],
+  "checkStreetAddresses": true,
+  "prototypeLabel": "Prototype. Made-up data. Not connected to anything.",
+  "look": "The bakery's site: warm cream background, deep brown text, one rust accent.",
+  "planModel": "fable"
+}

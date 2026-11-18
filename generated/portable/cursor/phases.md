@@ -4,14 +4,16 @@ Display the current roadmap progress with visual phase indicators. Reads from /r
 
 Arguments: {the text you type after the command} (optional: roadmap slug, "list", "update <phase> <status>", or "next")
 
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
+
 ## Steps
 
 1. **Find the roadmap** — Determine which roadmap to display:
 
-   - If `{the text you type after the command}` provides a slug (e.g., `agencyos-v2-launch`), look for `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/<slug>/roadmap.md`
-   - If `{the text you type after the command}` is "list", read `roadmaps/INDEX.md` and display all roadmaps as a table, then stop
+   - If `{the text you type after the command}` provides a slug (e.g., `web-app-v2-launch`), look for `<notes>/roadmaps/<slug>/roadmap.md`
+   - If `{the text you type after the command}` is "list", read `<notes>/roadmaps/INDEX.md` and display all roadmaps as a table, then stop
    - If `{the text you type after the command}` is empty:
-     - Read `roadmaps/INDEX.md` and find roadmaps with `status: active`
+     - Read `<notes>/roadmaps/INDEX.md` and find roadmaps with `status: active`
      - If exactly one active roadmap, use it
      - If multiple active, list them and ask the user to pick
      - If none, tell the user: "No active roadmaps. Run `/roadmap <topic>` to create one."
@@ -71,7 +73,7 @@ Arguments: {the text you type after the command} (optional: roadmap slug, "list"
      - Set `started: YYYY-MM-DD` on the new phase
    - If all phases are completed, set frontmatter `status: completed`
    - Update `updated:` date in frontmatter
-   - Update `INDEX.md` with new phase progress
+   - Update `<notes>/roadmaps/INDEX.md` with new phase progress
    - Re-render the display after updating
 
 5. **Phase boundary detection** — After rendering, check:

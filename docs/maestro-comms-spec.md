@@ -29,13 +29,15 @@ before any dashboard (L4) exists.
 
 ## 2. Directory layout
 
+`<projects>` below is `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`); the human's handle (`you` in the examples) is `owner.handle` (default `$USER`). See `docs/config.md`.
+
 ```
 <repo>/.maestro/channels/
   T-014.md            # per-task thread — authoritative, co-located with the work
   T-021.md
-~/Projects/.maestro/channels/
+<projects>/.maestro/channels/
   fleet.md            # cross-task / cross-repo broadcasts (global, authoritative)
-~/Projects/.maestro/
+<projects>/.maestro/
   inbox.jsonl         # DERIVED — open asks addressed to someone, rebuilt by `sync`
 ```
 
@@ -52,17 +54,17 @@ One message = one append-only line. Human-readable first, machine-parseable seco
 ```
 - [2026-08-29T21:03Z] (M-014-1) claude@t1 · say: Blocked — need T-011 merged before I wire the guard.
 - [2026-08-29T21:05Z] (M-021-7) codex@t2 · say: T-011 pushed, PR #232 — unblocked.
-- [2026-08-29T21:06Z] (M-014-2) claude@t1 · ask→@andrew: Neon Auth or Clerk here? #open
-- [2026-08-29T21:20Z] (M-014-3) andrew · answer→claude@t1 re:M-014-2: Neon Auth. #resolved
+- [2026-08-29T21:06Z] (M-014-2) claude@t1 · ask→@you: Neon Auth or Clerk here? #open
+- [2026-08-29T21:20Z] (M-014-3) you · answer→claude@t1 re:M-014-2: Neon Auth. #resolved
 ```
 
 | Field | Meaning |
 |-------|---------|
 | `[ts]` | UTC ISO timestamp (append order is the only ordering guarantee) |
 | `(M-<id>)` | Stable message id — `M-<taskid>-<seq>` (seq = next per channel). `fleet` uses `M-fleet-<seq>` |
-| `author` | claim owner id (`claude@t1`, `codex@t2`) or `andrew` |
+| `author` | claim owner id (`claude@t1`, `codex@t2`) or `you` |
 | `kind` | `say` (update), `ask` (needs an answer), `answer` (replies to an ask), `handoff` (context transfer) |
-| `→@target` | Optional. `@andrew` = the human; `codex@t2` = a specific agent. Absent = broadcast to the thread |
+| `→@target` | Optional. `@you` = the human; `codex@t2` = a specific agent. Absent = broadcast to the thread |
 | `re:M-…` | Optional. On `answer`, the ask it resolves |
 | `#open` / `#resolved` | Lifecycle tag on `ask`/`answer` only. An `ask` starts `#open`; its `answer` flips it `#resolved` |
 
@@ -76,13 +78,13 @@ skipped with a warning by `sync` (never crash the whole read) — same rule as t
 | Command | Does |
 |---|---|
 | `say <T-id\|fleet> "text" [--repo R]` | Append a `say` line; refresh the author's claim heartbeat |
-| `ask <T-id\|fleet> "question" [--to who] [--repo R]` | Append an `ask` line tagged `#open`, target defaults to `@andrew`. Prints the new `M-id` |
+| `ask <T-id\|fleet> "question" [--to who] [--repo R]` | Append an `ask` line tagged `#open`, target defaults to `@you`. Prints the new `M-id` |
 | `answer <M-id> "text" [--repo R]` | Append an `answer` re: that ask, flip the ask's line to `#resolved`, target = the ask's author |
 | `read <T-id\|fleet> [--since ts] [--repo R]` | Print the thread (or only messages after `ts`) |
-| `inbox [--for who] [--json]` | List all `#open` asks addressed to `who` (default `andrew`) across every registry repo + fleet. **This is the "needs human" queue.** |
+| `inbox [--for who] [--json]` | List all `#open` asks addressed to `who` (default `you`) across every registry repo + fleet. **This is the "needs human" queue.** |
 
 `board` (existing) gains a derived **⚑ NEEDS YOU (n)** header block counting open asks
-addressed to `@andrew`, and `sync` writes a `needs_human` count per task into
+addressed to `@you`, and `sync` writes a `needs_human` count per task into
 `index.jsonl`.
 
 ### Answer/resolve lifecycle
@@ -128,7 +130,7 @@ L4 this is the **⚑ NEEDS YOU** panel with an inline reply box.
 ## 7. Integration points
 
 - **Board:** `sync` surfaces open-ask counts (per task + a fleet ⚑ header). A task
-  blocked on an unanswered `ask→@andrew` is visibly "waiting on you," distinct from
+  blocked on an unanswered `ask→@you` is visibly "waiting on you," distinct from
   plain in-progress.
 - **Phase 3 (automation):** dependency unblocking can auto-`say` to `fleet` ("T-011
   done → T-014 unblocked"); a reaped dead claim can auto-`say` to its task thread so the

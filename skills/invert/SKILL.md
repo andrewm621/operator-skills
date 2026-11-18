@@ -9,6 +9,8 @@ Apply the inversion principle to stress-test a feature, process, or system. Inst
 
 Subject: $ARGUMENTS (a feature, workflow, system, codebase area, or business process)
 
+**Config:** `paths.notes` from `~/.config/operator-skills/config.yaml` (default `~/.claude/dev-notes`) — see `docs/config.md`. `<notes>` below is that directory; a missing file or key means the default.
+
 ## Steps
 
 1. **Parse the subject** — From `$ARGUMENTS`, determine:
@@ -18,11 +20,11 @@ Subject: $ARGUMENTS (a feature, workflow, system, codebase area, or business pro
    - A system (e.g., "our auth architecture", "the cron job pipeline")
    - A process (e.g., "our deploy workflow", "onboarding new users")
    - A codebase area (e.g., "the Stripe integration", "the database schema")
-   - A plan or proposal (e.g., "the roadmap for agencyos v2")
+   - A plan or proposal (e.g., "the roadmap for the v2 launch")
 
    **b) Scope the investigation:**
    - If the subject names a project or feature, identify the relevant project directory
-   - If it references a roadmap, find it in `dev-notes/roadmaps/`
+   - If it references a roadmap, find it in `<notes>/roadmaps/`
    - If it's abstract (a process, a business model), note that — agents will reason rather than read code
 
 2. **Select the failure lenses** — Choose 4-5 lenses based on the subject type. Not all lenses apply to every subject — pick the most relevant ones:
@@ -212,7 +214,7 @@ Subject: $ARGUMENTS (a feature, workflow, system, codebase area, or business pro
 
    - "Fix tier 1 issues now? I can start with the race condition." → dispatch `/subagent`
    - "Create roadmap tasks for tiers 2-3?" → integrate with `/todo add`
-   - "Save this report?" → write to `dev-notes/decisions/YYYY-MM-DD-inversion-<subject>.md`
+   - "Save this report?" → write to `<notes>/decisions/YYYY-MM-DD-inversion-<subject>.md`
    - "Run `/invert` again after fixes to verify?" → re-run scoped to fixed areas
    - "Deep-dive a specific finding?" → spawn focused research agent
 

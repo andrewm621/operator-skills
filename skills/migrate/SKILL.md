@@ -1,11 +1,11 @@
 ---
 name: migrate
 description: >
-  Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely.
+  Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely. `/migrate status` is the read-only health check — connection test, migration state, schema drift, table inventory.
 argument-hint: "generate | push | status | rollback | seed | diff"
 ---
 
-Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely.
+Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely. `/migrate status` is the read-only health check — connection test, migration state, schema drift, table inventory.
 
 Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "seed", "diff", or a description of schema changes)
 
@@ -16,7 +16,7 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
    - `prisma/schema.prisma` → Prisma
    - `supabase/config.toml` → Supabase
    - Read `package.json` for installed packages and scripts
-   - Read `.env.local` or `.env` for `DATABASE_URL`
+   - Check `.env.local` and `.env` (and the shell environment) for `DATABASE_URL`, `POSTGRES_URL`, or `SUPABASE_URL` — never assume the variable is already in `process.env`; see the connection test under `status`
 
    If no ORM detected, offer to set one up: "No database ORM found. Want to add Drizzle + Neon? (recommended)"
 
@@ -24,7 +24,7 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
 
    | Input | Action |
    |-------|--------|
-   | _(empty)_ or `status` | Show migration status (same as `/db-status` migration section, but more detail) |
+   | _(empty)_ or `status` | Read-only health check: connection test, migration status, schema drift, table inventory. Never changes anything |
    | `generate` or `gen` | Generate a new migration from schema changes |
    | `push` or `apply` | Apply pending migrations to the database |
    | `rollback` | Roll back the last migration (with safety checks) |
@@ -35,15 +35,68 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
 3. **Execute based on subcommand:**
 
    ### `status`
-   Run diagnostics (in parallel):
+   Read-only. Never applies migrations or modifies the database; for actions use the other subcommands. Run the checks below (the file-based ones in parallel).
 
-   **Drizzle:**
+   **a) Connection test — load the env files explicitly.** A bare `new Client(process.env.DATABASE_URL)` silently falls back to `localhost` when the variable is unset (the shell does not read `.env.local`), which reports a false OK or a misleading error. Resolve the URL yourself, say where it came from, and fail loudly if there isn't one:
+
    ```bash
-   npx drizzle-kit status 2>&1
+   node - <<'NODE'
+   const fs = require('fs');
+   const KEYS = ['DATABASE_URL', 'POSTGRES_URL'];
+   function parseEnv(file) {
+     const out = {};
+     let text = '';
+     try { text = fs.readFileSync(file, 'utf8'); } catch { return out; }
+     for (const line of text.split(/\r?\n/)) {
+       const m = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
+       if (!m) continue;
+       const v = m[2].trim();
+       // Quoted: the value ends at the closing quote (anything after it, such as a trailing "# comment", is dropped).
+       // Unquoted: strip a trailing " # comment" (a "#" with no space before it, as in a URL fragment, is kept).
+       const q = v.match(/^(['"])((?:(?!\1).)*)\1\s*(?:#.*)?$/);
+       out[m[1]] = q ? q[2] : v.replace(/\s+#.*$/, '');
+     }
+     return out;
+   }
+   // Precedence: shell environment, then .env.local, then .env (same as Next.js).
+   const sources = [['shell environment', process.env], ['.env.local', parseEnv('.env.local')], ['.env', parseEnv('.env')]];
+   let url, key, source;
+   outer: for (const [name, env] of sources) for (const k of KEYS) if (env[k]) { url = env[k]; key = k; source = name; break outer; }
+   if (!url) {
+     console.error('FAIL: no ' + KEYS.join(' or ') + ' found in the shell environment, .env.local, or .env (cwd: ' + process.cwd() + ')');
+     process.exit(2);
+   }
+   let u;
+   try { u = new URL(url); } catch { console.error('FAIL: ' + key + ' from ' + source + ' is not a valid URL'); process.exit(2); }
+   console.log('Using ' + key + ' from ' + source + ' -> ' + u.protocol + '//' + u.host + u.pathname + ' (credentials hidden)');
+   if (['localhost', '127.0.0.1', '::1'].includes(u.hostname)) console.log('NOTE: this points at a local database');
+   let Client;
+   try { ({ Client } = require('pg')); } catch { console.error('FAIL: the "pg" package is not installed in this project. Test with: psql "$URL" -c "select 1"'); process.exit(3); }
+   const t0 = Date.now();
+   const c = new Client({ connectionString: url });
+   c.connect()
+     .then(() => c.query('select 1'))
+     .then(() => { console.log('OK connected in ' + (Date.now() - t0) + 'ms'); return c.end(); })
+     .catch(e => { console.error('FAIL: ' + (e.code ? e.code + ' ' : '') + e.message); process.exitCode = 1; });
+   NODE
    ```
-   - List all migration files in the migrations directory with dates
-   - Check if `drizzle-kit generate` would produce new output (schema drift)
-   - Read the schema file to show current table inventory
+
+   Report the variable, the source (`shell environment`, `.env.local`, or `.env`), the host and database name (never the password), and either the connected latency or the error. If no URL was found, stop here and say so; do not try the other checks against a guessed database, and point to `/env-check`. If `.env.local` and `.env` define different URLs, mention which one won and that the other was ignored. For Supabase projects, the local dev database (port 54321) is separate from production; say which one the URL targets.
+
+   **b) Migration status** — based on the detected ORM:
+
+   **Drizzle** (drizzle-kit has no `status` command, so compare the migrations folder with the database yourself):
+   ```bash
+   npx drizzle-kit check 2>&1   # consistency of the migrations folder itself (snapshot/journal collisions); changes nothing
+   ```
+   - **Folder:** read `<out>/meta/_journal.json` (`out` from `drizzle.config.ts`). Each entry has a `tag` (the migration file name) and `when` (epoch ms).
+   - **Applied:** run this over the same connection as (a). Drizzle records each applied migration in `drizzle.__drizzle_migrations` (Postgres; the schema and table name can be overridden by `migrations.schema` / `migrations.table` in the config, and SQLite/MySQL keep a bare `__drizzle_migrations`):
+     ```sql
+     SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at;
+     ```
+     `created_at` is the journal entry's `when`, so a migration is **applied** if its `when` is at or below the latest `created_at`, and **pending** if it is above it (this is how drizzle's own migrator decides). If the table doesn't exist, nothing has been applied yet: report every journal entry as pending.
+   - **Schema drift:** plain `drizzle-kit generate` writes files, so don't run it here. Instead copy the migrations folder and the config to a scratch directory, point the copied config's `out` at the copy, and run `generate` there; a new SQL file means the schema has changes with no migration. If that isn't practical, report drift as "not checked".
+   - Read the schema file to show the current table inventory
 
    **Prisma:**
    ```bash
@@ -54,10 +107,16 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
    - List `supabase/migrations/` files
    - Run `supabase db diff` if CLI available
 
-   Report:
+   **c) Table inventory** — if connected, using the same connection as (a):
+   ```sql
+   SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;
+   ```
+
+   **d) Report:**
    ```
     MIGRATE STATUS  <project-name>
     ORM: Drizzle | Schema: db/schema.ts | Migrations: drizzle/
+    Connection: OK (DATABASE_URL from .env.local, 52ms)
 
     Applied: 12 migrations (latest: 2026-05-10 — add_member_tags)
     Pending: 0
@@ -65,6 +124,12 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
 
     Tables (14): users, events, members, tags, ...
    ```
+
+   **e) Suggest next steps** — point to the right subcommand:
+   - Pending migrations → "Run `/migrate push` to apply"
+   - Schema drift → "Run `/migrate generate` to create a migration"
+   - Connection failure or no URL → "Run `/env-check` to verify DATABASE_URL"
+   - No ORM detected → offer to set one up (see step 1)
 
    ### `generate` / `gen`
    **a) Check for schema changes:**
@@ -206,10 +271,7 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
    Show what would be generated without creating files:
 
    **Drizzle:**
-   ```bash
-   npx drizzle-kit generate --dry-run 2>&1
-   ```
-   If `--dry-run` isn't available, run generate and show the output without committing.
+   drizzle-kit has no dry-run for `generate`. Run it against a scratch copy of the migrations folder and config (as in `status` → schema drift), show the SQL it produces, and leave the project's own migrations folder untouched.
 
    ### Description-based (e.g., "add events table with capacity field")
    **a) Read the current schema** to understand existing tables and patterns
@@ -225,10 +287,10 @@ Arguments: $ARGUMENTS (subcommand: "generate", "push", "status", "rollback", "se
    - Offer to mark schema-related tasks as done
 
 ## Notes
-- This skill builds on `/db-status` — use `/db-status` for diagnostics, `/migrate` for actions
+- `/migrate status` is the read-only diagnostic (it absorbed the former standalone database-status skill); the other subcommands are the actions
 - **Never apply destructive migrations without explicit user confirmation**
 - For production databases, always recommend: test locally first → apply to preview branch → then production
-- If `DATABASE_URL` is not set, suggest running `/env-check` first
+- If no database URL can be found (shell, `.env.local`, `.env`), say so plainly and suggest `/env-check`; never let a connection test default to localhost
 - Drizzle is the primary ORM in this workspace — optimized for that flow
 - When making schema changes from descriptions, always show the diff before generating the migration
 - Seed scripts should be idempotent (safe to run multiple times) — use `INSERT ... ON CONFLICT DO NOTHING` or truncate+insert

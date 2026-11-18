@@ -3,7 +3,7 @@
    Zero dependencies: Node built-ins only.
 
    Phase 0 subcommands (see docs/maestro-spec.md §10):
-     init        create ~/Projects/.maestro/ (registry + index + board), idempotent
+     init        create <projects>/.maestro/ (registry + index + board), idempotent
      new         allocate a T-<id> and write a task file into <repo>/.maestro/tasks/
      claim       atomically claim a task (mkdir-based lock + heartbeat claim file)
      heartbeat   refresh a claim's heartbeat
@@ -24,7 +24,7 @@
      answer      append an answer re: an ask AND flip that ask's `#open`->`#resolved`
                  (the one sanctioned in-place edit — everything else is append-only)
      read        print a channel's thread (optionally only messages `--since` a ts)
-     inbox       list every `#open` ask addressed to someone (default `andrew`) —
+     inbox       list every `#open` ask addressed to someone (default: you, `owner.handle`) —
                  the "needs human" queue, across every registered repo + fleet
      handoff     like `say` but kind=handoff, explicitly targeted at `--to <who>`
 
@@ -35,15 +35,29 @@
                  no `issue:` is recorded yet, else patch-only-on-drift; status
                  maps to `maestro`/`maestro:<status>` labels, `done` closes it.
 
-   `done` / `block` / `release` are not built yet — they fail loudly with a pointer.
+   Agent Ops P1a subcommands (see docs/maestro-spec.md §14):
+     done        review -> done: preconditions, merge, worktree teardown (reviewer/human action)
+     block       status blocked + blocked_by/blocked_reason (an `@handle` also files an ask)
+     release     drop a claim, task back to open, worktree kept
+     reap        release abandoned claims whose worktree is clean; list the dirty ones
+     emit|status|who   event-log verbs, implemented by the optional sibling events.mjs
 
    v1 dispatch is human-in-the-loop (spec §7): `route` prepares the worktree/seed and
    prints the launch string; it never spawns another provider process itself.
 
+   Config (all optional; see docs/config.md). Precedence: environment variable, then
+   ~/.config/operator-skills/config.yaml (or $XDG_CONFIG_HOME/...), then the default:
+     owner.handle   env MAESTRO_HANDLE    default $USER    — the human's handle for asks/answers/inbox
+     paths.projects env MAESTRO_PROJECTS  default ~/Projects — <projects>/.maestro holds the global state
+     identity.host  env MAESTRO_HOST      default short hostname — pin it on a Mac with no HostName set
+   Identity: MAESTRO_PROVIDER (default claude), MAESTRO_SESSION / CLAUDE_CODE_SESSION_ID / CLAUDE_SESSION_ID (default: random 8-hex per process).
+
    Data layout (docs/maestro-spec.md §4, docs/maestro-comms-spec.md §2):
-     ~/Projects/.maestro/{registry.yaml, index.jsonl, board.md, worktrees/}  — global, derived
-     ~/Projects/.maestro/channels/fleet.md                                   — global, authoritative
-     ~/Projects/.maestro/inbox.jsonl                                         — global, DERIVED
+     <projects>/.maestro/{registry.yaml, index.jsonl, board.md, worktrees/}  — global, derived
+     <projects>/.maestro/policy.yaml                                         — global, hand-kept (repo -> client map)
+     <projects>/.maestro/events/                                             — event log + _system/reaper.jsonl
+     <projects>/.maestro/channels/fleet.md                                   — global, authoritative
+     <projects>/.maestro/inbox.jsonl                                         — global, DERIVED
      <repo>/.maestro/{tasks,todos,locks,channels}/                          — per-repo, authoritative
 */
 
@@ -53,25 +67,71 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
+  statSync,
   writeFileSync,
   rmSync,
 } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 
 /* ---- paths -------------------------------------------------------------- */
 
 const HOME = os.homedir();
-const GLOBAL_DIR = path.join(HOME, 'Projects', '.maestro');
+
+/* Tiny zero-dependency reader for the two scalar keys Maestro needs from the
+   shared per-user config (`owner.handle`, `paths.projects`). Not a YAML parser:
+   it finds `<section>:` at column 0, then the first indented `<key>: value`
+   under it, and understands only bare/quoted scalars and trailing comments.
+   Missing file, section, or key -> undefined (caller applies the default). */
+function readConfigScalar(section, key) {
+  const base = process.env.XDG_CONFIG_HOME || path.join(HOME, '.config');
+  let text;
+  try {
+    text = readFileSync(path.join(base, 'operator-skills', 'config.yaml'), 'utf8');
+  } catch {
+    return undefined;
+  }
+  let inSection = false;
+  for (const line of text.split(/\r?\n/)) {
+    if (/^\s*(#|$)/.test(line)) continue;
+    if (/^\S/.test(line)) {
+      inSection = line.replace(/\s*#.*$/, '').trim() === `${section}:`;
+      continue;
+    }
+    if (!inSection) continue;
+    const m = line.match(new RegExp(`^\\s+${key}:\\s*(.*)$`));
+    if (!m) continue;
+    let v = m[1].trim();
+    const q = v.match(/^(["'])(.*?)\1/);
+    v = q ? q[2] : v.replace(/\s+#.*$/, '').trim();
+    return v === '' ? undefined : v;
+  }
+  return undefined;
+}
+
+function expandHome(p) {
+  return p === '~' ? HOME : p.startsWith('~/') ? path.join(HOME, p.slice(2)) : p;
+}
+
+/* The human's handle (no leading @) — the default target of `ask`, the author
+   of `answer`, and whose open asks light up the board's NEEDS YOU block. */
+const HUMAN = (process.env.MAESTRO_HANDLE || readConfigScalar('owner', 'handle') || process.env.USER || os.userInfo().username).replace(/^@/, '');
+const PROJECTS_DIR = path.resolve(expandHome(process.env.MAESTRO_PROJECTS || readConfigScalar('paths', 'projects') || '~/Projects'));
+const GLOBAL_DIR = path.join(PROJECTS_DIR, '.maestro');
 const REGISTRY_PATH = path.join(GLOBAL_DIR, 'registry.yaml');
 const INDEX_PATH = path.join(GLOBAL_DIR, 'index.jsonl');
 const BOARD_PATH = path.join(GLOBAL_DIR, 'board.md');
 const WORKTREES_ROOT = path.join(GLOBAL_DIR, 'worktrees');
 const FLEET_CHANNEL_PATH = path.join(GLOBAL_DIR, 'channels', 'fleet.md');
 const INBOX_PATH = path.join(GLOBAL_DIR, 'inbox.jsonl');
+const POLICY_PATH = path.join(GLOBAL_DIR, 'policy.yaml');
+const EVENTS_DIR = path.join(GLOBAL_DIR, 'events');
 
 const DEFAULT_TTL_SECONDS = 1800;
+const HEARTBEAT_EVENT_MIN_GAP_MS = 10 * 60 * 1000; // heartbeat events: at most one per 10 min per claim
 const STATUS_ORDER = ['open', 'claimed', 'in-progress', 'review', 'blocked', 'done'];
 const CHANNEL_LOCK_TIMEOUT_MS = 5000;
 
@@ -109,10 +169,106 @@ const ADAPTERS = {
   grok: { bin: 'grok', folder_flag: '--cwd', prompt_flag: '-p', force_flag: '--always-approve' },
 };
 
+/* ---- identity (spec §14.4) ----------------------------------------------------
+   Actor ids are role-level — `<provider>@<short-host>`, e.g. claude@macbook-air —
+   so they survive a restart. The ephemeral part is the *session*, recorded in
+   the claim file and on every event, never baked into the owner string. */
+const SHORT_HOST =
+  String(process.env.MAESTRO_HOST || readConfigScalar('identity', 'host') || os.hostname())
+    .split('.')[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'host';
+
+let sessionId = null;
+function currentSession() {
+  if (!sessionId) {
+    const fromEnv = process.env.MAESTRO_SESSION || process.env.CLAUDE_CODE_SESSION_ID || process.env.CLAUDE_SESSION_ID;
+    sessionId = fromEnv ? String(fromEnv).replace(/[^A-Za-z0-9_.-]+/g, '-') : randomBytes(4).toString('hex');
+  }
+  return sessionId;
+}
+
+/* Provider for the default actor id: --provider, else MAESTRO_PROVIDER, else
+   claude (Claude Code sets CLAUDECODE=1; there is no reliable equivalent marker
+   for Codex/Cursor/Grok, so those must export MAESTRO_PROVIDER — `route`'s
+   launch strings do). */
+function envProvider() {
+  if (process.env.MAESTRO_PROVIDER) return process.env.MAESTRO_PROVIDER;
+  return 'claude';
+}
+
+function resolveProvider(flags) {
+  if (flags && typeof flags.provider === 'string') return flags.provider;
+  return envProvider();
+}
+
+function defaultActor(provider = envProvider()) {
+  return `${provider}@${SHORT_HOST}`;
+}
+
+/* ---- events (optional sibling module, fail-open) --------------------------------
+   events.mjs is owned by the observability half of Agent Ops. When it is absent
+   (or broken) every appendEvent call below is a no-op, so Maestro behaves exactly
+   as before. Contract: appendEvent(evt, { projectsDir }) where evt carries
+   { type, task, actor, session, client, data, refs, to } — the module fills
+   ts/id/trace_id and picks the file. Emission is best-effort and never throws. */
+let appendEvent = () => {};
+let eventsModule = null;
+let eventsLoadError = null;
+try {
+  eventsModule = await import('./events.mjs');
+  if (typeof eventsModule.appendEvent === 'function') appendEvent = eventsModule.appendEvent;
+} catch (err) {
+  eventsLoadError = err;
+}
+
+const pendingEvents = [];
+function emitEvent(evt) {
+  try {
+    const result = appendEvent({ session: currentSession(), ...evt }, { projectsDir: PROJECTS_DIR });
+    if (result && typeof result.then === 'function') pendingEvents.push(result.catch(() => {}));
+  } catch {
+    /* best-effort — an event must never break the verb that raised it */
+  }
+}
+
 /* ---- small utilities ------------------------------------------------------ */
+
+/* Thrown by fail() only when an async appendEvent promise is still pending, so
+   the process can flush it (bounded) before exiting; see flushPendingEvents. */
+class ExitSignal extends Error {}
+
+const EVENT_FLUSH_TIMEOUT_MS = 500;
+
+/* Waits for pending event promises, but never longer than the timeout: a promise
+   that never settles must not hang a top-level await (Node would exit 13). */
+async function flushPendingEvents() {
+  if (!pendingEvents.length) return;
+  let timer;
+  await Promise.race([
+    Promise.allSettled(pendingEvents),
+    new Promise((resolve) => {
+      timer = setTimeout(resolve, EVENT_FLUSH_TIMEOUT_MS);
+    }),
+  ]);
+  clearTimeout(timer);
+}
+
+process.on('uncaughtException', (err) => {
+  if (err instanceof ExitSignal) {
+    flushPendingEvents().finally(() => process.exit(1));
+    return;
+  }
+  console.error(err);
+  process.exit(1);
+});
 
 function fail(msg) {
   console.error(`maestro: ${msg}`);
+  // appendEvent is expected to be synchronous (spec §14.7). Only if an async one
+  // left a promise pending do we unwind to the handler above to flush it first.
+  if (pendingEvents.length) throw new ExitSignal();
   process.exit(1);
 }
 
@@ -135,11 +291,28 @@ function sleepMs(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
+/* Set by parseArgs: did the command line contain a bare `--`? Free-text arguments
+   that start with `-` are only accepted after it. */
+let sawTerminator = false;
+
+function checkText(text, what) {
+  if (typeof text === 'string' && text.startsWith('-') && !sawTerminator) {
+    fail(`${what} starts with '-', which is ambiguous with a flag — put it after '--' (e.g. maestro say T-1 -- "${text.slice(0, 24)}")`);
+  }
+}
+
 function parseArgs(argv) {
   const positional = [];
   const flags = {};
+  sawTerminator = false;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
+    if (a === '--') {
+      // Everything after a bare `--` is positional, even if it looks like a flag.
+      sawTerminator = true;
+      positional.push(...argv.slice(i + 1));
+      break;
+    }
     if (a.startsWith('--')) {
       const key = a.slice(2);
       const next = argv[i + 1];
@@ -158,7 +331,7 @@ function parseArgs(argv) {
 
 /* Presence check only — `route` never blocks on a missing binary (v1 dispatch
    is human-in-the-loop, spec §7: it prints the launch string regardless, for
-   Andrew to run once/if the binary is installed). Used solely to decide
+   the human to run once/if the binary is installed). Used solely to decide
    whether to print the "confirm with --help" advisory below. */
 function commandExists(bin) {
   try {
@@ -233,13 +406,27 @@ function setTaskFields(taskPath, patch) {
   return data;
 }
 
+/* Frontmatter values are scalars or inline lists. A task field that should be a
+   list may have been hand-written as a bare scalar (`depends_on: T-3`). */
+function asList(v) {
+  if (v === null || v === undefined || v === '') return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+/* Collapses a free-text value to something parseFrontmatter reads back as one
+   scalar: a single line, and never shaped like an inline list. */
+function sanitizeScalar(text) {
+  const s = String(text).replace(/\s+/g, ' ').trim();
+  return s.startsWith('[') && s.endsWith(']') ? `(${s.slice(1, -1)})` : s;
+}
+
 /* ---- registry (hand-rolled — flat list, not a general YAML parser) -------- */
 
 function renderRegistry(repos) {
   const lines = [
     "# Maestro registry — repos this machine's `maestro sync` walks.",
     '# Hand-maintained: add a repo by appending a `- name` / `path` pair below.',
-    '# Everything else under ~/Projects/.maestro/ is derived — never hand-edit it.',
+    `# Everything else under ${GLOBAL_DIR}/ is derived — never hand-edit it.`,
     'repos:',
   ];
   for (const r of repos) {
@@ -291,6 +478,65 @@ function resolveRepo(registry, name) {
   return r;
 }
 
+/* ---- policy.yaml (hand-kept, flat; spec §14.5) ------------------------------------
+   Only the `repos:` map (repo name -> client) is read in P1a:
+     repos:
+       agencyos: rebel-ops
+       "liberty networking": liberty
+   Same lenient style as registry.yaml: no general YAML, unknown sections and
+   deeper-nested lines are ignored, a missing file means an empty map. */
+let policyCache = null;
+function loadPolicy() {
+  if (policyCache) return policyCache;
+  const policy = { repos: {} };
+  policyCache = policy;
+  let raw;
+  try {
+    raw = readFileSync(POLICY_PATH, 'utf8');
+  } catch {
+    return policy;
+  }
+  let section = null;
+  let headerClient = null;
+  for (const rawLine of raw.split(/\r?\n/)) {
+    const line = rawLine.replace(/(^|\s)#.*$/, '');
+    if (!line.trim()) continue;
+    if (/^\S/.test(line)) {
+      const m = line.match(/^([A-Za-z_][\w-]*):/);
+      section = m ? m[1] : null;
+      headerClient = null;
+      continue;
+    }
+    if (section !== 'repos') continue;
+    // Canonical form is `  repo: client`. Two looser shapes are tolerated so every
+    // reader of this file agrees: `  - repo: client`, and a `  client:` header
+    // followed by `    - repo` lines.
+    const item = line.match(/^\s+-\s+(?:"([^"]+)"|'([^']+)'|([^:]+?))\s*$/);
+    if (item) {
+      const repoName = (item[1] ?? item[2] ?? item[3]).trim();
+      if (headerClient && repoName) policy.repos[repoName] = headerClient;
+      continue;
+    }
+    const m = line.match(/^\s+(?:-\s+)?(?:"([^"]+)"|'([^']+)'|([^:]+?))\s*:\s*(.*?)\s*$/);
+    if (!m) continue;
+    const key = (m[1] ?? m[2] ?? m[3]).trim();
+    const value = m[4].replace(/^(["'])(.*)\1$/, '$2').trim();
+    if (!value) {
+      headerClient = key || null;
+    } else if (key && value !== 'null' && value !== '~') {
+      policy.repos[key] = value;
+    }
+  }
+  return policy;
+}
+
+/* client = the task's own `client:` field, else the policy repo map, else null. */
+function clientFor(repoName, data) {
+  const own = data?.client;
+  if (own !== null && own !== undefined && own !== '') return String(own);
+  return loadPolicy().repos[repoName] ?? null;
+}
+
 /* ---- per-repo task helpers ------------------------------------------------ */
 
 function ensureRepoDirs(repoPath) {
@@ -320,18 +566,51 @@ function findTaskFile(repoPath, taskId) {
   return match ? path.join(tasksDir, match) : null;
 }
 
+/* `T-3` (with --repo, or inferred from cwd) or the global form `<repo>/T-3`;
+   the split is on the LAST slash, so repo names may contain spaces. */
+function resolveTask(registry, ref, repoFlag) {
+  let repoName = repoFlag;
+  let taskId = String(ref);
+  const i = taskId.lastIndexOf('/');
+  if (i > 0) {
+    repoName = taskId.slice(0, i);
+    taskId = taskId.slice(i + 1);
+  }
+  const repo = resolveRepo(registry, repoName);
+  const taskPath = findTaskFile(repo.path, taskId);
+  if (!taskPath) fail(`no task ${taskId} found in ${repo.name}`);
+  return { repo, taskId, taskPath };
+}
+
+function readClaim(repo, taskId) {
+  try {
+    return JSON.parse(readFileSync(path.join(repo.path, '.maestro', 'locks', `${taskId}.claim.json`), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/* Event helper for anything tied to one task: fills the global task id and the
+   resolved client so call sites only say what happened. */
+function emitTask(repo, taskId, taskPath, evt) {
+  let client = null;
+  try {
+    client = clientFor(repo.name, parseFrontmatter(readFileSync(taskPath, 'utf8')).data);
+  } catch {
+    /* unreadable task file — event still goes out, just without a client */
+  }
+  emitEvent({ task: `${repo.name}/${taskId}`, client, ...evt });
+}
+
 /* ---- commands -------------------------------------------------------------- */
 
 function cmdInit() {
   mkdirSync(GLOBAL_DIR, { recursive: true });
 
   if (!existsSync(REGISTRY_PATH)) {
-    const seed = [
-      { name: 'liberty networking', path: path.join(HOME, 'Projects', 'liberty networking') },
-      { name: 'agencyos', path: path.join(HOME, 'Projects', 'agencyos') },
-    ];
-    writeFileSync(REGISTRY_PATH, renderRegistry(seed));
-    console.log(`Created ${REGISTRY_PATH}`);
+    // Start empty: add repos by appending `- name` / `path` pairs to the registry.
+    writeFileSync(REGISTRY_PATH, renderRegistry([]));
+    console.log(`Created ${REGISTRY_PATH} (no repos yet — append \`- name\` / \`path\` pairs)`);
   } else {
     console.log(`Registry already exists — ${REGISTRY_PATH} (left untouched)`);
   }
@@ -359,6 +638,7 @@ function cmdInit() {
 function cmdNew(positional, flags) {
   const title = positional[0];
   if (!title) fail('usage: maestro new "<title>" [--repo R] [--provider P] [--after T-x] [--priority N]');
+  checkText(title, 'title');
 
   const registry = loadRegistry();
   const repo = resolveRepo(registry, flags.repo);
@@ -414,8 +694,13 @@ function cmdNew(positional, flags) {
    if another session already holds (or held) the lock — that's the whole
    concurrency primitive (§9). Sets task status→claimed + owner on success.
    Calls fail() (process.exit) on an unrecoverable claim conflict, so callers
-   can treat a return as unconditional success. */
-function claimTask(repo, taskId, taskPath, { owner, provider, steal }) {
+   can treat a return as unconditional success.
+
+   `resume` re-claims a task whose existing claim has the SAME role-level owner
+   (a restarted session picking its own work back up): no steal, status left
+   alone, only the session/pid/heartbeat are refreshed. A claim held by any other
+   owner falls through to the normal live/stale rules. */
+function claimTask(repo, taskId, taskPath, { owner, provider, steal, resume, takeover }) {
   const locksDir = path.join(repo.path, '.maestro', 'locks');
   mkdirSync(locksDir, { recursive: true });
   const lockDir = path.join(locksDir, `${taskId}.claim.lock`);
@@ -427,6 +712,7 @@ function claimTask(repo, taskId, taskPath, { owner, provider, steal }) {
       task: taskId,
       owner,
       provider,
+      session: currentSession(),
       pid: process.pid,
       claimed_at: stamp,
       heartbeat: stamp,
@@ -436,11 +722,16 @@ function claimTask(repo, taskId, taskPath, { owner, provider, steal }) {
     return data;
   }
 
+  function announce(action, extra = {}) {
+    emitTask(repo, taskId, taskPath, { type: 'claim', actor: owner, data: { action, provider, ...extra } });
+  }
+
   try {
     mkdirSync(lockDir);
     const claim = writeClaim();
     setTaskFields(taskPath, { status: 'claimed', owner });
-    return { claim, stolen: false };
+    announce('acquire');
+    return { claim, stolen: false, resumed: false };
   } catch (err) {
     if (err.code !== 'EEXIST') throw err;
   }
@@ -456,6 +747,24 @@ function claimTask(repo, taskId, taskPath, { owner, provider, steal }) {
   const ttlMs = (existing?.ttl_seconds ?? DEFAULT_TTL_SECONDS) * 1000;
   const isStale = !existing || Number.isNaN(heartbeatMs) || Date.now() - heartbeatMs > ttlMs;
 
+  if (resume && existing && existing.owner === owner) {
+    const previousSession = existing.session ?? null;
+    // Role-level ids are shared by every session of a role, so a LIVE claim held
+    // by a different session may well still be running: that needs --takeover.
+    const takingOver = !isStale && previousSession !== null && previousSession !== currentSession();
+    if (takingOver && !takeover) {
+      fail(
+        `claim FAILED — ${taskId} is held by ${owner} in another live session (${previousSession}, heartbeat ${existing.heartbeat}). If that session is dead, rerun with --takeover; otherwise pick another task.`
+      );
+    }
+    const stamp = isoSeconds(new Date());
+    const claim = { ...existing, provider, session: currentSession(), pid: process.pid, heartbeat: stamp, resumed_at: stamp };
+    writeFileSync(claimFile, `${JSON.stringify(claim, null, 2)}\n`);
+    if (takingOver) announce('steal', { takeover: true, prev_owner: owner, from: owner, prev_session: previousSession });
+    else announce('resume', { prev_session: previousSession, was_stale: isStale });
+    return { claim, stolen: false, resumed: true, takenOver: takingOver, previousSession, wasStale: isStale };
+  }
+
   if (!isStale) {
     fail(`claim FAILED — ${taskId} owned by ${existing.owner} (heartbeat ${existing.heartbeat}, live)`);
   }
@@ -469,12 +778,52 @@ function claimTask(repo, taskId, taskPath, { owner, provider, steal }) {
   mkdirSync(lockDir);
   const claim = writeClaim();
   setTaskFields(taskPath, { status: 'claimed', owner });
-  return { claim, stolen: true, previousOwner: existing?.owner };
+  announce('steal', { prev_owner: existing?.owner ?? null, from: existing?.owner ?? null });
+  return { claim, stolen: true, resumed: false, previousOwner: existing?.owner };
+}
+
+/* Readiness gate shared by claim/work/route (spec §14.2). A task is workable when
+   nothing is waiting on it: every depends_on done, blocked_by empty, no cycle.
+   (Not the same as the index's `ready`, which also requires status `open`, so a
+   task you already hold can still be re-entered.) --force overrides and is logged
+   by noteForced() once the claim actually succeeds. Returns the waiting list when
+   forced, else null. */
+function enforceReady(registry, repo, taskId, flags, verb) {
+  const rows = loadTaskRows(registry, { quiet: true });
+  annotateReadiness(rows);
+  const row = rows.find((r) => r.repoName === repo.name && r.taskId === taskId);
+  if (!row) {
+    // The sync scan skipped this task (malformed frontmatter?): readiness is unknowable.
+    if (flags.force) {
+      warn(`--force: ${verb} ${taskId} although its readiness could not be evaluated`);
+      return ['unknown'];
+    }
+    fail(`${verb} refused — could not evaluate readiness of ${taskId} (is its task file malformed? try 'maestro sync'). Rerun with --force (logged) to override.`);
+  }
+  if (!row.waitingOn.length) return null;
+  const waiting = row.waitingOn.map((w) => displayRef(w, repo.name)).join(', ');
+  if (flags.force) {
+    warn(`--force: ${verb} ${taskId} although it is waiting on ${waiting}`);
+    return row.waitingOn;
+  }
+  fail(`${verb} refused — ${taskId} is not ready, waiting on: ${waiting}. Resolve those first, or rerun with --force (logged).`);
+  return null;
+}
+
+function noteForced(repo, taskId, taskPath, owner, waitingOn, verb) {
+  const text = `forced ${verb} past unmet readiness (waiting on ${waitingOn.join(', ')})`;
+  try {
+    const { mid } = postMessage(repo, taskId, { kind: 'say', text, author: owner });
+    emitMessage({ repo, target: taskId, kind: 'say', mid, author: owner, taskPath });
+  } catch (e) {
+    warn(`could not log --force to the task channel: ${e.message}`);
+  }
+  emitTask(repo, taskId, taskPath, { type: 'claim', actor: owner, data: { action: 'force', verb, waiting_on: waitingOn } });
 }
 
 function cmdClaim(positional, flags) {
   const taskId = positional[0];
-  if (!taskId) fail('usage: maestro claim T-<id> [--repo R] [--owner O] [--steal]');
+  if (!taskId) fail('usage: maestro claim T-<id> [--repo R] [--owner O] [--provider P] [--steal] [--resume [--takeover]] [--force]');
 
   const registry = loadRegistry();
   const repo = resolveRepo(registry, flags.repo);
@@ -483,17 +832,30 @@ function cmdClaim(positional, flags) {
   const taskPath = findTaskFile(repo.path, taskId);
   if (!taskPath) fail(`no task ${taskId} found in ${repo.name}`);
 
-  const owner = typeof flags.owner === 'string' ? flags.owner : `${os.userInfo().username}@cli`;
-  const provider = typeof flags.provider === 'string' ? flags.provider : 'claude';
+  const provider = resolveProvider(flags);
+  const owner = typeof flags.owner === 'string' ? flags.owner : defaultActor(provider);
   const steal = !!flags.steal;
+  const resume = !!flags.resume;
 
-  const { stolen, previousOwner } = claimTask(repo, taskId, taskPath, { owner, provider, steal });
-  if (stolen) {
-    console.log(`Stole stale claim on ${taskId} (was ${previousOwner ?? 'unknown'}) — now owned by ${owner} (${repo.name})`);
+  const resumingOwn = resume && readClaim(repo, taskId)?.owner === owner;
+  const forced = resumingOwn ? null : enforceReady(registry, repo, taskId, flags, 'claim');
+
+  const result = claimTask(repo, taskId, taskPath, { owner, provider, steal, resume, takeover: !!flags.takeover });
+  if (forced) noteForced(repo, taskId, taskPath, owner, forced, 'claim');
+
+  if (result.resumed) {
+    console.log(
+      `${result.takenOver ? 'Took over' : 'Resumed'} ${taskId} as ${owner} (session ${result.previousSession ?? 'unknown'} → ${currentSession()}${result.wasStale ? ', claim was stale' : ''}) (${repo.name})`
+    );
+  } else if (result.stolen) {
+    console.log(`Stole stale claim on ${taskId} (was ${result.previousOwner ?? 'unknown'}) — now owned by ${owner} (${repo.name})`);
   } else {
+    if (resume) console.log(`No existing claim on ${taskId} to resume — claimed fresh.`);
     console.log(`Claimed ${taskId} for ${owner} (${repo.name})`);
   }
 }
+
+const HEARTBEAT_NOTE_KEY = 'hb_event_at';
 
 function cmdHeartbeat(positional, flags) {
   const taskId = positional[0];
@@ -506,8 +868,19 @@ function cmdHeartbeat(positional, flags) {
 
   const data = JSON.parse(readFileSync(claimFile, 'utf8'));
   data.heartbeat = isoSeconds(new Date());
+  // Heartbeat *events* are throttled (≤1 per 10 min per claim); the claim file
+  // itself is refreshed every call so liveness stays exact.
+  const lastEmit = Date.parse(data[HEARTBEAT_NOTE_KEY] ?? '');
+  const shouldEmit = Number.isNaN(lastEmit) || Date.now() - lastEmit > HEARTBEAT_EVENT_MIN_GAP_MS;
+  if (shouldEmit) data[HEARTBEAT_NOTE_KEY] = data.heartbeat;
   writeFileSync(claimFile, `${JSON.stringify(data, null, 2)}\n`);
   console.log(`Heartbeat refreshed for ${taskId} (${repo.name}) — owner ${data.owner}`);
+
+  if (shouldEmit) {
+    const { done, total } = countTodos(path.join(repo.path, '.maestro', 'todos', `${taskId}.todos.md`));
+    const taskPath = findTaskFile(repo.path, taskId);
+    if (taskPath) emitTask(repo, taskId, taskPath, { type: 'heartbeat', actor: data.owner, data: { todos: `${done}/${total}` } });
+  }
 }
 
 function refreshHeartbeat(repo, taskId) {
@@ -637,10 +1010,10 @@ function nextMessageSeq(channelPath, base) {
 /* Author = the live claim owner if the target task is claimed, else a
    session-identity fallback (comms spec §3). Fleet posts and unclaimed tasks
    always fall back — there's no claim to borrow an identity from. `answer`
-   overrides this with the literal 'andrew' (spec §3/§4) since it's always
-   the human replying. */
+   overrides this with the configured human handle (spec §3/§4) since it's
+   always the human replying. */
 function resolveAuthor(repo, target) {
-  if (!repo || isFleet(target)) return `${os.userInfo().username}@cli`;
+  if (!repo || isFleet(target)) return defaultActor();
   const claimPath = path.join(repo.path, '.maestro', 'locks', `${target}.claim.json`);
   if (existsSync(claimPath)) {
     try {
@@ -650,15 +1023,16 @@ function resolveAuthor(repo, target) {
       /* corrupt claim file — fall through to the session-identity fallback */
     }
   }
-  return `${os.userInfo().username}@cli`;
+  return defaultActor();
 }
 
-/* `@andrew` and bare `andrew` must match for --for/--to filtering (spec §3
-   uses `@andrew` for the human in the line format, but the CLI's default
+/* `@<handle>` and the bare handle must match for --for/--to filtering (spec §3
+   uses `@<handle>` for the human in the line format, but the CLI's default
    `--for`/`--to` value is documented as the bare name) — compare with the
-   leading `@` stripped from both sides. */
+   leading `@` stripped and the case folded on both sides (handles are
+   case-insensitive: `@Alice` and `alice` are the same person). */
 function normalizeWho(who) {
-  return String(who || '').replace(/^@/, '');
+  return String(who || '').replace(/^@/, '').toLowerCase();
 }
 
 /* Shared append path for say/ask/answer/handoff: acquire the channel lock,
@@ -670,18 +1044,43 @@ function postMessage(repo, target, { kind, text, targetAddr, reId, tag, author }
   const base = messageBaseFor(target);
 
   acquireChannelLock(lockDir);
-  let mid, line;
+  let mid, line, resolvedAuthorOut;
   try {
     const seq = nextMessageSeq(channelPath, base);
     mid = `M-${base}-${seq}`;
     const ts = isoSeconds(new Date());
     const resolvedAuthor = author ?? resolveAuthor(repo, target);
+    resolvedAuthorOut = resolvedAuthor;
     line = formatMessageLine({ ts, mid, author: resolvedAuthor, kind, target: targetAddr, reId, text, tag });
     appendFileSync(channelPath, `${line}\n`);
   } finally {
     releaseChannelLock(lockDir);
   }
-  return { mid, line, channelPath };
+  return { mid, line, channelPath, author: resolvedAuthorOut };
+}
+
+/* Event for a posted channel message: `message` (or `handoff`) carrying only the
+   pointer data — mid/kind/tag — never the text (events stay small and the thread
+   remains the single copy of what was said). */
+function emitMessage({ repo, target, kind, mid, author, to, tag, reId, taskPath }) {
+  const type = kind === 'handoff' ? 'handoff' : 'message';
+  const data = { mid, kind, tag: tag ?? null };
+  const evt = { type, actor: author, to: to ?? null, refs: reId ? [reId] : [], data };
+  if (isFleet(target) || !repo) {
+    emitEvent({ task: null, client: null, ...evt });
+    return;
+  }
+  const file = taskPath ?? findTaskFile(repo.path, target);
+  if (type === 'handoff' && file) {
+    try {
+      const gh = parseFrontmatter(readFileSync(file, 'utf8')).data.issue;
+      if (typeof gh === 'string' && /^gh#\d+$/.test(gh)) data.gh = gh;
+    } catch {
+      /* no issue ref — fine */
+    }
+  }
+  if (file) emitTask(repo, target, file, evt);
+  else emitEvent({ task: `${repo.name}/${target}`, client: null, ...evt });
 }
 
 /* `answer <M-id>` doesn't require --repo — resolve which channel/repo an
@@ -722,7 +1121,7 @@ function resolveChannelForMessageId(registry, mid, repoNameHint) {
 
 /* Every #open ask across fleet + every registered repo's channels/. Backs
    both `inbox` (live, filtered by --for) and `sync`'s derived inbox.jsonl /
-   board ⚑ block (unfiltered, then filtered to `andrew` for the board). */
+   board ⚑ block (unfiltered, then filtered to the human for the board). */
 function collectOpenAsks(registry) {
   const rows = [];
   const scan = (channelPath, channelLabel) => {
@@ -798,8 +1197,8 @@ function gitBranchExists(repoPath, branch) {
 }
 
 /* Creates (or, idempotently, reuses) the sibling worktree for a task. Never
-   nests inside the repo — WORKTREES_ROOT lives under ~/Projects/.maestro/,
-   a sibling of every repo under ~/Projects/ (spec §2). Hard-fails rather than
+   nests inside the repo — WORKTREES_ROOT lives under <projects>/.maestro/,
+   a sibling of every repo under <projects>/ (spec §2). Hard-fails rather than
    guessing when the branch/path already exists in an unrecognized state. */
 /* Throws (rather than calling fail()/process.exit) so seedTask can catch a
    setup failure and roll back the claim it just took — see seedTask. */
@@ -879,9 +1278,10 @@ function buildPrompt(taskId, repo, data, body) {
   ].join('\n');
 }
 
+const AGENTS_STUB = "Read PROMPT.md for the current task. Follow this repo's CLAUDE.md for conventions.\n";
+
 function writeAgentsStub(worktreePath) {
-  const content = "Read PROMPT.md for the current task. Follow this repo's CLAUDE.md for conventions.\n";
-  writeFileSync(path.join(worktreePath, 'AGENTS.md'), content);
+  writeFileSync(path.join(worktreePath, 'AGENTS.md'), AGENTS_STUB);
 }
 
 /* Seeds the todos file from the task's Acceptance checkboxes the first time
@@ -913,7 +1313,7 @@ function seedTodosIfEmpty(repo, taskId, body, owner) {
    seeding fails after the claim already succeeded, so a bad repo path or a
    git error doesn't leave the task stuck "claimed" with no way back to `open`
    short of `--steal`. */
-function releaseClaim(repo, taskId, taskPath) {
+function dropClaimFiles(repo, taskId) {
   const locksDir = path.join(repo.path, '.maestro', 'locks');
   try {
     rmSync(path.join(locksDir, `${taskId}.claim.lock`), { recursive: true, force: true });
@@ -925,6 +1325,10 @@ function releaseClaim(repo, taskId, taskPath) {
   } catch {
     /* best-effort */
   }
+}
+
+function releaseClaim(repo, taskId, taskPath) {
+  dropClaimFiles(repo, taskId);
   try {
     setTaskFields(taskPath, { status: 'open', owner: null });
   } catch {
@@ -932,8 +1336,8 @@ function releaseClaim(repo, taskId, taskPath) {
   }
 }
 
-function seedTask(repo, taskId, taskPath, { owner, provider, steal }) {
-  claimTask(repo, taskId, taskPath, { owner, provider, steal });
+function seedTask(repo, taskId, taskPath, { owner, provider, steal, resume, takeover }) {
+  const claimResult = claimTask(repo, taskId, taskPath, { owner, provider, steal, resume, takeover });
 
   try {
     const { data, body } = parseFrontmatter(readFileSync(taskPath, 'utf8'));
@@ -946,7 +1350,11 @@ function seedTask(repo, taskId, taskPath, { owner, provider, steal }) {
 
     return { data, body, worktreePath, branch, created, prompt, todosPath };
   } catch (err) {
-    releaseClaim(repo, taskId, taskPath);
+    // A resumed claim predates this call and may hold real work — never undo it.
+    if (!claimResult.resumed) {
+      releaseClaim(repo, taskId, taskPath);
+      emitTask(repo, taskId, taskPath, { type: 'claim', actor: owner, data: { action: 'release', reason: 'rollback' } });
+    }
     fail(err.message);
     throw err; // unreachable — fail() exits — but keeps control-flow analysis happy
   }
@@ -954,7 +1362,7 @@ function seedTask(repo, taskId, taskPath, { owner, provider, steal }) {
 
 function cmdWork(positional, flags) {
   const taskId = positional[0];
-  if (!taskId) fail('usage: maestro work T-<id> [--repo R] [--owner O] [--steal]');
+  if (!taskId) fail('usage: maestro work T-<id> [--repo R] [--owner O] [--provider P] [--steal] [--resume [--takeover]] [--force]');
 
   const registry = loadRegistry();
   const repo = resolveRepo(registry, flags.repo);
@@ -963,22 +1371,38 @@ function cmdWork(positional, flags) {
   const taskPath = findTaskFile(repo.path, taskId);
   if (!taskPath) fail(`no task ${taskId} found in ${repo.name}`);
 
-  const owner = typeof flags.owner === 'string' ? flags.owner : `${os.userInfo().username}@claude`;
+  const provider = resolveProvider(flags);
+  const owner = typeof flags.owner === 'string' ? flags.owner : defaultActor(provider);
   const steal = !!flags.steal;
+  const resume = !!flags.resume;
+
+  const resumingOwn = resume && readClaim(repo, taskId)?.owner === owner;
+  const forced = resumingOwn ? null : enforceReady(registry, repo, taskId, flags, 'work');
 
   const { worktreePath, branch, created, prompt, todosPath } = seedTask(repo, taskId, taskPath, {
     owner,
-    provider: 'claude',
+    provider,
     steal,
+    resume,
+    takeover: !!flags.takeover,
   });
+  if (forced) noteForced(repo, taskId, taskPath, owner, forced, 'work');
 
+  const fromStatus = parseFrontmatter(readFileSync(taskPath, 'utf8')).data.status ?? 'claimed';
   setTaskFields(taskPath, { status: 'in-progress', worktree: worktreePath, branch });
   refreshHeartbeat(repo, taskId);
+  if (fromStatus !== 'in-progress') {
+    emitTask(repo, taskId, taskPath, {
+      type: 'state',
+      actor: owner,
+      data: { from: fromStatus, to: 'in-progress', worktree: worktreePath },
+    });
+  }
 
   console.log(`${created ? 'Created' : 'Reused'} worktree for ${taskId}: ${worktreePath}`);
   console.log(`Branch: ${branch}`);
   console.log(`Todos: ${todosPath}`);
-  console.log(`Status: in-progress (owner ${owner})`);
+  console.log(`Status: in-progress (owner ${owner}, session ${currentSession()})`);
   console.log('');
   console.log('--- PROMPT.md ---');
   console.log(prompt);
@@ -987,7 +1411,7 @@ function cmdWork(positional, flags) {
 function cmdRoute(positional, flags) {
   const taskId = positional[0];
   const provider = positional[1];
-  if (!taskId || !provider) fail('usage: maestro route T-<id> <provider> [--repo R]');
+  if (!taskId || !provider) fail('usage: maestro route T-<id> <provider> [--repo R] [--steal] [--force]');
   if (!ADAPTERS[provider]) fail(`unknown provider '${provider}'. Known: ${Object.keys(ADAPTERS).join(', ')}`);
 
   const registry = loadRegistry();
@@ -997,10 +1421,12 @@ function cmdRoute(positional, flags) {
   const taskPath = findTaskFile(repo.path, taskId);
   if (!taskPath) fail(`no task ${taskId} found in ${repo.name}`);
 
-  const owner = `${provider}@route`;
+  const owner = defaultActor(provider);
   const steal = !!flags.steal;
 
+  const forced = enforceReady(registry, repo, taskId, flags, 'route');
   const { worktreePath, branch, created } = seedTask(repo, taskId, taskPath, { owner, provider, steal });
+  if (forced) noteForced(repo, taskId, taskPath, owner, forced, 'route');
 
   setTaskFields(taskPath, { worktree: worktreePath, branch });
 
@@ -1014,20 +1440,20 @@ function cmdRoute(positional, flags) {
   } else if (provider === 'codex') {
     // §7: v1 dispatch is human-in-the-loop. This CLI cannot invoke a Claude
     // skill (/handoff) itself, so it prepares state and prints the steps —
-    // the calling skill (or Andrew) runs /handoff and records the result
+    // the calling skill (or the human) runs /handoff and records the result
     // with `maestro set --issue`.
     console.log("Codex hand-off is two steps — this CLI can't invoke the /handoff skill itself:");
     console.log(`  1. Run /handoff ${taskId} to create the GitHub issue, then record it:`);
     console.log(`     node maestro.mjs set ${taskId} --repo "${repo.name}" --issue gh#<n>`);
     console.log('  2. Launch string (references the issue created above):');
-    console.log(`     cd "${worktreePath}" && codex`);
+    console.log(`     cd "${worktreePath}" && MAESTRO_PROVIDER=codex codex`);
   } else if (provider === 'cursor') {
     const adapter = ADAPTERS.cursor;
     const advisory = binaryAdvisory(adapter.bin);
     if (advisory) console.log(advisory);
     console.log('Launch string (brief piped via stdin — a long PROMPT.md can exceed CLI arg limits):');
     console.log(
-      `  cd "${worktreePath}" && cat PROMPT.md | ${adapter.bin} ${adapter.prompt_flag} "Execute the attached task brief" ${adapter.force_flag} --output-format json`
+      `  cd "${worktreePath}" && cat PROMPT.md | MAESTRO_PROVIDER=cursor ${adapter.bin} ${adapter.prompt_flag} "Execute the attached task brief" ${adapter.force_flag} --output-format json`
     );
   } else if (provider === 'grok') {
     const adapter = ADAPTERS.grok;
@@ -1037,39 +1463,86 @@ function cmdRoute(positional, flags) {
       "Launch string (brief piped via stdin; --cwd points at our own pre-seeded worktree — never grok's own -w worktree creation, which would double-nest):"
     );
     console.log(
-      `  cd "${worktreePath}" && cat PROMPT.md | ${adapter.bin} ${adapter.prompt_flag} "Execute the attached task brief" ${adapter.folder_flag} . ${adapter.force_flag}`
+      `  cd "${worktreePath}" && cat PROMPT.md | MAESTRO_PROVIDER=grok ${adapter.bin} ${adapter.prompt_flag} "Execute the attached task brief" ${adapter.folder_flag} . ${adapter.force_flag}`
     );
   }
 }
 
+/* `set` flag tables. Scalars named in SET_NULLABLE accept `none` to clear;
+   list flags take a comma-separated value (`none` or empty clears). */
+const SET_SCALAR_FLAGS = {
+  issue: 'issue',
+  status: 'status',
+  owner: 'owner',
+  branch: 'branch',
+  worktree: 'worktree',
+  client: 'client',
+  project: 'project',
+  deadline: 'deadline',
+  wu: 'wu',
+  'blocked-reason': 'blocked_reason',
+};
+const SET_NULLABLE = new Set(['client', 'project', 'deadline', 'wu', 'blocked_reason']);
+const SET_NUMBER_FLAGS = { priority: 'priority', 'budget-minutes': 'budget_minutes', 'budget-usd': 'budget_usd' };
+const SET_LIST_FLAGS = { scope: 'scope', uses: 'uses', 'blocked-by': 'blocked_by', 'depends-on': 'depends_on' };
+
+function parseListFlag(value) {
+  if (value === true || value === 'none') return [];
+  return String(value)
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function cmdSet(positional, flags) {
-  const taskId = positional[0];
-  if (!taskId) {
-    fail('usage: maestro set T-<id> [--issue X] [--status S] [--owner O] [--priority N] [--repo R]');
+  const taskArg = positional[0];
+  if (!taskArg) {
+    fail(
+      'usage: maestro set T-<id> [--issue X] [--status S] [--owner O] [--priority N] [--branch B] [--worktree W] ' +
+        '[--client C] [--project P] [--deadline D] [--wu W] [--scope a,b] [--uses a,b] [--depends-on T-1,T-2] ' +
+        '[--blocked-by x,y] [--blocked-reason "…"] [--budget-minutes N] [--budget-usd N] [--repo R]'
+    );
   }
 
   const registry = loadRegistry();
-  const repo = resolveRepo(registry, flags.repo);
-  const taskPath = findTaskFile(repo.path, taskId);
-  if (!taskPath) fail(`no task ${taskId} found in ${repo.name}`);
+  const { repo, taskId, taskPath } = resolveTask(registry, taskArg, flags.repo);
 
   const patch = {};
-  if (typeof flags.issue === 'string') patch.issue = flags.issue;
-  if (typeof flags.status === 'string') patch.status = flags.status;
-  if (typeof flags.owner === 'string') patch.owner = flags.owner;
-  if (typeof flags.branch === 'string') patch.branch = flags.branch;
-  if (typeof flags.worktree === 'string') patch.worktree = flags.worktree;
-  if (flags.priority !== undefined) patch.priority = Number(flags.priority);
+  for (const [flag, key] of Object.entries(SET_SCALAR_FLAGS)) {
+    if (typeof flags[flag] !== 'string') continue;
+    patch[key] = SET_NULLABLE.has(key) ? (flags[flag] === 'none' ? null : sanitizeScalar(flags[flag])) : flags[flag];
+  }
+  for (const [flag, key] of Object.entries(SET_NUMBER_FLAGS)) {
+    if (flags[flag] !== undefined) patch[key] = Number(flags[flag]);
+  }
+  for (const [flag, key] of Object.entries(SET_LIST_FLAGS)) {
+    if (flags[flag] !== undefined) patch[key] = parseListFlag(flags[flag]);
+  }
 
   if (!Object.keys(patch).length) {
-    fail('nothing to set — pass at least one of --issue/--status/--owner/--priority/--branch/--worktree');
+    fail('nothing to set — pass at least one field flag (see usage: maestro set)');
+  }
+
+  const before = parseFrontmatter(readFileSync(taskPath, 'utf8')).data;
+  // Leaving `blocked` clears the blocker unless this same call sets one explicitly.
+  if (before.status === 'blocked' && patch.status !== undefined && patch.status !== 'blocked' && !('blocked_by' in patch)) {
+    patch.blocked_by = [];
+    patch.blocked_reason = null;
   }
 
   setTaskFields(taskPath, patch);
   const summary = Object.entries(patch)
-    .map(([k, v]) => `${k}=${v}`)
+    .map(([k, v]) => `${k}=${Array.isArray(v) ? `[${v.join(', ')}]` : v}`)
     .join(', ');
   console.log(`Updated ${taskId} (${repo.name}): ${summary}`);
+
+  if (patch.status !== undefined && patch.status !== before.status) {
+    emitTask(repo, taskId, taskPath, {
+      type: 'state',
+      actor: defaultActor(),
+      data: { from: before.status ?? null, to: patch.status, ...(patch.blocked_by?.length ? { blocked_by: patch.blocked_by } : {}) },
+    });
+  }
 }
 
 /* ---- L2 comms commands (maestro-comms-spec.md §4) --------------------------- */
@@ -1093,13 +1566,15 @@ function channelLabelFor(repo, target) {
 function cmdSay(positional, flags) {
   const targetArg = positional[0];
   const text = positional[1];
-  if (!targetArg || !text) fail('usage: maestro say <T-id|fleet> "text" [--repo R]');
+  if (!targetArg || !text) fail('usage: maestro say <T-id|fleet> "text" [--repo R]   (text starting with "-" goes after --)');
+  checkText(text, 'say text');
 
   const registry = loadRegistry();
   const { repo, target } = resolveChannelTarget(registry, targetArg, flags.repo);
 
-  const { mid } = postMessage(repo, target, { kind: 'say', text });
+  const { mid, author } = postMessage(repo, target, { kind: 'say', text });
   if (repo) refreshHeartbeat(repo, target);
+  emitMessage({ repo, target, kind: 'say', mid, author });
   console.log(`Posted ${mid} to ${channelLabelFor(repo, target)}`);
 }
 
@@ -1132,21 +1607,24 @@ function cmdRead(positional, flags) {
 function cmdAsk(positional, flags) {
   const targetArg = positional[0];
   const text = positional[1];
-  if (!targetArg || !text) fail('usage: maestro ask <T-id|fleet> "question" [--to who] [--repo R]');
+  if (!targetArg || !text) fail('usage: maestro ask <T-id|fleet> "question" [--to who] [--repo R]   (text starting with "-" goes after --)');
+  checkText(text, 'ask text');
 
   const registry = loadRegistry();
   const { repo, target } = resolveChannelTarget(registry, targetArg, flags.repo);
 
-  const targetAddr = typeof flags.to === 'string' ? flags.to : '@andrew';
-  const { mid } = postMessage(repo, target, { kind: 'ask', text, targetAddr, tag: 'open' });
+  const targetAddr = typeof flags.to === 'string' ? flags.to : `@${HUMAN}`;
+  const { mid, author } = postMessage(repo, target, { kind: 'ask', text, targetAddr, tag: 'open' });
   if (repo) refreshHeartbeat(repo, target);
+  emitMessage({ repo, target, kind: 'ask', mid, author, to: targetAddr, tag: 'open' });
   console.log(mid);
 }
 
 function cmdAnswer(positional, flags) {
   const mid = positional[0];
   const text = positional[1];
-  if (!mid || !text) fail('usage: maestro answer <M-id> "text" [--repo R]');
+  if (!mid || !text) fail('usage: maestro answer <M-id> "text" [--repo R]   (text starting with "-" goes after --)');
+  checkText(text, 'answer text');
 
   const registry = loadRegistry();
   const { repo, target, channelPath } = resolveChannelForMessageId(registry, mid, flags.repo);
@@ -1188,7 +1666,7 @@ function cmdAnswer(positional, flags) {
     const seq = nextMessageSeq(channelPath, base);
     answerMid = `M-${base}-${seq}`;
     const ts = isoSeconds(new Date());
-    const answerLine = formatMessageLine({ ts, mid: answerMid, author: 'andrew', kind: 'answer', target: askAuthor, reId: mid, text });
+    const answerLine = formatMessageLine({ ts, mid: answerMid, author: HUMAN, kind: 'answer', target: askAuthor, reId: mid, text });
 
     // The one sanctioned in-place edit (comms spec §5): flip this ask's
     // #open -> #resolved, under the same lock as the append below.
@@ -1203,12 +1681,13 @@ function cmdAnswer(positional, flags) {
   }
   releaseChannelLock(lockDir);
 
+  emitMessage({ repo, target, kind: 'answer', mid: answerMid, author: HUMAN, to: askAuthor, tag: null, reId: mid });
   console.log(`Posted ${answerMid} (answer→${askAuthor} re:${mid}) to ${channelLabelFor(repo, target)} — ${mid} now #resolved`);
 }
 
 function cmdInbox(positional, flags) {
   const registry = loadRegistry();
-  const forWho = normalizeWho(typeof flags.for === 'string' ? flags.for : 'andrew');
+  const forWho = normalizeWho(typeof flags.for === 'string' ? flags.for : HUMAN);
 
   const rows = collectOpenAsks(registry).filter((r) => normalizeWho(r.target) === forWho);
 
@@ -1233,12 +1712,14 @@ function cmdHandoff(positional, flags) {
   if (!targetArg || !text || typeof flags.to !== 'string' || !flags.to) {
     fail('usage: maestro handoff <T-id|fleet> --to <who> "text" [--repo R]');
   }
+  checkText(text, 'handoff text');
 
   const registry = loadRegistry();
   const { repo, target } = resolveChannelTarget(registry, targetArg, flags.repo);
 
-  const { mid } = postMessage(repo, target, { kind: 'handoff', text, targetAddr: flags.to });
+  const { mid, author } = postMessage(repo, target, { kind: 'handoff', text, targetAddr: flags.to });
   if (repo) refreshHeartbeat(repo, target);
+  emitMessage({ repo, target, kind: 'handoff', mid, author, to: flags.to });
   console.log(`Posted ${mid} (handoff→${flags.to}) to ${channelLabelFor(repo, target)}`);
 }
 
@@ -1268,8 +1749,13 @@ function countTodos(todosPath) {
   return { done: checked.length, total: checked.length + unchecked.length };
 }
 
-function cmdSync() {
-  const registry = loadRegistry();
+const nz = (v) => (v === undefined || v === '' ? null : v);
+
+/* Walks every registered repo's tasks into row objects (frontmatter + claim +
+   todos + channel facts). `quiet` suppresses per-file warnings for callers that
+   aren't the sync itself (the claim gate). */
+function loadTaskRows(registry, { quiet = false } = {}) {
+  const note = quiet ? () => {} : warn;
   const rows = [];
 
   for (const repo of registry.repos) {
@@ -1280,7 +1766,7 @@ function cmdSync() {
     try {
       files = readdirSync(tasksDir).filter((f) => f.endsWith('.md'));
     } catch (e) {
-      warn(`cannot read tasks dir for ${repo.name}: ${e.message}`);
+      note(`cannot read tasks dir for ${repo.name}: ${e.message}`);
       continue;
     }
 
@@ -1288,15 +1774,14 @@ function cmdSync() {
 
     for (const file of files) {
       const full = path.join(tasksDir, file);
-      let data, body;
+      let data;
       try {
-        ({ data, body } = parseFrontmatter(readFileSync(full, 'utf8')));
+        ({ data } = parseFrontmatter(readFileSync(full, 'utf8')));
         if (!data.id) throw new Error('missing id field');
       } catch (e) {
-        warn(`skipping malformed task file ${full}: ${e.message}`);
+        note(`skipping malformed task file ${full}: ${e.message}`);
         continue;
       }
-      void body;
 
       const id = data.id;
       const { done, total } = countTodos(path.join(repo.path, '.maestro', 'todos', `${id}.todos.md`));
@@ -1311,7 +1796,7 @@ function cmdSync() {
           const ttlMs = (claim.ttl_seconds ?? DEFAULT_TTL_SECONDS) * 1000;
           stale = Date.now() - Date.parse(claim.heartbeat) > ttlMs;
         } catch (e) {
-          warn(`unreadable claim file ${claimPath}: ${e.message}`);
+          note(`unreadable claim file ${claimPath}: ${e.message}`);
         }
       }
 
@@ -1319,6 +1804,7 @@ function cmdSync() {
 
       rows.push({
         repoName: repo.name,
+        taskId: id,
         globalId: `${repo.name}/${id}`,
         title: data.title ?? '(untitled)',
         status: data.status ?? 'open',
@@ -1329,8 +1815,142 @@ function cmdSync() {
         updated: data.updated ?? '',
         hasWorktree: Boolean(data.branch && worktreeBranches.has(data.branch)),
         needsHuman,
+        client: clientFor(repo.name, data),
+        project: nz(data.project),
+        deadline: nz(data.deadline),
+        wu: nz(data.wu),
+        scope: asList(data.scope),
+        uses: asList(data.uses),
+        dependsOn: asList(data.depends_on),
+        blockedBy: asList(data.blocked_by),
+        blockedReason: nz(data.blocked_reason),
+        budgetMinutes: nz(data.budget_minutes),
+        budgetUsd: nz(data.budget_usd),
       });
     }
+  }
+  return rows;
+}
+
+/* `T-3` -> `<repo>/T-3`; a value already containing `/` is a global id. */
+function normalizeTaskRef(ref, repoName) {
+  const s = String(ref).trim();
+  if (!s) return null;
+  return s.includes('/') ? s : `${repoName}/${s}`;
+}
+
+/* Display form: drop the row's own repo prefix. */
+function displayRef(ref, repoName) {
+  return String(ref).startsWith(`${repoName}/`) ? String(ref).slice(repoName.length + 1) : String(ref);
+}
+
+const TASK_REF_RE = /^(?:.+\/)?T-\d+$/;
+
+/* Strongly-connected components of the depends_on graph that are real cycles
+   (size > 1, or a task depending on itself). Tarjan; the graph is tiny. */
+function findDependencyCycles(rows, byId) {
+  let counter = 0;
+  const stack = [];
+  const onStack = new Set();
+  const index = new Map();
+  const low = new Map();
+  const cycles = [];
+
+  function visit(v) {
+    index.set(v, counter);
+    low.set(v, counter);
+    counter++;
+    stack.push(v);
+    onStack.add(v);
+    for (const w of byId.get(v).dependsOn) {
+      if (!byId.has(w)) continue;
+      if (!index.has(w)) {
+        visit(w);
+        low.set(v, Math.min(low.get(v), low.get(w)));
+      } else if (onStack.has(w)) {
+        low.set(v, Math.min(low.get(v), index.get(w)));
+      }
+    }
+    if (low.get(v) === index.get(v)) {
+      const component = [];
+      let w;
+      do {
+        w = stack.pop();
+        onStack.delete(w);
+        component.push(w);
+      } while (w !== v);
+      if (component.length > 1 || byId.get(v).dependsOn.includes(v)) cycles.push(component.reverse());
+    }
+  }
+
+  for (const r of rows) if (!index.has(r.globalId)) visit(r.globalId);
+  return cycles;
+}
+
+/* Readiness (spec §14.2). Mutates rows: normalizes dependsOn to global ids and
+   sets `waitingOn` + `ready`.
+     waitingOn = depends_on entries not (yet) done  +  blocked_by entries
+                 (a blocked_by that names a done task counts as resolved)
+     ready     = status is `open` AND waitingOn is empty
+   A task in a dependency cycle is never ready and waits on ['cycle'].
+   Returns { cycles, missing }: the cycles found (arrays of global ids) and a
+   Map of depends_on targets that name no known task -> the tasks naming them,
+   so the caller can warn once. */
+function annotateReadiness(rows) {
+  const byId = new Map(rows.map((r) => [r.globalId, r]));
+  for (const r of rows) r.dependsOn = r.dependsOn.map((d) => normalizeTaskRef(d, r.repoName)).filter(Boolean);
+
+  const cycles = findDependencyCycles(rows, byId);
+  const cyclic = new Set(cycles.flat());
+  const missing = new Map();
+  for (const r of rows) {
+    for (const dep of r.dependsOn) {
+      if (!byId.has(dep)) missing.set(dep, [...(missing.get(dep) ?? []), r.globalId]);
+    }
+  }
+
+  for (const r of rows) {
+    if (r.status === 'done') {
+      r.waitingOn = [];
+      r.ready = false;
+      continue;
+    }
+    if (cyclic.has(r.globalId)) {
+      r.waitingOn = ['cycle'];
+      r.ready = false;
+      continue;
+    }
+    const waiting = [];
+    for (const dep of r.dependsOn) {
+      if (byId.get(dep)?.status !== 'done') waiting.push(dep);
+    }
+    for (const b of r.blockedBy) {
+      const ref = String(b).trim();
+      if (!ref) continue;
+      if (TASK_REF_RE.test(ref)) {
+        const global = normalizeTaskRef(ref, r.repoName);
+        if (byId.get(global)?.status === 'done') continue;
+        waiting.push(global);
+      } else {
+        waiting.push(ref);
+      }
+    }
+    r.waitingOn = waiting;
+    r.ready = r.status === 'open' && waiting.length === 0;
+  }
+  return { cycles, missing };
+}
+
+function cmdSync() {
+  const registry = loadRegistry();
+  const rows = loadTaskRows(registry);
+  const { cycles, missing } = annotateReadiness(rows);
+  for (const cycle of cycles) {
+    warn(`dependency cycle: ${[...cycle, cycle[0]].join(' -> ')} (these tasks are not ready)`);
+  }
+  if (missing.size) {
+    const list = [...missing].map(([dep, by]) => `${dep} (named by ${by.join(', ')})`).join('; ');
+    warn(`depends_on names ${missing.size} task(s) that do not exist — they never resolve: ${list}`);
   }
 
   const indexLines = rows.map((r) =>
@@ -1344,16 +1964,29 @@ function cmdSync() {
       priority: r.priority,
       updated: r.updated,
       needs_human: r.needsHuman,
+      client: r.client,
+      project: r.project,
+      deadline: r.deadline,
+      wu: r.wu,
+      scope: r.scope,
+      uses: r.uses,
+      depends_on: r.dependsOn,
+      blocked_by: r.blockedBy,
+      blocked_reason: r.blockedReason,
+      budget_minutes: r.budgetMinutes,
+      budget_usd: r.budgetUsd,
+      ready: r.ready,
+      waiting_on: r.waitingOn,
     })
   );
   mkdirSync(GLOBAL_DIR, { recursive: true });
   writeFileSync(INDEX_PATH, indexLines.length ? `${indexLines.join('\n')}\n` : '');
 
   // Derived comms projections (comms spec §2, §7) — inbox.jsonl (every open
-  // ask, any target) and the board's ⚑ block (just the ones for @andrew).
+  // ask, any target) and the board's ⚑ block (just the ones for the human).
   const openAsks = collectOpenAsks(registry);
   writeFileSync(INBOX_PATH, openAsks.length ? `${openAsks.map((a) => JSON.stringify(a)).join('\n')}\n` : '');
-  const needsYou = openAsks.filter((a) => normalizeWho(a.target) === 'andrew');
+  const needsYou = openAsks.filter((a) => normalizeWho(a.target) === normalizeWho(HUMAN));
 
   writeFileSync(BOARD_PATH, renderBoard(rows, needsYou));
 
@@ -1369,7 +2002,7 @@ function cmdSync() {
 function countNeedsHuman(channelPath) {
   let n = 0;
   for (const m of readChannelMessages(channelPath)) {
-    if (m.kind === 'ask' && m.tag === 'open' && normalizeWho(m.target) === 'andrew') n++;
+    if (m.kind === 'ask' && m.tag === 'open' && normalizeWho(m.target) === normalizeWho(HUMAN)) n++;
   }
   return n;
 }
@@ -1382,6 +2015,7 @@ function renderBoard(rows, needsYou = []) {
   }
 
   const staleCount = rows.filter((r) => r.stale).length;
+  const readyCount = rows.filter((r) => r.ready).length;
   const lines = [
     '# Maestro Board',
     '',
@@ -1400,7 +2034,10 @@ function renderBoard(rows, needsYou = []) {
     lines.push('');
   }
 
-  lines.push(`${rows.length} task(s) tracked${staleCount ? ` · ${staleCount} STALE claim(s)` : ''}`, '');
+  lines.push(
+    `${rows.length} task(s) tracked · ${readyCount} ready${staleCount ? ` · ${staleCount} STALE claim(s)` : ''}`,
+    ''
+  );
 
   for (const [status, list] of groups) {
     lines.push(`## ${status} (${list.length})`);
@@ -1409,12 +2046,13 @@ function renderBoard(rows, needsYou = []) {
       lines.push('_none_', '');
       continue;
     }
-    lines.push('| id | title | owner | progress | priority | updated |');
-    lines.push('|---|---|---|---|---|---|');
+    lines.push('| id | title | owner | progress | priority | updated | waiting on |');
+    lines.push('|---|---|---|---|---|---|---|');
     for (const r of [...list].sort((a, b) => a.priority - b.priority)) {
       const ownerCell = r.owner ? (r.stale ? `${r.owner} ⚠ STALE` : r.owner) : '—';
       const idCell = r.needsHuman ? `${r.globalId} ⚑` : r.globalId;
-      lines.push(`| ${idCell} | ${r.title} | ${ownerCell} | ${r.progress} | ${r.priority} | ${r.updated} |`);
+      const waitCell = r.waitingOn?.length ? r.waitingOn.map((w) => displayRef(w, r.repoName)).join(', ') : '—';
+      lines.push(`| ${idCell} | ${r.title} | ${ownerCell} | ${r.progress} | ${r.priority} | ${r.updated} | ${waitCell} |`);
     }
     lines.push('');
   }
@@ -1429,6 +2067,626 @@ function cmdBoard(flags) {
     return;
   }
   console.log(readFileSync(BOARD_PATH, 'utf8'));
+}
+
+/* ---- Agent Ops P1a verbs: release / block / done / reap (spec §14) ---------------- */
+
+/* Every git call below may run inside a directory an agent could have shaped
+   (a task worktree), so repo-config-driven execution hooks are switched off. */
+const GIT_HARDENING = [
+  '-c', 'core.fsmonitor=false',
+  '-c', 'safe.bareRepository=explicit',
+  '-c', 'core.hooksPath=/dev/null',
+  '-c', 'diff.external=',
+  '-c', 'submodule.recurse=false',
+];
+
+function gitOut(cwd, args) {
+  return execFileSync('git', [...GIT_HARDENING, '-C', cwd, ...args], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1' },
+  });
+}
+
+/* The `worktree:` / `branch:` frontmatter values are plain text anyone (or any
+   agent) can edit, and `done`/`reap` act on them destructively — so nothing
+   destructive is ever driven by `worktree:`. The worktree to inspect or remove
+   is DERIVED FROM GIT: the entry in `git worktree list` whose branch is the
+   task's recorded branch, and only if it sits at the exact path Maestro creates
+   for this task (<projects>/.maestro/worktrees/<repo>/<task>) and is not the
+   main checkout. The recorded `worktree:` value is consulted only to warn when
+   it disagrees. Returns the resolved real path, or null. */
+const realPath = (p) => {
+  try {
+    return realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+};
+
+function taskWorktree(repo, taskId, data) {
+  if (!safeBranchName(data.branch)) return null;
+  const expected = realPath(path.join(WORKTREES_ROOT, slugify(repo.name), taskId));
+  const main = realPath(repo.path);
+  for (const w of listGitWorktrees(repo.path)) {
+    if (w.branch !== data.branch) continue;
+    const p = realPath(w.path);
+    if (p !== main && p === expected) return p;
+  }
+  return null;
+}
+
+/* True (with a warning) when the task file records a worktree that exists on
+   disk but is not the one git derived — it is then ignored, never touched. */
+function recordedWorktreeDisagrees(repo, taskId, data, derived) {
+  if (!data.worktree || !existsSync(String(data.worktree))) return false;
+  if (derived && realPath(String(data.worktree)) === derived) return false;
+  warn(`${repo.name}/${taskId}: recorded worktree '${data.worktree}' is not the worktree git has for branch '${data.branch ?? '(none)'}' — ignoring it (never inspected or removed)`);
+  return true;
+}
+
+const headRef = (branch) => `refs/heads/${branch}`;
+
+/* Branch names go straight into git argv; refuse anything option-shaped. */
+function safeBranchName(branch) {
+  return typeof branch === 'string' && /^[A-Za-z0-9_][A-Za-z0-9_./-]*$/.test(branch) && !branch.includes('..');
+}
+
+function gitErr(e) {
+  const text = [e.stderr, e.stdout].map((s) => (s ? s.toString().trim() : '')).filter(Boolean).join(' | ');
+  return text || e.message;
+}
+
+/* The branch finished work lands on: origin/HEAD if the clone has one, else
+   `main`, else `master`. null = can't tell, which callers treat as "unsafe". */
+function defaultBranch(repoPath) {
+  try {
+    const ref = gitOut(repoPath, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).trim();
+    const name = ref.replace(/^origin\//, '');
+    if (name && gitBranchExists(repoPath, name)) return name;
+  } catch {
+    /* no origin/HEAD — fall through */
+  }
+  for (const name of ['main', 'master']) if (gitBranchExists(repoPath, name)) return name;
+  return null;
+}
+
+/* `git status --porcelain` lines that represent real work. The files Maestro
+   seeds itself (an untracked PROMPT.md / AGENTS.md, or an AGENTS.md that still
+   holds the seeded stub) don't count. `ignoreMaestro` skips <repo>/.maestro/ —
+   Maestro's own bookkeeping, which some repos track — when judging the MAIN
+   checkout. */
+function dirtyLines(dir, { untracked = true, ignoreMaestro = false } = {}) {
+  const out = gitOut(dir, ['status', '--porcelain', '--ignore-submodules', untracked ? '--untracked-files=normal' : '--untracked-files=no']);
+  return out
+    .split('\n')
+    .filter(Boolean)
+    .filter((line) => {
+      const file = line.slice(3).replace(/^"|"$/g, '');
+      if (line.startsWith('?? ') && (file === 'PROMPT.md' || file === 'AGENTS.md')) return false;
+      if (file === 'AGENTS.md') {
+        try {
+          if (readFileSync(path.join(dir, 'AGENTS.md'), 'utf8') === AGENTS_STUB) return false;
+        } catch {
+          /* unreadable — counts as dirty */
+        }
+      }
+      if (ignoreMaestro && (file === '.maestro' || file.startsWith('.maestro/'))) return false;
+      return true;
+    });
+}
+
+/* Is anything at risk if this task's claim is dropped? Looks at the recorded
+   worktree (uncommitted changes) and branch (commits beyond the default branch
+   that exist on no remote). Anything it cannot verify is reported as `unknown`,
+   which callers treat as not-clean. */
+function inspectWork(repo, data) {
+  const out = { worktree: data.worktree ?? null, branch: data.branch ?? null, dirty: [], ahead: 0, unpushed: 0, unknown: null };
+  const wt = taskWorktree(repo, data.id ?? '?', data);
+  if (recordedWorktreeDisagrees(repo, data.id ?? '?', data, wt)) {
+    out.unknown = 'recorded worktree is not a Maestro/git worktree of this repo (not inspected)';
+  } else if (wt && existsSync(wt)) {
+    try {
+      out.dirty = dirtyLines(wt);
+    } catch (e) {
+      out.unknown = `cannot inspect worktree: ${gitErr(e)}`;
+    }
+  }
+  if (out.branch && !safeBranchName(out.branch)) {
+    out.unknown = `unsafe branch name '${out.branch}'`;
+  } else if (out.branch && gitBranchExists(repo.path, out.branch)) {
+    const base = defaultBranch(repo.path);
+    if (!base) {
+      out.unknown = 'cannot determine the default branch';
+    } else {
+      try {
+        out.ahead = Number(gitOut(repo.path, ['rev-list', '--count', `${headRef(base)}..${headRef(out.branch)}`]).trim());
+        if (out.ahead > 0) {
+          out.unpushed = Number(gitOut(repo.path, ['rev-list', '--count', `${headRef(base)}..${headRef(out.branch)}`, '--not', '--remotes']).trim());
+        }
+      } catch (e) {
+        out.unknown = `cannot compare branch: ${gitErr(e)}`;
+      }
+    }
+  }
+  return out;
+}
+
+function describeWork(w) {
+  const parts = [];
+  if (w.dirty.length) parts.push(`${w.dirty.length} uncommitted file(s)`);
+  if (w.unpushed) parts.push(`${w.unpushed} unpushed commit(s)`);
+  if (w.unknown) parts.push(w.unknown);
+  return parts.join(', ');
+}
+
+function cmdRelease(positional, flags) {
+  const ref = positional[0];
+  if (!ref) fail('usage: maestro release T-<id> [--repo R]');
+
+  const registry = loadRegistry();
+  const { repo, taskId, taskPath } = resolveTask(registry, ref, flags.repo);
+  const { data } = parseFrontmatter(readFileSync(taskPath, 'utf8'));
+  if (data.status === 'done') fail(`${taskId} is done — nothing to release`);
+
+  const claim = readClaim(repo, taskId);
+  releaseClaim(repo, taskId, taskPath);
+
+  const actor = defaultActor();
+  if (claim) {
+    emitTask(repo, taskId, taskPath, {
+      type: 'claim',
+      actor,
+      data: { action: 'release', prev_owner: claim.owner ?? null, worktree: data.worktree ?? null },
+    });
+  }
+  if ((data.status ?? 'open') !== 'open') {
+    emitTask(repo, taskId, taskPath, { type: 'state', actor, data: { from: data.status, to: 'open' } });
+  }
+  console.log(
+    claim
+      ? `Released ${taskId} (${repo.name}) — claim by ${claim.owner} dropped, status open${data.worktree ? `, worktree kept at ${data.worktree}` : ''}`
+      : `${taskId} (${repo.name}) had no claim — status set to open`
+  );
+}
+
+const BLOCK_BY_RE = /^(?:@[\w.-]+|(?:external|resource):\S+)$/;
+
+function cmdBlock(positional, flags) {
+  const ref = positional[0];
+  const reason = positional[1];
+  if (!ref || typeof flags.by !== 'string' || !reason) {
+    fail('usage: maestro block T-<id> --by <@person|external:x|resource:x|T-id>[,…] "reason" [--repo R]   (a reason starting with "-" goes after --)');
+  }
+  checkText(reason, 'block reason');
+  const blockers = parseListFlag(flags.by);
+  if (!blockers.length) fail('--by needs at least one blocker');
+  for (const b of blockers) {
+    if (!BLOCK_BY_RE.test(b) && !TASK_REF_RE.test(b)) {
+      fail(`bad --by value '${b}' — use @person, external:<who>, resource:<name>, or a task id (T-n or repo/T-n)`);
+    }
+  }
+
+  const registry = loadRegistry();
+  const { repo, taskId, taskPath } = resolveTask(registry, ref, flags.repo);
+  const { data } = parseFrontmatter(readFileSync(taskPath, 'utf8'));
+  if (data.status === 'done') fail(`${taskId} is done — cannot block it`);
+  if (blockers.some((b) => b === taskId || b === `${repo.name}/${taskId}`)) fail(`${taskId} cannot be blocked by itself`);
+
+  const cleanReason = sanitizeScalar(reason);
+  setTaskFields(taskPath, { status: 'blocked', blocked_by: blockers, blocked_reason: cleanReason });
+
+  const actor = defaultActor();
+  emitTask(repo, taskId, taskPath, {
+    type: 'state',
+    actor,
+    data: { from: data.status ?? null, to: 'blocked', blocked_by: blockers },
+  });
+  console.log(`Blocked ${taskId} (${repo.name}) by ${blockers.join(', ')} — ${cleanReason}`);
+
+  // A human blocker also gets a real ask, so it lands in their inbox / on the board.
+  for (const who of blockers.filter((b) => b.startsWith('@'))) {
+    const { mid, author } = postMessage(repo, taskId, { kind: 'ask', text: cleanReason, targetAddr: who, tag: 'open' });
+    if (readClaim(repo, taskId)) refreshHeartbeat(repo, taskId);
+    emitMessage({ repo, target: taskId, kind: 'ask', mid, author, to: who, tag: 'open', taskPath });
+    console.log(`Asked ${who}: ${mid}`);
+  }
+}
+
+const boxLines = (text) =>
+  text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => /^- \[[ xX]\]/.test(l));
+
+/* Where "every Acceptance box is checked" is judged: the live todos file when it
+   has any boxes (workers tick that, not the task file), else the task's own
+   Acceptance section. */
+function acceptanceState(repo, taskId, body) {
+  const todosPath = path.join(repo.path, '.maestro', 'todos', `${taskId}.todos.md`);
+  const todoBoxes = existsSync(todosPath) ? boxLines(readFileSync(todosPath, 'utf8')) : [];
+  if (todoBoxes.length) {
+    const { done, total } = countTodos(todosPath);
+    return { source: 'todos file', total, unchecked: done === total ? [] : todoBoxes.filter((l) => /^- \[ \]/.test(l)) };
+  }
+  const accBoxes = boxLines(extractSection(body, 'Acceptance'));
+  return { source: 'task Acceptance section', total: accBoxes.length, unchecked: accBoxes.filter((l) => /^- \[ \]/.test(l)) };
+}
+
+function openAsksFor(repo, taskId) {
+  return readChannelMessages(path.join(repo.path, '.maestro', 'channels', `${taskId}.md`)).filter(
+    (m) => m.kind === 'ask' && m.tag === 'open'
+  );
+}
+
+/* Merges the task branch into the repo's default branch inside the repo's own
+   checkout. Refuses (state untouched) when that is unsafe: task worktree has
+   uncommitted work, the checkout isn't on the default branch, or it has tracked
+   changes outside .maestro/. A real merge conflict is aborted cleanly and turns
+   into a `blocked` task. Exits non-zero on any failure; returns on success. */
+function mergeTaskBranch(repo, taskId, taskPath, data, actor, worktree) {
+  const branch = data.branch;
+  const base = defaultBranch(repo.path);
+  if (!base) fail(`done refused for ${taskId}: cannot determine ${repo.name}'s default branch — merge by hand, then rerun with --no-merge`);
+
+  if (worktree && existsSync(worktree)) {
+    let dirty;
+    try {
+      dirty = dirtyLines(worktree);
+    } catch (e) {
+      fail(`done refused for ${taskId}: cannot inspect the task worktree (${gitErr(e)})`);
+    }
+    if (dirty.length) {
+      fail(
+        `done refused for ${taskId}: task worktree has ${dirty.length} uncommitted change(s) (${dirty.slice(0, 4).join('; ')}) — commit or discard them first`
+      );
+    }
+  }
+
+  let current = '';
+  try {
+    current = gitOut(repo.path, ['branch', '--show-current']).trim();
+  } catch (e) {
+    fail(`done refused for ${taskId}: ${gitErr(e)}`);
+  }
+  if (current !== base) {
+    fail(
+      `done refused for ${taskId}: ${repo.name}'s checkout is on '${current || 'a detached HEAD'}', not '${base}' — switch it, or merge ${branch} by hand and rerun with --no-merge`
+    );
+  }
+  let dirtyMain;
+  try {
+    dirtyMain = dirtyLines(repo.path, { untracked: false, ignoreMaestro: true });
+  } catch (e) {
+    fail(`done refused for ${taskId}: ${gitErr(e)}`);
+  }
+  if (dirtyMain.length) {
+    fail(
+      `done refused for ${taskId}: ${repo.name}'s '${base}' checkout has uncommitted tracked changes (${dirtyMain.slice(0, 4).join('; ')}) — merging here is unsafe; clean it, or merge ${branch} by hand and rerun with --no-merge`
+    );
+  }
+
+  try {
+    gitOut(repo.path, ['merge', '--no-edit', '-m', `Merge ${branch} (${repo.name}/${taskId})`, headRef(branch)]);
+    return;
+  } catch (e) {
+    const detail = gitErr(e);
+    let conflicts = [];
+    try {
+      conflicts = gitOut(repo.path, ['diff', '--name-only', '--diff-filter=U']).split('\n').filter(Boolean);
+    } catch {
+      /* no conflict list available */
+    }
+    let midMerge = false;
+    try {
+      gitOut(repo.path, ['rev-parse', '-q', '--verify', 'MERGE_HEAD']);
+      midMerge = true;
+    } catch {
+      /* no MERGE_HEAD — the merge never started or already unwound */
+    }
+    if (midMerge) {
+      try {
+        gitOut(repo.path, ['merge', '--abort']);
+      } catch (abortErr) {
+        fail(`merge of ${branch} conflicted and 'git merge --abort' failed (${gitErr(abortErr)}) — ${repo.path} is mid-merge; run 'git merge --abort' there by hand`);
+      }
+    }
+    if (!conflicts.length) fail(`done refused for ${taskId}: merging ${branch} into ${base} failed — ${detail}`);
+
+    const reason = sanitizeScalar(
+      `merge conflict merging ${branch} into ${base} in ${conflicts.length} file(s): ${conflicts.slice(0, 5).join(' ')}${conflicts.length > 5 ? ' …' : ''}`
+    );
+    setTaskFields(taskPath, { status: 'blocked', blocked_by: [`conflict:${base}`], blocked_reason: reason });
+    try {
+      const { mid, author } = postMessage(repo, taskId, { kind: 'say', text: `done aborted — ${reason}`, author: actor });
+      emitMessage({ repo, target: taskId, kind: 'say', mid, author, taskPath });
+    } catch {
+      /* the block itself is the record that matters */
+    }
+    emitTask(repo, taskId, taskPath, { type: 'state', actor, data: { from: 'review', to: 'blocked', blocked_by: [`conflict:${base}`] } });
+    emitTask(repo, taskId, taskPath, { type: 'error', actor, data: { class: 'conflict', message: reason.slice(0, 240) } });
+    fail(
+      `merge conflict — ${taskId} NOT merged (merge aborted, ${repo.name} left clean). Marked blocked (conflict:${base}). Resolve in the task worktree (merge ${base} into ${branch}), then: set ${taskId} --status review && done ${taskId}`
+    );
+  }
+}
+
+function cmdDone(positional, flags) {
+  const ref = positional[0];
+  if (!ref) fail('usage: maestro done T-<id> [--repo R] [--no-merge]');
+
+  const registry = loadRegistry();
+  const { repo, taskId, taskPath } = resolveTask(registry, ref, flags.repo);
+  const { data, body } = parseFrontmatter(readFileSync(taskPath, 'utf8'));
+  const noMerge = !!flags['no-merge'];
+  const actor = defaultActor();
+
+  const problems = [];
+  if (data.status !== 'review') {
+    problems.push(`status is '${data.status ?? 'open'}', not 'review' (a worker ends at review: set ${taskId} --status review)`);
+  }
+  const acc = acceptanceState(repo, taskId, body);
+  if (acc.total === 0) {
+    problems.push('no Acceptance checkboxes recorded anywhere (todos file or task Acceptance section) — nothing to verify against');
+  } else if (acc.unchecked.length) {
+    problems.push(`${acc.unchecked.length} of ${acc.total} Acceptance item(s) unchecked in the ${acc.source}: ${acc.unchecked.slice(0, 3).join(' / ')}`);
+  }
+  const asks = openAsksFor(repo, taskId);
+  if (asks.length) problems.push(`${asks.length} open ask(s) on the task channel: ${asks.map((a) => a.mid).join(', ')} (answer them first)`);
+  if (problems.length) fail(`done refused for ${taskId}:\n  - ${problems.join('\n  - ')}`);
+
+  let merged = false;
+  let tornDown = false;
+  let branchDeleted = false;
+  if (!noMerge) {
+    if (data.branch && !safeBranchName(data.branch)) {
+      fail(`done refused for ${taskId}: recorded branch '${data.branch}' is not a plain branch name`);
+    }
+    if (data.branch && !data.branch.startsWith(`maestro/${taskId}-`)) {
+      fail(`done refused for ${taskId}: recorded branch '${data.branch}' is not this task's maestro/${taskId}-* branch — merge it by hand and use --no-merge`);
+    }
+    // Destructive steps act on the worktree git derives for this branch, never on `worktree:`.
+    const worktree = taskWorktree(repo, taskId, data);
+    recordedWorktreeDisagrees(repo, taskId, data, worktree);
+    if (!data.branch || !gitBranchExists(repo.path, data.branch)) {
+      console.log(`note: ${taskId} has no task branch to merge (branch: ${data.branch ?? 'unset'}) — marking done without a merge`);
+    } else {
+      mergeTaskBranch(repo, taskId, taskPath, data, actor, worktree);
+      merged = true;
+      if (worktree && existsSync(worktree)) {
+        try {
+          gitOut(repo.path, ['worktree', 'remove', '--force', worktree]);
+          tornDown = true;
+        } catch (e) {
+          warn(`merged, but 'git worktree remove' failed for ${worktree}: ${gitErr(e)} — remove it by hand`);
+        }
+      } else {
+        try {
+          gitOut(repo.path, ['worktree', 'prune']);
+        } catch {
+          /* best-effort */
+        }
+      }
+      try {
+        gitOut(repo.path, ['branch', '-d', '--', data.branch]);
+        branchDeleted = true;
+      } catch (e) {
+        warn(`merged, but could not delete branch ${data.branch}: ${gitErr(e)}`);
+      }
+    }
+  }
+
+  const claim = readClaim(repo, taskId);
+  dropClaimFiles(repo, taskId);
+  const patch = { status: 'done' };
+  if (tornDown) patch.worktree = null;
+  if (asList(data.blocked_by).length) {
+    patch.blocked_by = [];
+    patch.blocked_reason = null;
+  }
+  setTaskFields(taskPath, patch);
+
+  emitTask(repo, taskId, taskPath, { type: 'state', actor, data: { from: 'review', to: 'done', merged, branch: data.branch ?? null } });
+  if (claim) {
+    emitTask(repo, taskId, taskPath, { type: 'claim', actor, data: { action: 'release', reason: 'done', prev_owner: claim.owner ?? null } });
+  }
+
+  console.log(`Done ${taskId} (${repo.name}).`);
+  if (noMerge) console.log(`  --no-merge: branch ${data.branch ?? '(none)'} and worktree ${data.worktree ?? '(none)'} left as they were; claim released.`);
+  else if (merged) {
+    console.log(
+      `  merged ${data.branch} into the default branch${tornDown ? ', worktree removed' : ', worktree NOT removed'}${branchDeleted ? ', branch deleted' : ', branch NOT deleted'}; claim released.`
+    );
+  }
+  else console.log('  claim released.');
+}
+
+/* Has the claim's session written an event file lately? events.mjs names its
+   files <actor>-<token>.jsonl, where token is the first 8 chars of the session,
+   lowercased (it exports sessionFileToken(); the same rule is the fallback here).
+   Only claims that recorded a session can be checked. */
+function sessionFileToken(session) {
+  try {
+    const t = eventsModule?.sessionFileToken?.(session);
+    if (typeof t === 'string' && t) return t;
+  } catch {
+    /* fall back to the documented rule */
+  }
+  return String(session).slice(0, 8).toLowerCase();
+}
+
+function hasRecentEvents(claim, windowMs) {
+  if (!claim.session) return false;
+  const suffix = `-${sessionFileToken(claim.session)}.jsonl`;
+  let days;
+  try {
+    days = readdirSync(EVENTS_DIR).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().slice(-2);
+  } catch {
+    return false;
+  }
+  for (const day of days) {
+    let files;
+    try {
+      files = readdirSync(path.join(EVENTS_DIR, day));
+    } catch {
+      continue;
+    }
+    for (const f of files) {
+      if (!f.endsWith(suffix)) continue;
+      try {
+        if (Date.now() - statSync(path.join(EVENTS_DIR, day, f)).mtimeMs < windowMs) return true;
+      } catch {
+        /* vanished between readdir and stat */
+      }
+    }
+  }
+  return false;
+}
+
+function cmdReap(positional, flags) {
+  const dryRun = !!flags['dry-run'];
+  const registry = loadRegistry();
+  const started = Date.now();
+  const actor = `reaper@${SHORT_HOST}`;
+  const stats = { scanned: 0, live: 0, stale: 0, active: 0, errors: 0 };
+  const released = [];
+  const needsYou = [];
+
+  for (const repo of registry.repos) {
+    const locksDir = path.join(repo.path, '.maestro', 'locks');
+    if (!existsSync(locksDir)) continue;
+    let files;
+    try {
+      files = readdirSync(locksDir).filter((f) => f.endsWith('.claim.json'));
+    } catch (e) {
+      warn(`cannot read locks dir for ${repo.name}: ${e.message}`);
+      stats.errors++;
+      continue;
+    }
+    for (const file of files) {
+      const taskId = file.replace(/\.claim\.json$/, '');
+      const globalId = `${repo.name}/${taskId}`;
+      try {
+        stats.scanned++;
+        const claim = JSON.parse(readFileSync(path.join(locksDir, file), 'utf8'));
+        const ttlMs = (claim.ttl_seconds ?? DEFAULT_TTL_SECONDS) * 1000;
+        const heartbeatMs = Date.parse(claim.heartbeat);
+        const age = Number.isNaN(heartbeatMs) ? Infinity : Date.now() - heartbeatMs;
+        if (age <= ttlMs) {
+          stats.live++;
+          continue;
+        }
+        if (age <= 2 * ttlMs) {
+          stats.stale++; // STALE on the board already; the reaper waits for 2×TTL
+          continue;
+        }
+        const taskPath = findTaskFile(repo.path, taskId);
+        if (!taskPath) {
+          warn(`${globalId}: claim file with no task file — leaving it`);
+          stats.errors++;
+          continue;
+        }
+        if (hasRecentEvents(claim, 2 * ttlMs)) {
+          stats.active++;
+          continue;
+        }
+        const { data } = parseFrontmatter(readFileSync(taskPath, 'utf8'));
+        const ageMin = Number.isFinite(age) ? Math.round(age / 60000) : null;
+        const work = inspectWork(repo, data);
+        const risk = describeWork(work);
+        if (risk) {
+          needsYou.push({ id: globalId, owner: claim.owner ?? null, status: data.status ?? null, since: Number.isNaN(heartbeatMs) ? null : isoSeconds(new Date(heartbeatMs)), age_min: ageMin, worktree: work.worktree, branch: work.branch, reason: risk });
+          continue;
+        }
+        released.push({ id: globalId, owner: claim.owner ?? null, age_min: ageMin });
+        if (dryRun) continue;
+        dropClaimFiles(repo, taskId);
+        const patch = { owner: null };
+        if (data.status === 'claimed' || data.status === 'in-progress') patch.status = 'open';
+        setTaskFields(taskPath, patch);
+        try {
+          postMessage(null, 'fleet', { kind: 'say', text: `reaped ${globalId} from ${claim.owner ?? 'unknown'}`, author: actor });
+        } catch (e) {
+          warn(`could not post the reap notice for ${globalId}: ${e.message}`);
+        }
+        emitTask(repo, taskId, taskPath, {
+          type: 'claim',
+          actor,
+          data: { action: 'release', reason: 'reaped', prev_owner: claim.owner ?? null, age_min: ageMin },
+        });
+      } catch (e) {
+        stats.errors++;
+        warn(`${globalId}: reap failed — ${e.message}`);
+      }
+    }
+  }
+
+  const verb = dryRun ? 'would release' : 'released';
+  console.log(
+    `reap${dryRun ? ' [dry-run]' : ''}: ${stats.scanned} claim(s) — ${stats.live} live, ${stats.stale} stale (under 2×TTL), ${stats.active} with recent events, ${released.length} ${verb}, ${needsYou.length} need you${stats.errors ? `, ${stats.errors} error(s)` : ''}`
+  );
+  if (released.length) {
+    console.log(`${dryRun ? 'would release' : 'released'} (clean worktree):`);
+    for (const r of released) console.log(`  - ${r.id} (was ${r.owner ?? 'unknown'}, heartbeat ${r.age_min ?? '?'}m ago)`);
+  }
+  if (needsYou.length) {
+    console.log('⚑ needs you: abandoned work (never released automatically)');
+    for (const n of needsYou) {
+      console.log(`  - ${n.id} (${n.owner ?? 'unknown'}, heartbeat ${n.age_min ?? '?'}m ago, status ${n.status}): ${n.reason}${n.worktree ? ` — ${n.worktree}` : ''}`);
+    }
+  }
+
+  // One line per real run, so a silent failure of the schedule is visible (the
+  // dashboard shows the age of the last record). A dry run is not a run.
+  if (!dryRun) {
+    const record = {
+      ts: isoSeconds(new Date()),
+      host: SHORT_HOST,
+      ok: true,
+      ...stats,
+      released: released.map((r) => r.id),
+      needs_you: needsYou,
+      duration_ms: Date.now() - started,
+    };
+    try {
+      mkdirSync(path.join(EVENTS_DIR, '_system'), { recursive: true });
+      appendFileSync(path.join(EVENTS_DIR, '_system', 'reaper.jsonl'), `${JSON.stringify(record)}\n`);
+    } catch (e) {
+      warn(`could not write reaper.jsonl: ${e.message}`);
+    }
+    if (released.length) cmdSync();
+  }
+}
+
+/* ---- event-log verbs (implemented by the sibling events.mjs) -------------------- */
+
+function eventsContext(flags) {
+  let repo = null;
+  try {
+    if (existsSync(REGISTRY_PATH)) {
+      const registry = loadRegistry();
+      const cwd = process.cwd();
+      repo =
+        (typeof flags.repo === 'string'
+          ? registry.repos.find((r) => r.name === flags.repo)
+          : registry.repos.find((r) => cwd === r.path || cwd.startsWith(r.path + path.sep))) ?? null;
+    }
+  } catch {
+    /* ctx.repo is best-effort */
+  }
+  return { projectsDir: PROJECTS_DIR, handle: HUMAN, repo, host: SHORT_HOST, actor: defaultActor(resolveProvider(flags)), session: currentSession() };
+}
+
+async function runEventsVerb(name, argv, flags) {
+  const fn = eventsModule?.[name];
+  if (typeof fn !== 'function') {
+    const why = eventsLoadError && eventsLoadError.code !== 'ERR_MODULE_NOT_FOUND' ? ` (failed to load: ${eventsLoadError.message})` : '';
+    console.error(`maestro: events module not installed${why}`);
+    process.exit(1);
+  }
+  const code = await fn(argv, eventsContext(flags));
+  if (typeof code === 'number') process.exitCode = code;
 }
 
 /* ---- github mirror ---------------------------------------------------------- */
@@ -1791,6 +3049,9 @@ function cmdMirror(positional, flags) {
 
 /* ---- dispatch --------------------------------------------------------------- */
 
+const SUPPORTED_SUBCOMMANDS =
+  'init, new, claim, heartbeat, sync, board, work, route, set, say, read, ask, answer, inbox, handoff, mirror, done, block, release, reap, emit, status, who';
+
 const [, , sub, ...rest] = process.argv;
 const { positional, flags } = parseArgs(rest);
 
@@ -1845,14 +3106,28 @@ switch (sub) {
     cmdMirror(positional, flags);
     break;
   case 'done':
+    cmdDone(positional, flags);
+    break;
   case 'block':
+    cmdBlock(positional, flags);
+    break;
   case 'release':
-    fail(
-      `'${sub}' isn't built yet. Supported: init, new, claim, heartbeat, sync, board, work, route, set, say, read, ask, answer, inbox, handoff, mirror.`
-    );
+    cmdRelease(positional, flags);
+    break;
+  case 'reap':
+    cmdReap(positional, flags);
+    break;
+  case 'emit':
+    await runEventsVerb('cmdEmit', rest, flags);
+    break;
+  case 'status':
+    await runEventsVerb('cmdStatus', rest, flags);
+    break;
+  case 'who':
+    await runEventsVerb('cmdWho', rest, flags);
     break;
   default:
-    fail(
-      `unknown subcommand '${sub}'. Supported: init, new, claim, heartbeat, sync, board, work, route, set, say, read, ask, answer, inbox, handoff, mirror.`
-    );
+    fail(`unknown subcommand '${sub}'. Supported: ${SUPPORTED_SUBCOMMANDS}.`);
 }
+
+await flushPendingEvents();

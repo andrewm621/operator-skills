@@ -1,6 +1,8 @@
-Run multiple tasks in parallel using subagents. Pipe-separated tasks are spawned simultaneously and results are aggregated.
+Run multiple tasks in parallel using subagents. Pipe-separated tasks are spawned simultaneously and results are aggregated. `build-check` fans out build/type-check agents across the projects that depend on a shared package.
 
 Arguments: $ARGUMENTS
+
+**Config:** `paths.notes` (default `~/.claude/dev-notes`) and `paths.projects` (default `~/Projects`) from `~/.config/operator-skills/config.yaml` — see `docs/config.md`. `<notes>` and `<projects>` below are those directories; a missing file or key means the default.
 
 ## Steps
 
@@ -8,19 +10,20 @@ Arguments: $ARGUMENTS
 
    **Pipe-separated format:**
    Split `$ARGUMENTS` on `|` (pipe character) and trim whitespace from each segment.
-   Example: `research Stripe billing | check agencyos build | verify localhost:3000`
-   → 3 tasks: ["research Stripe billing", "check agencyos build", "verify localhost:3000"]
+   Example: `research Stripe billing | check web-app build | verify localhost:3000`
+   → 3 tasks: ["research Stripe billing", "check web-app build", "verify localhost:3000"]
 
    **Phase reference format:**
    If `$ARGUMENTS` starts with "phase", parse the phase number and optional task IDs.
    - `/parallel phase 2` → all pending tasks in Phase 2 of the active roadmap
    - `/parallel phase 2 tasks 2.3 2.4 2.5` → specific tasks from Phase 2
-   - Read the active roadmap from `~/.claude/projects/-Users-andrewmiller-Projects/dev-notes/roadmaps/INDEX.md`, then parse the tasks from `roadmap.md`
+   - Read the active roadmap from `<notes>/roadmaps/INDEX.md`, then parse the tasks from `roadmap.md`
 
    **Build-check format:**
-   If `$ARGUMENTS` starts with "build-check", parse project names.
-   - `/parallel build-check agencyos communityos liberty-networking`
-   - This is a generalization of `/parallel-check` — each project gets a build agent
+   If `$ARGUMENTS` starts with "build-check", resolve the list of projects to check, then give each one a build agent (see "Build-check flow" below).
+   - `/parallel build-check web-app dashboard api-service` — check exactly these projects
+   - `/parallel build-check` or `/parallel build-check all` — auto-detect every consumer of the shared package you are standing in
+   - `/parallel build-check all --dep @acme/ui` — auto-detect consumers of a named package (use when the current directory isn't the package)
 
    If only 1 task is parsed, tell the user: "Only one task found — running directly instead of spawning an agent." Then just do the task.
 
@@ -47,10 +50,10 @@ Arguments: $ARGUMENTS
     PARALLEL  Spawning 3 agents...
 
     [1] Research: Stripe metered billing API
-        Type: Explore | Dir: ~/Projects
+        Type: Explore | Dir: <projects>
 
-    [2] Build check: agencyos
-        Type: Build | Dir: ~/Projects/agencyos
+    [2] Build check: web-app
+        Type: Build | Dir: <projects>/web-app
 
     [3] Verify: localhost:3000
         Type: Browser | Dir: current
@@ -75,7 +78,7 @@ Arguments: $ARGUMENTS
         Found 3 relevant endpoints. Usage records API supports
         metered billing with monthly invoicing. See @stripe/stripe-node.
 
-    [2] Build check: agencyos                   FAIL  92s
+    [2] Build check: web-app                   FAIL  92s
         Type error in src/components/invoice.tsx:42
         Property 'amount' missing on type 'InvoiceProps'
 
@@ -84,7 +87,7 @@ Arguments: $ARGUMENTS
         No console errors.
 
     Summary: 2 passed, 1 failed
-    Action needed: Fix agencyos build error
+    Action needed: Fix web-app build error
    ```
 
    **Report conventions:**
@@ -102,11 +105,51 @@ Arguments: $ARGUMENTS
    - If the user confirms, update the roadmap file (same write pattern as `/todo done`)
    - Check for phase boundary completion
 
+## Build-check flow
+
+Use this when `$ARGUMENTS` starts with "build-check". It covers the "did my shared-package change break its consumers?" check.
+
+1. **Resolve the consumers:**
+   - **Named projects** — use exactly those; skip detection.
+   - **`all` or empty** — detect them. First find the shared package: `--dep <name>` if given, otherwise the `name` field of the nearest `package.json` at or above the current directory that has one.
+   - **Find consumers by grepping `package.json` files for that dependency** — never from a hardcoded list. Search the workspace root `<projects>` (`paths.projects`, default `~/Projects`; expand `~`), plus the monorepo root if the current directory is inside one (`turbo.json`, `pnpm-workspace.yaml`, or `workspaces` in `package.json`) and that root is outside `<projects>`. Use `find ... -exec grep -l ... {} +` rather than piping to `xargs`: it works the same on macOS and Linux and runs nothing when `find` matches no files.
+     ```bash
+     PKG="<package-name>"
+     for ROOT in "<projects>" "<monorepo root, if different>"; do   # expand ~ first
+       [ -d "$ROOT" ] || continue
+       find "$ROOT" -maxdepth 5 \( -name node_modules -o -name .next -o -name dist -o -name .git \) -prune \
+         -o -name package.json -exec grep -lE "\"$PKG\"[[:space:]]*:" {} +
+     done
+     ```
+     Count a project as a consumer only if the match is under `dependencies`, `devDependencies`, or `peerDependencies`, and exclude the package itself.
+   - **Pick a package that consumers really depend on.** If the nearest named `package.json` has no consumers (common in a monorepo, where the nearest one is an app or the unpublished root), try the next named `package.json` above it before giving up, and say which package you settled on. The user can always force it with `--dep <name>`.
+   - If nothing is found, say so and ask which projects to check (or for `--dep`). If the dependency can't be inferred (no named `package.json` above the cwd), ask what changed.
+2. **Make sure the shared package is built.** If it has a build output (`dist/`) and the sources are newer, run its build first (`pnpm build` / `npm run build`). Consumers that link to it (`link:`, `workspace:`, `file:`) would otherwise test stale output.
+3. **Spawn one agent per consumer, all at once** (see step 4 above). Each one:
+   - `cd`s into the project and installs if needed (`pnpm install` / `npm install`, matching its lockfile) to pick up the linked changes
+   - Runs `npx tsc --noEmit` (type check), then the project's `build` script
+   - Reports pass/fail with the first relevant error
+4. **Report** with one row per consumer (Types, Build, Status), then list each failure with the exact error and an action item:
+   ```
+    PARALLEL  build-check: @acme/ui   (N consumers)
+
+    | Project  | Types | Build | Status  |
+    |----------|-------|-------|---------|
+    | web-app  | PASS  | PASS  | OK      |
+    | admin    | FAIL  | -     | Blocked |
+
+    admin: src/components/nav.tsx:23 — Property 'variant' does not exist on type 'ButtonProps'
+   ```
+5. **Offer fixes** — for each failure, show the error and which change caused it, offer to fix it, and after fixing offer to re-run just that project.
+
+This only builds and type-checks locally. It never commits or pushes.
+
 ## Notes
 - The key value of this skill is TRUE parallelism — all agents spawn at once. Never spawn them sequentially.
 - Each agent is isolated — they don't share context or depend on each other's output. If tasks are dependent, tell the user: "Tasks X and Y depend on each other — running them sequentially instead."
 - If an agent fails, the others continue. No fail-fast behavior.
-- For build-check tasks, this skill generalizes `/parallel-check` to work with any projects, not just @rebel/ui consumers
+- `build-check` works for any shared package (a design system, an SDK, a monorepo library) — consumers are detected from `package.json`, not from a fixed list.
+- Builds can take 30s-2min per project; parallel execution saves most of that.
 - Agents run in the foreground by default so results are available immediately. For long-running tasks (builds), consider using `run_in_background: true` and telling the user to continue working.
 - This skill pairs with the auto-parallel behavioral instruction in CLAUDE.md — this is the explicit version, the CLAUDE.md instruction is the implicit default.
 - Maximum recommended parallel agents: 5. Beyond that, the aggregated results become hard to parse and system resources may be strained.

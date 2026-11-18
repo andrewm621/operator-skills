@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template: install.sh fills in the absolute node path, maestro.mjs path and log path.
+     Runs `maestro sync && maestro reap` every 5 minutes. No KeepAlive: a run
+     that fails is simply retried at the next interval, and every real reap run
+     appends a record to <projects>/.maestro/events/_system/reaper.jsonl so a
+     silent schedule is visible. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.rebelops.maestro-sync</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>"__NODE__" "__MAESTRO_MJS__" sync &amp;&amp; "__NODE__" "__MAESTRO_MJS__" reap</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StartInterval</key>
+  <integer>300</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>__LOG__</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG__</string>
+</dict>
+</plist>

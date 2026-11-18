@@ -1,0 +1,1789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototype review hub</title>
+<link rel="stylesheet" href="shared/tokens.css">
+<style>
+  :root { --bar-h: 68px; }
+  html { scroll-behavior: auto; }
+  body { padding-bottom: 40px; overflow-x: hidden; }
+  a.chip, a.btn { text-decoration: none; }
+  .hub-section, .opt-panel { scroll-margin-top: calc(var(--bar-h) + 10px); }
+
+  /* ---------- The bar ---------- */
+  .hub-bar { position: sticky; top: 0; z-index: 50; padding: 10px 24px; gap: 8px 14px; }
+  .hub-id { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+  .hub-id b { font-family: var(--font-serif); font-weight: 600; font-size: 1.05em; }
+  .hub-id span { font-size: 0.8em; color: #d6d3d1; }
+  .hub-nav { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto; }
+  .hub-nav .chip { font-size: 0.9em; padding: 6px 12px; white-space: nowrap; }
+  .hub-nav .chip-copy { background: #ffffff; color: var(--forest-dark); border-color: #ffffff; }
+
+  /* ---------- Top of the page ---------- */
+  .intro { max-width: 860px; font-size: 1.08em; }
+  .intro-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 18px; }
+  .intro-note b { font-weight: 700; }
+  .start-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+  .ov-track h3 { margin-bottom: 6px; }
+  .ov-row {
+    display: flex; align-items: center; gap: 10px; min-height: 60px; padding: 8px 4px;
+    color: var(--ink); text-decoration: none; border-top: 1px solid var(--line);
+  }
+  .ov-letter {
+    flex: none; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+    font-family: var(--font-serif); font-weight: 700; color: var(--on-forest); background: var(--forest); border-radius: 6px;
+  }
+  .ov-text { flex: 1 1 auto; min-width: 0; line-height: 1.25; }
+  .ov-text b { display: block; font-weight: 650; }
+  .ov-text span { font-size: 0.82em; color: var(--muted); }
+  .ov-row .badge { flex: none; }
+  .progress-line { font-weight: 650; margin: 0 0 12px; }
+  .show-list { margin: 0; padding: 0; list-style: none; counter-reset: show; }
+  .show-list li { counter-increment: show; border-top: 1px solid var(--line); }
+  .show-list a { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 2px; color: var(--ink); text-decoration: none; }
+  .show-list a::before { content: counter(show); flex: none; width: 26px; font-family: var(--font-serif); font-weight: 700; color: var(--forest); text-align: center; }
+  .show-list b { font-weight: 650; }
+  .show-list span { color: var(--muted); font-size: 0.86em; }
+  .before-list { margin: 0; padding-left: 20px; }
+  .before-list li { margin-bottom: 8px; }
+
+  /* ---------- Tracks ---------- */
+  .hub-section { margin-top: 34px; padding-top: 18px; border-top: 3px solid var(--forest-dark); }
+  .track-lead { max-width: 900px; margin-bottom: 4px; }
+  .track-note { max-width: 900px; color: var(--muted); }
+  .opt-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 14px 0 16px; }
+  .opt-tab {
+    display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px;
+    min-height: 66px; padding: 8px 12px; font: inherit; text-align: left; line-height: 1.2;
+    color: var(--ink); background: var(--card); border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm);
+    cursor: pointer; touch-action: manipulation; min-width: 0;
+  }
+  .opt-tab b { font-weight: 650; }
+  .opt-tab small { font-size: 0.8em; color: var(--muted); }
+  .opt-tab[aria-selected="true"] { background: var(--forest); border-color: var(--forest); color: var(--on-forest); }
+  .opt-tab[aria-selected="true"] small { color: #e7e5e4; }
+  .opt-tab.tab-compare { border-style: dashed; }
+  .opt-tab.tab-compare[aria-selected="true"] { border-style: solid; }
+
+  .opt-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; margin-bottom: 10px; }
+  .opt-head h3 { margin: 0; font-size: 1.4em; }
+  .opt-for { color: var(--muted); font-size: 0.92em; }
+
+  /* ---------- Preview ---------- */
+  .pv-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 8px; }
+  .pv-devices { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pv-devices .chip { font-size: 0.88em; padding: 6px 11px; }
+  .pv-devices .chip small { font-weight: 500; opacity: 0.85; font-size: 0.88em; }
+  .pv-scale { font-size: 0.86em; color: var(--muted); white-space: nowrap; }
+  .pv-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+  .pv-hint { flex: 1 1 100%; font-size: 0.86em; color: var(--pin-ink); }
+  .stage {
+    display: flex; justify-content: center; align-items: flex-start;
+    padding: 10px; background: var(--neutral-tint); border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden; max-width: 100%;
+  }
+  .frame-wrap {
+    position: relative; flex: none; overflow: hidden; background: #ffffff;
+    border: 1px solid var(--line-strong); border-radius: 6px; box-sizing: content-box;
+  }
+  .frame-wrap iframe { display: block; border: 0; background: #ffffff; transform-origin: 0 0; }
+  .frame-wait {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; padding: 16px; text-align: center; color: var(--muted); background: var(--card);
+  }
+  .shield { position: absolute; inset: 0; z-index: 3; display: flex; align-items: flex-end; justify-content: flex-end; padding: 10px; background: transparent; border: 0; width: 100%; font: inherit; cursor: pointer; touch-action: pan-y; }
+  .shield span {
+    padding: 10px 16px; min-height: 44px; font-weight: 650; font-size: 15px; color: #ffffff; background: rgba(28, 25, 23, 0.86);
+    border: 1px solid #ffffff; border-radius: 999px; line-height: 1.5;
+  }
+
+  /* ---------- Under the preview ---------- */
+  .opt-body { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 18px; align-items: start; margin-top: 16px; }
+  .review-card { position: sticky; top: calc(var(--bar-h) + 10px); }
+  .review-card h4 { margin-bottom: 8px; }
+  .verdicts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .verdict {
+    min-height: 52px; padding: 6px 4px; font: inherit; font-weight: 650; color: var(--ink);
+    background: var(--card); border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); cursor: pointer; touch-action: manipulation;
+  }
+  .verdict[aria-pressed="true"][data-v="keep"] { background: var(--forest); border-color: var(--forest); color: #ffffff; }
+  .verdict[aria-pressed="true"][data-v="combine"] { background: var(--manual); border-color: var(--manual); color: #ffffff; }
+  .verdict[aria-pressed="true"][data-v="drop"] { background: var(--over-ink); border-color: var(--over-ink); color: #ffffff; }
+  .combine-with { margin-top: 8px; }
+  .combine-with .small { display: block; margin-bottom: 4px; font-weight: 600; }
+  .combine-with .chip { font-size: 0.86em; margin: 0 4px 4px 0; }
+  .notes-field { margin: 10px 0 0; }
+  .notes-field textarea { min-height: 110px; }
+  .save-state { min-height: 1.3em; font-size: 0.82em; color: var(--muted); }
+  .next-btn { margin-top: 8px; }
+  .concept { font-size: 1.04em; }
+  .facts { margin: 0 0 12px; }
+  .facts dt { font-weight: 650; font-size: 0.86em; color: var(--muted); }
+  .facts dd { margin: 0 0 8px; }
+  .demo-tip { margin-bottom: 12px; }
+  .demo-tip b { display: block; margin-bottom: 2px; }
+  details.info { border-top: 1px solid var(--line-strong); }
+  details.info:last-of-type { border-bottom: 1px solid var(--line-strong); }
+  details.info summary {
+    display: flex; align-items: center; gap: 8px; min-height: 54px; padding: 6px 2px;
+    font-family: var(--font-serif); font-weight: 600; font-size: 1.1em; cursor: pointer; list-style: none; touch-action: manipulation;
+  }
+  details.info summary::-webkit-details-marker { display: none; }
+  details.info summary::before { content: "+"; flex: none; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-sans); font-weight: 700; color: var(--on-forest); background: var(--forest); border-radius: 4px; }
+  details.info[open] summary::before { content: "\2212"; }
+  details.info .tag { font-family: var(--font-sans); }
+  details.info > :not(summary) { margin-bottom: 14px; }
+  .info-list { margin: 0; padding: 0; list-style: none; }
+  .info-list li { padding: 8px 0; border-top: 1px solid var(--line); }
+  .info-list li:first-child { border-top: 0; }
+  .info-list .src { display: block; font-size: 0.82em; color: var(--muted); margin-top: 2px; }
+
+  /* ---------- Compare ---------- */
+  .cmp-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 10px; }
+  .cmp-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .cmp-group .seg-label { margin-right: 2px; }
+  .cmp-group .chip { font-size: 0.88em; padding: 6px 11px; }
+  .cmp-grid { display: grid; gap: 10px; }
+  .cmp-col { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .cmp-col h4 { margin: 0; font-size: 1em; line-height: 1.25; }
+  .cmp-col-hd { min-height: 3.6em; }
+  .cmp-col-hd .small { display: block; color: var(--muted); }
+  .cmp-col .stage { padding: 6px; }
+  .cmp-col .verdict { min-height: 46px; font-size: 0.92em; }
+  .cmp-col .btn { font-size: 0.9em; padding: 6px 8px; }
+  .cmp-col details.info summary { font-size: 1em; min-height: 46px; }
+  .cmp-col details.info p { font-size: 0.92em; }
+
+  /* ---------- Decisions and review ---------- */
+  .dec-group { margin-top: 18px; }
+  .dec-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .dec-card h4 { font-family: var(--font-sans); font-weight: 650; font-size: 1.02em; line-height: 1.3; }
+  .dec-card p { margin: 0 0 6px; font-size: 0.94em; }
+  .dec-card .dec-meta { font-size: 0.84em; color: var(--muted); }
+  .dec-who { font-weight: 650; }
+  .review-row { display: grid; grid-template-columns: minmax(0, 260px) 110px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+  .review-row a { color: var(--ink); font-weight: 650; min-height: 44px; display: inline-flex; align-items: center; line-height: 1.25; }
+  .review-row .badge { margin-top: 10px; justify-self: start; }
+  .review-row .rv-notes { padding-top: 10px; }
+  .review-row .rv-notes { font-size: 0.92em; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 14px 0 8px; }
+  .copy-status { font-weight: 650; }
+  .copy-status.is-bad { color: var(--over-ink); }
+  .fallback-box { width: 100%; min-height: 260px; font-family: var(--font-mono); font-size: 16px; line-height: 1.4; }
+  .confirm-row { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+  /* ---------- Direction, sorting decisions, sign-off ---------- */
+  .verdict[aria-pressed="true"][data-v="ok"] { background: var(--forest); border-color: var(--forest); color: #ffffff; }
+  .verdict[aria-pressed="true"][data-v="change"] { background: var(--manual); border-color: var(--manual); color: #ffffff; }
+  .verdict[aria-pressed="true"][data-v="later"] { background: var(--muted); border-color: var(--muted); color: #ffffff; }
+  .dir-slot { margin-top: 18px; scroll-margin-top: calc(var(--bar-h) + 10px); }
+  .dir-grid { display: grid; gap: 12px; }
+  .dir-card .card-hd { justify-content: space-between; }
+  .dir-card h4 { font-family: var(--font-sans); font-weight: 650; font-size: 1.02em; }
+  .dir-label { display: block; margin: 10px 0 4px; font-weight: 650; font-size: 0.86em; }
+  .dir-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .dir-chips .chip { min-height: 44px; text-align: left; white-space: normal; }
+  .dir-chips .chip small { font-weight: 500; opacity: 0.85; }
+  .dir-chips .chip[disabled] { opacity: 0.45; cursor: default; }
+  .dir-part { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 8px 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+  .dir-part a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); font-weight: 650; line-height: 1.25; }
+  .dir-card textarea { min-height: 72px; margin-top: 4px; }
+  .dec-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+  .dec-count { font-weight: 650; }
+  .dec-tools .chip { min-height: 44px; }
+  .triage { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 8px 0 6px; }
+  .tri {
+    min-height: 44px; padding: 6px 4px; font: inherit; font-weight: 650; color: var(--ink);
+    background: var(--card); border: 1.5px solid var(--line-strong); border-radius: var(--radius-sm); cursor: pointer; touch-action: manipulation;
+  }
+  .tri[aria-pressed="true"][data-s="decided"] { background: var(--forest); border-color: var(--forest); color: #ffffff; }
+  .tri[aria-pressed="true"][data-s="ask"] { background: var(--manual); border-color: var(--manual); color: #ffffff; }
+  .tri[aria-pressed="true"][data-s="later"] { background: var(--muted); border-color: var(--muted); color: #ffffff; }
+  .dec-card .field { margin: 6px 0 0; }
+  .dec-card .field label { font-size: 0.86em; font-weight: 650; }
+  .q-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .q-row:first-child { border-top: 0; }
+  .q-text { flex: 1 1 280px; min-width: 0; }
+  .q-text span { display: block; font-size: 0.82em; color: var(--muted); }
+  .q-row .chip { min-height: 44px; }
+  .sign-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+  .sign-head h2 { margin: 0; }
+  .sign-h { margin-top: 22px; }
+  .gate-line { font-weight: 650; margin: 12px 0 2px; }
+  .blocker { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+  .blocker-text { flex: 1 1 280px; min-width: 0; overflow-wrap: anywhere; }
+  .blocker-text b { display: block; font-weight: 650; }
+  .blocker-text span { font-size: 0.86em; color: var(--muted); }
+  .sign-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; margin-top: 10px; }
+  .sign-form .field { flex: 1 1 240px; margin: 0; }
+  .sign-why { margin: 8px 0 0; }
+  .out-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .out-tabs .chip { min-height: 44px; }
+
+  @media (max-width: 1040px) {
+    .start-grid { grid-template-columns: minmax(0, 1fr); }
+    .ov-rows-wrap { display: grid; grid-template-columns: minmax(0, 1fr); }
+    .opt-body { grid-template-columns: minmax(0, 1fr); }
+    .review-card { position: static; order: -1; }
+    .dec-grid { grid-template-columns: minmax(0, 1fr); }
+    .hub-nav { margin-left: 0; }
+    .hub-id { flex-basis: 100%; flex-direction: row; flex-wrap: wrap; gap: 0 10px; align-items: baseline; }
+  }
+  @media (max-width: 820px) {
+    .hub-bar { padding: 8px 12px; }
+    .opt-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .review-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .review-row .rv-notes { grid-column: 1 / -1; }
+    .pv-actions { margin-left: 0; }
+    .dir-part { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .hub-bar { position: static; }
+    .review-card { position: static; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar hub-bar" id="hubBar">
+  <div class="hub-id">
+    <b id="barTitle"></b>
+    <span id="barSub"></span>
+  </div>
+  <nav class="hub-nav" aria-label="Jump to" id="hubNav"></nav>
+</header>
+
+<main class="page">
+  <h1 id="hubTitle"></h1>
+  <p class="intro" id="hubIntro"></p>
+  <div class="intro-note notice notice-pin">
+    <span id="hubNotice"></span>
+  </div>
+
+  <section aria-label="Start here">
+    <p class="progress-line" id="progressLine"></p>
+    <div class="start-grid" id="overview"></div>
+    <div class="grid-2" id="startNotes"></div>
+  </section>
+
+  <div id="tracks"></div>
+
+  <section class="hub-section" id="decisions">
+    <h2>Open decisions</h2>
+    <p class="track-lead">The questions that shape which option wins. From the prototype brief. None of these are settled, and the prototypes don't settle them. Sort each one: Decided needs the answer, Ask goes on the client's agenda, Later waits.</p>
+    <div class="dec-tools">
+      <span class="dec-count" id="decisionCount" aria-live="polite"></span>
+      <button class="chip" type="button" id="decShowAll" aria-pressed="true">Show all</button>
+      <button class="chip" type="button" id="decShowOpen" aria-pressed="false">Only what's not sorted</button>
+    </div>
+    <div id="decisionList"></div>
+    <div class="dec-group" id="questionBlock"></div>
+    <div class="card" style="margin-top:18px">
+      <div class="field notes-field" style="margin:0">
+        <label for="decisionNotes">My notes on these decisions</label>
+        <textarea id="decisionNotes" placeholder="Anything else on these decisions. This goes in the record."></textarea>
+        <span class="save-state" id="decisionSave" aria-live="polite"></span>
+      </div>
+    </div>
+    <a class="btn btn-block next-btn" href="#review" data-jump="review">Next: Sign-off</a>
+  </section>
+
+  <section class="hub-section" id="review">
+    <div class="sign-head">
+      <h2 id="signTitle"></h2>
+      <span id="signBadge"></span>
+    </div>
+    <p class="track-lead">Internal. Signing means you've decided these pages are ready to show. It doesn't approve scope, and anything the client says about them is a reaction, not a sign-off.</p>
+    <div class="notice notice-pin hidden" id="storeWarn" style="margin-bottom:12px">This browser is blocking saves, so your review only lasts until you close this page. Copy it before you go.</div>
+
+    <p class="gate-line" id="gateLine"></p>
+    <p class="small muted" style="margin:0 0 6px">The hub only sees a page change once the gate has run again.</p>
+    <div id="gateWarnings"></div>
+
+    <h3 class="sign-h">What's blocking this</h3>
+    <div id="blockerList"></div>
+
+    <h3 class="sign-h">Direction, one per track</h3>
+    <div class="dir-grid" id="directionList"></div>
+
+    <h3 class="sign-h">Open decisions</h3>
+    <div id="triageSummary"></div>
+
+    <h3 class="sign-h">Sign off</h3>
+    <div class="card">
+      <div id="signState"></div>
+      <div class="sign-form">
+        <div class="field">
+          <label for="signName">Your name</label>
+          <input type="text" id="signName" autocomplete="name">
+        </div>
+        <button class="btn btn-primary" type="button" id="signBtn">Sign off: ready to show</button>
+        <button class="btn btn-quiet hidden" type="button" id="signWithdraw">Withdraw my sign-off</button>
+      </div>
+      <p class="small muted sign-why" id="signWhy"></p>
+    </div>
+
+    <h3 class="sign-h">What this produces</h3>
+    <p class="track-lead">Paste the full record back into the chat. It has the fix list and the agenda in it, and the agent saves it to the repo as the lasting copy, because marks here live in this browser only.</p>
+    <div class="out-tabs" id="outTabs" role="group" aria-label="Which output to show"></div>
+    <div class="review-actions">
+      <button class="btn btn-primary" type="button" id="copyOutput">Copy this</button>
+      <button class="btn" type="button" id="downloadOutput">Download</button>
+      <span id="clearSlot"></span>
+      <span class="copy-status" id="copyStatus" role="status" aria-live="polite"></span>
+    </div>
+    <textarea class="fallback-box" id="outText" readonly aria-label="The selected output as text"></textarea>
+
+    <details class="info" style="margin-top:16px">
+      <summary>Every mark and note</summary>
+      <p class="track-lead" id="reviewSummary"></p>
+      <div id="reviewRows"></div>
+    </details>
+  </section>
+</main>
+
+<script src="gate-result.js"></script>
+<script src="hub-data.js"></script>
+<script>
+(function () {
+  "use strict";
+  var H = window.PROTO_HUB;
+  var GATE = window.PROTO_GATE || null;
+
+  var DEVICES = {
+    desktop: { w: 1440, h: 900, name: "Desktop" },
+    ipadL: { w: 1180, h: 820, name: "iPad landscape" },
+    ipadP: { w: 820, h: 1180, name: "iPad portrait" },
+    phone: { w: 390, h: 844, name: "Phone" }
+  };
+  var DEVICE_KEYS = (H.meta.devices || ["desktop", "ipadL", "ipadP", "phone"]).filter(function (k) { return DEVICES[k]; });
+  var PHONE_HINT = "Phone isn't a target for these builds. It's here to see what breaks.";
+  /* Real alternatives get Keep, Combine or Drop. One flow in parts gets OK, Change or Later, because there's nothing to drop it in favor of. */
+  var OPTION_CALLS = [["keep", "Keep"], ["combine", "Combine"], ["drop", "Drop"]];
+  var PART_CALLS = [["ok", "OK"], ["change", "Change"], ["later", "Later"]];
+  var TRIAGE = [["decided", "Decided"], ["ask", "Ask"], ["later", "Later"]];
+  var RULE_WORDS = {
+    "deny-term": "A real name is on the page", "deny-pattern": "A real identifier is on the page", "street-address": "A street address is on the page",
+    "external-ref": "The page points outside itself", "broken-ref": "A linked file is missing", "no-label": "The prototype label is missing",
+    "hub-data": "hub-data.js has a problem", "hub-bad-file": "The hub lists a file that isn't there", "hub-missing-page": "A page isn't listed in the hub",
+    "page-error": "The page threw an error", "console-error": "The console shows an error", "failed-load": "Something failed to load",
+    "external-request": "The page made an outside request", "overflow-x": "The page scrolls sideways", "clipped-x": "Content is cut off at the screen edge",
+    "no-title": "The page has no title", "click-error": "A click threw an error", "missing-page": "The page is missing"
+  };
+  var CLIENT = H.meta.client || "the client";
+  var KEY = "proto-hub:" + (H.meta.slug || "default") + ":review-v2";
+
+  /* ---------- Saving: never throws, falls back to memory ---------- */
+  var storeOK = true;
+  var memory = null;
+  function load() {
+    var text = null;
+    try { text = window.localStorage.getItem(KEY); } catch (e) { storeOK = false; }
+    if (text === null) { return memory; }
+    try { return JSON.parse(text); } catch (e) { return memory; }
+  }
+  function persist() {
+    memory = state;
+    try {
+      window.localStorage.setItem(KEY, JSON.stringify(state));
+      storeOK = true;
+    } catch (e) {
+      storeOK = false;
+    }
+    var warn = byId("storeWarn");
+    if (warn) { warn.classList.toggle("hidden", storeOK); }
+  }
+
+  var state = load() || {};
+  state.review = state.review || {};
+  state.device = state.device || {};
+  state.tab = state.tab || {};
+  state.compare = state.compare || {};
+  state.decisionNotes = state.decisionNotes || "";
+  state.direction = state.direction || {};
+  state.triage = state.triage || {};
+  state.agenda = state.agenda || {};
+  state.ticks = state.ticks || {};
+  state.signoff = state.signoff || null;
+  state.signName = state.signName || "";
+
+  /* ---------- Small helpers ---------- */
+  function byId(id) { return document.getElementById(id); }
+  function el(tag, attrs) {
+    var node = document.createElement(tag);
+    var a = attrs || {};
+    Object.keys(a).forEach(function (k) {
+      var v = a[k];
+      if (v === null || v === undefined || v === false) { return; }
+      if (k === "class") { node.className = v; }
+      else if (k.indexOf("on") === 0 && typeof v === "function") { node.addEventListener(k.slice(2), v); }
+      else if (k === "value") { node.value = v; }
+      else if (v === true) { node.setAttribute(k, ""); }
+      else { node.setAttribute(k, v); }
+    });
+    for (var i = 2; i < arguments.length; i++) { add(node, arguments[i]); }
+    return node;
+  }
+  function add(node, child) {
+    if (child === null || child === undefined || child === false) { return; }
+    if (Array.isArray(child)) { child.forEach(function (c) { add(node, c); }); return; }
+    node.appendChild(child.nodeType ? child : document.createTextNode(String(child)));
+  }
+  function clear(node) { while (node.firstChild) { node.removeChild(node.firstChild); } return node; }
+  /* Short and stable: ids for items that don't carry one, and a fingerprint of the review. */
+  function hash(text) {
+    var h = 5381;
+    for (var i = 0; i < text.length; i++) { h = ((h * 33) ^ text.charCodeAt(i)) >>> 0; }
+    return h.toString(36);
+  }
+  function isStages(t) { return t.shape === "stages" || t.options.some(function (o) { return !!o.part; }); }
+
+  var OPTIONS = [];
+  var BY_SLUG = {};
+  var BY_FILE = {};
+  H.tracks.forEach(function (t) {
+    t.options.forEach(function (o) {
+      o.track = t;
+      o.label = t.prefix + " " + o.letter + (o.part ? " (" + o.part + ")" : "") + ": " + o.name;
+      o.shortLabel = t.prefix + " " + o.letter;
+      OPTIONS.push(o);
+      BY_SLUG[o.slug] = o;
+      BY_FILE[o.file] = o;
+    });
+  });
+  var DECISIONS = [];
+  (H.decisions || []).forEach(function (g) {
+    g.items.forEach(function (d) {
+      d.group = g.group;
+      d.id = d.id || "dec-" + hash(g.group + "|" + d.title);
+      DECISIONS.push(d);
+    });
+  });
+  var QUESTIONS = [];
+  OPTIONS.forEach(function (o) {
+    (o.questions || []).forEach(function (q) { QUESTIONS.push({ id: "q-" + hash(o.slug + "|" + q), text: q, option: o }); });
+  });
+
+  function reviewOf(slug) {
+    if (!state.review[slug]) { state.review[slug] = { verdict: null, withSlugs: [], notes: "" }; }
+    return state.review[slug];
+  }
+  function callsFor(o) { return isStages(o.track) ? PART_CALLS : OPTION_CALLS; }
+  function verdictWord(slug) {
+    var v = reviewOf(slug).verdict;
+    var hit = callsFor(BY_SLUG[slug]).filter(function (x) { return x[0] === v; })[0];
+    return hit ? hit[1] : "Not reviewed";
+  }
+  function verdictBadge(slug) {
+    var v = reviewOf(slug).verdict;
+    var tone = v === "keep" || v === "ok" ? "under" : v === "combine" || v === "change" ? "manual" : v === "drop" ? "over" : v === "later" ? "neutral" : "unknown";
+    return el("span", { class: "badge badge-" + tone, "data-badge": slug }, verdictWord(slug));
+  }
+  function counts() {
+    var c = { keep: 0, combine: 0, drop: 0, ok: 0, change: 0, later: 0, none: 0 };
+    OPTIONS.forEach(function (o) { var v = reviewOf(o.slug).verdict; c[v || "none"] += 1; });
+    c.done = OPTIONS.length - c.none;
+    return c;
+  }
+  function tally(c) {
+    var parts = [];
+    if (H.tracks.some(function (t) { return !isStages(t); })) { parts.push("Keep " + c.keep, "Combine " + c.combine, "Drop " + c.drop); }
+    if (H.tracks.some(isStages)) { parts.push("OK " + c.ok, "Change " + c.change, "Later " + c.later); }
+    return parts.join(", ");
+  }
+
+  /* ---------- Bar ---------- */
+  function renderNav() {
+    var nav = clear(byId("hubNav"));
+    H.tracks.forEach(function (t) {
+      nav.appendChild(el("a", { class: "chip", href: "#" + t.key, "data-jump": t.key }, t.title));
+    });
+    nav.appendChild(el("a", { class: "chip", href: "#decisions", "data-jump": "decisions", id: "navDecisions" }, "Open decisions"));
+    nav.appendChild(el("a", { class: "chip", href: "#review", "data-jump": "review", id: "navReview" }, "Sign-off"));
+    nav.appendChild(el("button", { class: "chip chip-copy", type: "button", onclick: function () { copyOutput("record", true); } }, "Copy my review"));
+  }
+
+  /* ---------- Top of page ---------- */
+  function renderOverview() {
+    var box = clear(byId("overview"));
+    H.tracks.forEach(function (t) {
+      box.appendChild(el("div", { class: "card ov-track" },
+        el("h3", null, t.title),
+        t.options.map(function (o) {
+          return el("a", { class: "ov-row", href: "#" + o.slug, "data-jump": o.slug },
+            el("span", { class: "ov-letter" }, o.letter),
+            el("span", { class: "ov-text" }, el("b", null, o.name), el("span", null, "Best on " + o.deviceShort)),
+            verdictBadge(o.slug));
+        })));
+    });
+
+    var notes = clear(byId("startNotes"));
+    if (H.showOrder && H.showOrder.length) notes.appendChild(el("div", { class: "card" },
+      el("h3", null, H.meta.showTitle || "A suggested order"),
+      el("ol", { class: "show-list" }, H.showOrder.map(function (s) {
+        var o = BY_SLUG[s.slug];
+        return el("li", null, el("a", { href: "#" + o.slug, "data-jump": o.slug },
+          el("b", null, o.shortLabel + ": " + o.name), el("span", null, s.why)));
+      })),
+      el("p", { class: "small muted", style: "margin:10px 0 0" }, H.showHolding || "")));
+    notes.appendChild(el("div", { class: "card" },
+      el("h3", null, H.meta.checklistTitle || "Before you show this"),
+      el("ul", { class: "before-list" }, (H.checklist || []).map(function (b) { return el("li", null, b); })),
+      el("p", { class: "small muted", style: "margin:10px 0 0" }, "The notes under each option were written as it was built, then rechecked against the finished pages. If a note and a preview disagree, trust the preview and say so in your review.")));
+  }
+
+  function syncReviewMarks() {
+    var c = counts();
+    var status = signStatus();
+    byId("progressLine").textContent = c.done + " of " + OPTIONS.length + " options reviewed. Direction set on " + directionsDone() + " of " + H.tracks.length + " tracks. " + sortedCount() + " of " + DECISIONS.length + " decisions sorted. " + statusWords(status) + ".";
+    byId("navReview").textContent = status.kind === "signed" ? "Signed off" : status.kind === "stale" ? "Sign-off out of date" : "Sign-off (" + status.blockers.length + " blocking)";
+    byId("navDecisions").textContent = "Open decisions (" + sortedCount() + " of " + DECISIONS.length + ")";
+    Array.prototype.forEach.call(document.querySelectorAll("[data-badge]"), function (b) {
+      var fresh = verdictBadge(b.getAttribute("data-badge"));
+      b.className = fresh.className;
+      b.textContent = fresh.textContent;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-tab-verdict]"), function (s) {
+      var slug = s.getAttribute("data-tab-verdict");
+      s.textContent = BY_SLUG[slug].deviceShort + ". " + verdictWord(slug);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".verdict"), function (b) {
+      var on = reviewOf(b.getAttribute("data-slug")).verdict === b.getAttribute("data-v");
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-combine-for]"), function (box) {
+      var slug = box.getAttribute("data-combine-for");
+      box.classList.toggle("hidden", reviewOf(slug).verdict !== "combine");
+    });
+    renderReviewRows();
+  }
+
+  function setVerdict(slug, v) {
+    var r = reviewOf(slug);
+    r.verdict = r.verdict === v ? null : v;
+    if (r.verdict !== "combine") { r.withSlugs = []; syncCombineChips(slug); }
+    persist();
+    syncReviewMarks();
+  }
+
+  function syncCombineChips(slug) {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-combine-chip='" + slug + "']"), function (c) {
+      c.setAttribute("aria-pressed", reviewOf(slug).withSlugs.indexOf(c.getAttribute("data-other")) !== -1 ? "true" : "false");
+    });
+  }
+
+  function verdictButtons(slug) {
+    var calls = callsFor(BY_SLUG[slug]);
+    return el("div", { class: "verdicts", role: "group", "aria-label": calls.map(function (v) { return v[1]; }).join(", ") + " for " + BY_SLUG[slug].label },
+      calls.map(function (v) {
+        return el("button", {
+          class: "verdict", type: "button", "data-slug": slug, "data-v": v[0],
+          "aria-pressed": reviewOf(slug).verdict === v[0] ? "true" : "false",
+          onclick: function () { setVerdict(slug, v[0]); }
+        }, v[1]);
+      }));
+  }
+
+  /* ---------- Live preview ---------- */
+  var previews = [];
+  var io = null;
+  var isTouch = false;
+  try { isTouch = window.matchMedia("(hover: none), (pointer: coarse)").matches; } catch (e) { isTouch = false; }
+
+  function barHeight() {
+    var bar = byId("hubBar");
+    return getComputedStyle(bar).position === "sticky" ? bar.offsetHeight : 0;
+  }
+
+  function availableHeight(extra) {
+    return Math.max(300, window.innerHeight - barHeight() - (extra || 0) - 24);
+  }
+
+  /* Sets src once, when the preview is near the screen. */
+  function startFrame(pv) {
+    if (pv.started) { return; }
+    pv.started = true;
+    pv.iframe.addEventListener("load", function () {
+      if (pv.wait && pv.wait.parentNode) { pv.wait.parentNode.removeChild(pv.wait); }
+      pv.wait = null;
+      if (isTouch && !pv.shield) { armShield(pv); }
+    });
+    pv.iframe.setAttribute("src", pv.option.file);
+    if (pv.wait) { clear(pv.wait).appendChild(document.createTextNode("Loading " + pv.option.shortLabel + "...")); }
+  }
+
+  /* On a touch screen a finger on the preview would scroll the preview, not the hub.
+     The shield lets the hub scroll until you tap to use the screen. Touching the hub again puts it back. */
+  function armShield(pv) {
+    if (pv.shield) { return; }
+    pv.shield = el("button", {
+      class: "shield", type: "button", "aria-label": "Use this screen",
+      onclick: function () { dropShield(pv); }
+    }, el("span", null, "Tap to use this screen"));
+    pv.wrap.appendChild(pv.shield);
+  }
+  function dropShield(pv) {
+    if (pv.shield && pv.shield.parentNode) { pv.shield.parentNode.removeChild(pv.shield); }
+    pv.shield = null;
+  }
+
+  function makePreview(option, extraHeight, getDevice, onScale) {
+    var iframe = el("iframe", { title: option.label + " preview", loading: "lazy" });
+    var wait = el("div", { class: "frame-wait" },
+      "Loads when you reach it.",
+      el("button", { class: "btn", type: "button", onclick: function () { startFrame(pv); } }, "Load now"));
+    var wrap = el("div", { class: "frame-wrap" }, iframe, wait);
+    var stage = el("div", { class: "stage" }, wrap);
+    var pv = { option: option, iframe: iframe, wait: wait, wrap: wrap, stage: stage, extra: extraHeight, getDevice: getDevice, onScale: onScale, started: false, shield: null };
+    previews.push(pv);
+    if (io) { io.observe(wrap); wrap.__pv = pv; }
+    else { startFrame(pv); }
+    return pv;
+  }
+
+  function fitPreview(pv) {
+    var width = pv.stage.clientWidth;
+    if (!width) { return; }
+    var cs = getComputedStyle(pv.stage);
+    var usable = width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 2;
+    var d = DEVICES[pv.getDevice()];
+    var s = Math.min(1, usable / d.w, availableHeight(pv.extra) / d.h);
+    pv.wrap.style.width = Math.floor(d.w * s) + "px";
+    pv.wrap.style.height = Math.floor(d.h * s) + "px";
+    pv.iframe.style.width = d.w + "px";
+    pv.iframe.style.height = d.h + "px";
+    pv.iframe.style.transform = "scale(" + s + ")";
+    pv.scale = s;
+    if (pv.onScale) { pv.onScale(s); }
+  }
+
+  function fitVisible() {
+    previews.forEach(fitPreview);
+  }
+
+  function dropPreview(pv) {
+    if (io) { io.unobserve(pv.wrap); }
+    previews.splice(previews.indexOf(pv), 1);
+    pv.iframe.removeAttribute("src");
+  }
+
+  function deviceChips(current, onPick) {
+    return DEVICE_KEYS.map(function (k) {
+      var d = DEVICES[k];
+      return el("button", {
+        class: "chip", type: "button", "aria-pressed": current() === k ? "true" : "false", "data-device": k,
+        onclick: function () { onPick(k); }
+      }, d.name, " ", el("small", null, d.w + "x" + d.h));
+    });
+  }
+  function syncDeviceChips(box, current) {
+    Array.prototype.forEach.call(box.querySelectorAll("[data-device]"), function (c) {
+      c.setAttribute("aria-pressed", c.getAttribute("data-device") === current ? "true" : "false");
+    });
+  }
+
+  /* ---------- One option ---------- */
+  function infoBlock(title, count, body, open) {
+    return el("details", { class: "info", open: !!open },
+      el("summary", null, title, count ? el("span", { class: "tag" }, count) : null),
+      body);
+  }
+
+  function renderOptionPanel(o) {
+    var scale = el("span", { class: "pv-scale" });
+    var hint = el("span", { class: "pv-hint hidden" }, PHONE_HINT);
+    function current() { return state.device[o.slug] || o.device; }
+    var devices = el("div", { class: "pv-devices", role: "group", "aria-label": "Device size" });
+    add(devices, deviceChips(current, function (k) {
+      state.device[o.slug] = k;
+      persist();
+      syncDeviceChips(devices, k);
+      hint.classList.toggle("hidden", k !== "phone");
+      fitPreview(pv);
+    }));
+    hint.classList.toggle("hidden", current() !== "phone");
+
+    var pv = makePreview(o, 108, current, function (s) { scale.textContent = "Shown at " + Math.round(s * 100) + "%"; });
+
+    var tools = el("div", { class: "pv-tools" },
+      devices, scale,
+      el("div", { class: "pv-actions" },
+        el("a", { class: "btn", href: o.file, target: "_blank", rel: "noopener" }, "Open full screen"),
+        el("button", { class: "btn btn-quiet", type: "button", onclick: function () {
+          if (pv.started) { pv.iframe.setAttribute("src", o.file); } else { startFrame(pv); }
+        } }, "Reload")),
+      hint);
+
+    var r = reviewOf(o.slug);
+    var saveState = el("span", { class: "save-state", "aria-live": "polite" });
+    var saveTimer = null;
+    var notes = el("textarea", {
+      id: "notes-" + o.slug,
+      placeholder: "What works, what to change, what to take from another option.",
+      value: r.notes,
+      oninput: function () {
+        reviewOf(o.slug).notes = notes.value;
+        saveState.textContent = "";
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(function () {
+          persist();
+          renderReviewRows();
+          saveState.textContent = storeOK ? "Saved in this browser." : "Not saved: this browser blocks it. Copy your review before you close.";
+        }, 300);
+      }
+    });
+
+    var others = o.track.options.filter(function (x) { return x !== o; });
+    var combine = el("div", { class: "combine-with" + (r.verdict === "combine" ? "" : " hidden"), "data-combine-for": o.slug },
+      el("span", { class: "small" }, "Combine with"),
+      others.map(function (x) {
+        return el("button", {
+          class: "chip", type: "button", "data-combine-chip": o.slug, "data-other": x.slug,
+          "aria-pressed": r.withSlugs.indexOf(x.slug) !== -1 ? "true" : "false",
+          onclick: function () {
+            var list = reviewOf(o.slug).withSlugs;
+            var at = list.indexOf(x.slug);
+            if (at === -1) { list.push(x.slug); } else { list.splice(at, 1); }
+            syncCombineChips(o.slug);
+            persist();
+            renderReviewRows();
+          }
+        }, x.shortLabel);
+      }));
+
+    var idx = OPTIONS.indexOf(o);
+    var next = OPTIONS[idx + 1];
+    var nextBtn = next
+      ? el("a", { class: "btn btn-block next-btn", href: "#" + next.slug, "data-jump": next.slug }, "Next: " + next.shortLabel + ", " + next.name)
+      : el("a", { class: "btn btn-block next-btn", href: "#decisions", "data-jump": "decisions" }, "Next: Open decisions");
+
+    var review = el("div", { class: "card review-card" },
+      el("h4", null, "My call on " + o.shortLabel),
+      verdictButtons(o.slug),
+      combine,
+      el("div", { class: "field notes-field" },
+        el("label", { for: "notes-" + o.slug }, "Notes"),
+        notes,
+        saveState),
+      nextBtn);
+
+    var info = el("div", { class: "stack" },
+      el("div", null,
+        el("p", { class: "concept" }, o.concept),
+        el("p", null, o.summary)),
+      el("dl", { class: "facts" },
+        el("dt", null, "Best device"), el("dd", null, o.bestDevice),
+        el("dt", null, "For"), el("dd", null, o.forWho)),
+      el("div", { class: "notice demo-tip" }, el("b", null, "Showing it"), o.demoTip),
+      el("div", null,
+        infoBlock("Trade-offs", null, el("p", null, o.tradeoffs), true),
+        infoBlock("What it answers", String(o.answers.length), el("ul", { class: "info-list" }, o.answers.map(function (a) {
+          return el("li", null, a[0], el("span", { class: "src" }, "Source: " + a[1]));
+        }))),
+        infoBlock("Known gaps", String(o.gaps.length), el("ul", { class: "info-list" }, o.gaps.map(function (g) { return el("li", null, g); }))),
+        infoBlock("Questions for " + (H.meta.client || "the client"), String(o.questions.length), el("ul", { class: "info-list" }, o.questions.map(function (q) { return el("li", null, q); })))));
+
+    var gateHits = GATE ? (GATE.failures || []).filter(function (f) { return f.page === o.file; }) : [];
+
+    return el("div", { class: "opt-panel hidden", id: "panel-" + o.slug, role: "tabpanel", "aria-label": o.label },
+      el("div", { class: "opt-head" },
+        el("h3", null, o.label),
+        el("span", { class: "opt-for" }, "Best on " + o.deviceShort)),
+      gateHits.length ? el("div", { class: "notice notice-over", style: "margin-bottom:10px" },
+        el("b", null, "The gate failed this page. "),
+        gateHits.map(function (f) { return (RULE_WORDS[f.rule] || f.rule) + (f.viewport ? " (" + f.viewport + ")" : "") + ". "; })) : null,
+      tools,
+      pv.stage,
+      el("div", { class: "opt-body" }, info, review));
+  }
+
+  /* ---------- Compare ---------- */
+  var compareLive = {};
+
+  function compareState(t) {
+    if (!state.compare[t.key]) {
+      var wide = window.innerWidth >= 1100;
+      state.compare[t.key] = {
+        device: t.compareDevice,
+        picks: t.options.slice(0, wide ? 3 : 2).map(function (o) { return o.slug; })
+      };
+    }
+    return state.compare[t.key];
+  }
+
+  function renderCompare(t) {
+    var panel = byId("panel-compare-" + t.key);
+    (compareLive[t.key] || []).forEach(dropPreview);
+    compareLive[t.key] = [];
+    clear(panel);
+
+    var cs = compareState(t);
+    var hint = el("p", { class: "pv-hint hidden", style: "margin:0 0 8px" });
+    function current() { return cs.device; }
+
+    var picks = el("div", { class: "cmp-group", role: "group", "aria-label": "Options to compare" },
+      el("span", { class: "seg-label" }, "Compare"),
+      t.options.map(function (o) {
+        return el("button", {
+          class: "chip", type: "button", "aria-pressed": cs.picks.indexOf(o.slug) !== -1 ? "true" : "false",
+          onclick: function () {
+            var at = cs.picks.indexOf(o.slug);
+            if (at !== -1 && cs.picks.length <= 2) {
+              hint.textContent = "Compare needs at least two options. Tap another one first.";
+              hint.classList.remove("hidden");
+              return;
+            }
+            if (at !== -1) { cs.picks.splice(at, 1); }
+            else {
+              var order = t.options.map(function (x) { return x.slug; });
+              cs.picks.push(o.slug);
+              cs.picks.sort(function (a, b) { return order.indexOf(a) - order.indexOf(b); });
+            }
+            persist();
+            renderCompare(t);
+          }
+        }, o.shortLabel);
+      }));
+
+    var devices = el("div", { class: "cmp-group", role: "group", "aria-label": "Device size for all" },
+      el("span", { class: "seg-label" }, "All at"));
+    add(devices, deviceChips(current, function (k) {
+      cs.device = k;
+      persist();
+      syncDeviceChips(devices, k);
+      compareLive[t.key].forEach(fitPreview);
+      updateHint();
+    }));
+
+    function updateHint() {
+      var live = compareLive[t.key];
+      var small = live.some(function (p) { return p.scale && p.scale < 0.32; });
+      if (cs.device === "phone") { hint.textContent = PHONE_HINT; hint.classList.remove("hidden"); }
+      else if (small) { hint.textContent = "Small at this width. Pick two options, try a narrower device size, or open one full screen."; hint.classList.remove("hidden"); }
+      else { hint.classList.add("hidden"); }
+    }
+
+    var grid = el("div", { class: "cmp-grid", style: "grid-template-columns:repeat(" + cs.picks.length + ",minmax(0,1fr))" });
+    cs.picks.forEach(function (slug) {
+      var o = BY_SLUG[slug];
+      var pv = makePreview(o, 120, current, null);
+      compareLive[t.key].push(pv);
+      grid.appendChild(el("div", { class: "cmp-col" },
+        el("div", { class: "cmp-col-hd" },
+          el("h4", null, o.label),
+          el("span", { class: "small" }, "Best on " + o.deviceShort)),
+        pv.stage,
+        verdictButtons(slug),
+        el("a", { class: "btn btn-block", href: o.file, target: "_blank", rel: "noopener" }, "Open full screen"),
+        infoBlock("Trade-offs", null, el("p", null, o.tradeoffs), false)));
+    });
+
+    panel.appendChild(el("div", { class: "cmp-tools" }, picks, devices));
+    panel.appendChild(hint);
+    panel.appendChild(grid);
+    compareLive[t.key].forEach(fitPreview);
+    updateHint();
+  }
+
+  /* ---------- Tracks ---------- */
+  function renderTracks() {
+    var root = clear(byId("tracks"));
+    H.tracks.forEach(function (t) {
+      var tabs = el("div", { class: "opt-tabs", role: "tablist", "aria-label": t.title + " options" });
+      t.options.forEach(function (o) {
+        tabs.appendChild(el("button", {
+          class: "opt-tab", type: "button", role: "tab", "data-tab": o.slug, "aria-controls": "panel-" + o.slug,
+          "aria-selected": "false", onclick: function () { selectTab(t, o.slug); }
+        }, el("b", null, (o.part ? o.part : o.letter) + ": " + o.name), el("small", { "data-tab-verdict": o.slug })));
+      });
+      tabs.appendChild(el("button", {
+        class: "opt-tab tab-compare", type: "button", role: "tab", "data-tab": "compare", "aria-controls": "panel-compare-" + t.key,
+        "aria-selected": "false", onclick: function () { selectTab(t, "compare"); }
+      }, el("b", null, "Compare"), el("small", null, "Side by side, same size")));
+
+      var section = el("section", { class: "hub-section", id: t.key },
+        el("h2", null, t.title),
+        el("p", { class: "track-lead" }, t.lead),
+        el("p", { class: "track-note" }, t.note),
+        tabs,
+        t.options.map(renderOptionPanel),
+        el("div", { class: "opt-panel hidden", id: "panel-compare-" + t.key, role: "tabpanel", "aria-label": t.title + " compare" }),
+        el("div", { class: "dir-slot", id: "direction-" + t.key }, directionCard(t)));
+      root.appendChild(section);
+    });
+  }
+
+  function selectTab(t, which) {
+    var prior = state.tab[t.key];
+    state.tab[t.key] = which;
+    persist();
+    var section = byId(t.key);
+    Array.prototype.forEach.call(section.querySelectorAll("[data-tab]"), function (b) {
+      b.setAttribute("aria-selected", b.getAttribute("data-tab") === which ? "true" : "false");
+    });
+    t.options.forEach(function (o) {
+      byId("panel-" + o.slug).classList.toggle("hidden", o.slug !== which);
+    });
+    byId("panel-compare-" + t.key).classList.toggle("hidden", which !== "compare");
+    if (which === "compare") { renderCompare(t); }
+    else if (prior === "compare" && compareLive[t.key]) {
+      compareLive[t.key].forEach(dropPreview);
+      compareLive[t.key] = [];
+      clear(byId("panel-compare-" + t.key));
+    }
+    fitVisible();
+  }
+
+  /* ---------- Jumping: links work the same from anywhere ---------- */
+  function jumpTo(id) {
+    if (!id) { return; }
+    var target;
+    if (BY_SLUG[id]) {
+      selectTab(BY_SLUG[id].track, id);
+      target = byId("panel-" + id);
+    } else {
+      target = byId(id);
+    }
+    if (target && target.scrollIntoView) { target.scrollIntoView({ block: "start" }); }
+  }
+
+  document.addEventListener("click", function (e) {
+    var link = e.target.closest ? e.target.closest("[data-jump]") : null;
+    if (!link) { return; }
+    e.preventDefault();
+    jumpTo(link.getAttribute("data-jump"));
+  });
+
+  /* ---------- Direction: what each track becomes ---------- */
+  function directionOf(t) {
+    if (!state.direction[t.key]) { state.direction[t.key] = { base: null, borrow: [], notes: "" }; }
+    return state.direction[t.key];
+  }
+  function directionDone(t) {
+    if (isStages(t)) { return t.options.every(function (o) { return !!reviewOf(o.slug).verdict; }); }
+    return !!directionOf(t).base;
+  }
+  function directionsDone() { return H.tracks.filter(directionDone).length; }
+  function directionWords(t) {
+    if (isStages(t)) {
+      return t.options.map(function (o) { return (o.part || o.shortLabel) + ": " + verdictWord(o.slug); }).join(". ") + ".";
+    }
+    var d = directionOf(t);
+    if (!d.base) { return "No direction yet."; }
+    if (d.base === "none") { return "None of these yet."; }
+    var words = "Start from " + BY_SLUG[d.base].label + ".";
+    if (d.borrow.length) { words += " Borrow from " + d.borrow.map(function (s) { return BY_SLUG[s].shortLabel; }).join(", ") + "."; }
+    return words;
+  }
+
+  function directionCard(t) {
+    var d = directionOf(t);
+    var body;
+    if (isStages(t)) {
+      body = el("div", null,
+        el("p", { class: "small muted", style: "margin:0 0 6px" }, "One flow in parts, so each part gets its own call."),
+        t.options.map(function (o) {
+          return el("div", { class: "dir-part" }, el("a", { href: "#" + o.slug, "data-jump": o.slug }, o.label), verdictButtons(o.slug));
+        }));
+    } else {
+      body = el("div", null,
+        el("span", { class: "dir-label" }, "Start from"),
+        el("div", { class: "dir-chips", role: "group", "aria-label": "Start " + t.title + " from" },
+          t.options.map(function (o) {
+            return el("button", { class: "chip", type: "button", "data-base-chip": t.key, "data-value": o.slug, "aria-pressed": "false", onclick: function () { setBase(t, o.slug); } },
+              o.letter + ": " + o.name, " ", el("small", { "data-mark": o.slug }));
+          }),
+          el("button", { class: "chip", type: "button", "data-base-chip": t.key, "data-value": "none", "aria-pressed": "false", onclick: function () { setBase(t, "none"); } }, "None of these")),
+        el("span", { class: "dir-label" }, "Borrow from"),
+        el("div", { class: "dir-chips", role: "group", "aria-label": "Borrow for " + t.title + " from" },
+          t.options.map(function (o) {
+            return el("button", { class: "chip", type: "button", "data-borrow-chip": t.key, "data-value": o.slug, "aria-pressed": "false", onclick: function () { toggleBorrow(t, o.slug); } }, o.shortLabel);
+          })));
+    }
+    var timer = null;
+    var notes = el("textarea", {
+      "data-dir-notes": t.key,
+      "aria-label": "Notes on the direction for " + t.title,
+      placeholder: isStages(t) ? "What has to change in each part." : "What to take from where, what has to change.",
+      value: d.notes,
+      oninput: function () {
+        directionOf(t).notes = notes.value;
+        Array.prototype.forEach.call(document.querySelectorAll("[data-dir-notes='" + t.key + "']"), function (other) {
+          if (other !== notes) { other.value = notes.value; }
+        });
+        clearTimeout(timer);
+        timer = setTimeout(function () { persist(); syncReviewMarks(); }, 300);
+      }
+    });
+    return el("div", { class: "card dir-card" },
+      el("div", { class: "card-hd" },
+        el("h4", null, "Direction: " + t.title),
+        el("span", { "data-dir-badge": t.key })),
+      body,
+      el("span", { class: "dir-label" }, "Notes"),
+      notes);
+  }
+
+  function setBase(t, value) {
+    var d = directionOf(t);
+    d.base = d.base === value ? null : value;
+    d.borrow = d.borrow.filter(function (s) { return s !== d.base; });
+    if (d.base === "none") { d.borrow = []; }
+    persist();
+    syncReviewMarks();
+  }
+  function toggleBorrow(t, slug) {
+    var d = directionOf(t);
+    var at = d.borrow.indexOf(slug);
+    if (at === -1) { d.borrow.push(slug); } else { d.borrow.splice(at, 1); }
+    persist();
+    syncReviewMarks();
+  }
+  function syncDirection() {
+    H.tracks.forEach(function (t) {
+      var d = directionOf(t);
+      Array.prototype.forEach.call(document.querySelectorAll("[data-base-chip='" + t.key + "']"), function (c) {
+        c.setAttribute("aria-pressed", d.base === c.getAttribute("data-value") ? "true" : "false");
+      });
+      Array.prototype.forEach.call(document.querySelectorAll("[data-borrow-chip='" + t.key + "']"), function (c) {
+        var v = c.getAttribute("data-value");
+        c.setAttribute("aria-pressed", d.borrow.indexOf(v) !== -1 ? "true" : "false");
+        c.disabled = !d.base || d.base === "none" || d.base === v;
+      });
+      Array.prototype.forEach.call(document.querySelectorAll("[data-dir-badge='" + t.key + "']"), function (b) {
+        var done = directionDone(t);
+        b.className = "badge badge-" + (done ? "under" : "unknown");
+        b.textContent = done ? "Set" : "Not set";
+      });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-mark]"), function (m) {
+      var slug = m.getAttribute("data-mark");
+      m.textContent = reviewOf(slug).verdict ? "(" + verdictWord(slug) + ")" : "";
+    });
+  }
+  function renderDirectionList() {
+    var box = clear(byId("directionList"));
+    H.tracks.forEach(function (t) { box.appendChild(directionCard(t)); });
+  }
+
+  /* ---------- Decisions: each one gets sorted ---------- */
+  var decFilter = "all";
+  function triageOf(id) {
+    if (!state.triage[id]) { state.triage[id] = { status: null, answer: "", ask: "" }; }
+    return state.triage[id];
+  }
+  function isSorted(d) {
+    var t = triageOf(d.id);
+    if (t.status === "later") { return true; }
+    if (t.status === "decided") { return !!t.answer.trim(); }
+    if (t.status === "ask") { return !!t.ask.trim(); }
+    return false;
+  }
+  function sortedCount() { return DECISIONS.filter(isSorted).length; }
+
+  function decisionCard(d) {
+    var t = triageOf(d.id);
+    var timer = null;
+    function saveSoon() {
+      clearTimeout(timer);
+      timer = setTimeout(function () { persist(); syncReviewMarks(); }, 300);
+    }
+    var answer = el("input", { type: "text", id: "ans-" + d.id, value: t.answer, placeholder: "What was decided", oninput: function () { triageOf(d.id).answer = answer.value; saveSoon(); } });
+    var ask = el("input", { type: "text", id: "ask-" + d.id, value: t.ask, placeholder: "Who answers this", oninput: function () { triageOf(d.id).ask = ask.value; saveSoon(); } });
+    var answerRow = el("div", { class: "field" }, el("label", { for: "ans-" + d.id }, "The answer"), answer);
+    var askRow = el("div", { class: "field" }, el("label", { for: "ask-" + d.id }, "Ask"), ask);
+    var buttons = TRIAGE.map(function (s) {
+      return el("button", { class: "tri", type: "button", "data-s": s[0], "aria-pressed": "false", onclick: function () {
+        var cur = triageOf(d.id);
+        cur.status = cur.status === s[0] ? null : s[0];
+        if (cur.status === "ask" && !cur.ask) { cur.ask = d.askWho || d.who || ""; ask.value = cur.ask; }
+        sync();
+        persist();
+        syncReviewMarks();
+      } }, s[1]);
+    });
+    function sync() {
+      var cur = triageOf(d.id);
+      buttons.forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-s") === cur.status ? "true" : "false"); });
+      answerRow.classList.toggle("hidden", cur.status !== "decided");
+      askRow.classList.toggle("hidden", cur.status !== "ask");
+    }
+    sync();
+    return el("div", { class: "card dec-card", "data-decision": d.id },
+      el("h4", null, d.title),
+      el("p", { class: "dec-who" }, d.who),
+      el("p", null, d.why),
+      el("p", { class: "dec-meta" }, "Shapes: " + d.affects + ". Source: " + d.source),
+      el("div", { class: "triage", role: "group", "aria-label": "Sort: " + d.title }, buttons),
+      answerRow,
+      askRow);
+  }
+
+  function applyDecisionFilter() {
+    byId("decShowAll").setAttribute("aria-pressed", decFilter === "all" ? "true" : "false");
+    byId("decShowOpen").setAttribute("aria-pressed", decFilter === "open" ? "true" : "false");
+    Array.prototype.forEach.call(document.querySelectorAll("#decisionList .dec-group"), function (group) {
+      var shown = 0;
+      Array.prototype.forEach.call(group.querySelectorAll("[data-decision]"), function (card) {
+        var d = DECISIONS.filter(function (x) { return x.id === card.getAttribute("data-decision"); })[0];
+        var show = decFilter === "all" || !isSorted(d);
+        card.classList.toggle("hidden", !show);
+        if (show) { shown += 1; }
+      });
+      group.classList.toggle("hidden", shown === 0);
+    });
+  }
+
+  function renderDecisionCards() {
+    var box = clear(byId("decisionList"));
+    (H.decisions || []).forEach(function (g) {
+      box.appendChild(el("div", { class: "dec-group" },
+        el("h3", null, g.group),
+        el("div", { class: "dec-grid" }, g.items.map(decisionCard))));
+    });
+    applyDecisionFilter();
+  }
+
+  function renderDecisions() {
+    renderDecisionCards();
+    /* A card stays put while you type in it. The filter only re-applies when you choose it. */
+    byId("decShowAll").addEventListener("click", function () { decFilter = "all"; applyDecisionFilter(); });
+    byId("decShowOpen").addEventListener("click", function () { decFilter = "open"; applyDecisionFilter(); });
+    var notes = byId("decisionNotes");
+    notes.value = state.decisionNotes;
+    var timer = null;
+    notes.addEventListener("input", function () {
+      state.decisionNotes = notes.value;
+      byId("decisionSave").textContent = "";
+      clearTimeout(timer);
+      timer = setTimeout(function () {
+        persist();
+        syncReviewMarks();
+        byId("decisionSave").textContent = storeOK ? "Saved in this browser." : "Not saved: this browser blocks it. Copy your review before you close.";
+      }, 300);
+    });
+  }
+
+  /* Questions that came up on a single option. There can be dozens, so they're opt-in and never block anything. */
+  function renderQuestions() {
+    var box = clear(byId("questionBlock"));
+    if (!QUESTIONS.length) { return; }
+    box.appendChild(el("h3", null, "Questions from the options"));
+    box.appendChild(el("p", { class: "track-lead" }, QUESTIONS.length + " more came up while these were being built. Add any worth asking to the agenda. Leaving one off doesn't block the sign-off."));
+    H.tracks.forEach(function (t) {
+      var list = QUESTIONS.filter(function (q) { return q.option.track === t; });
+      if (!list.length) { return; }
+      box.appendChild(el("details", { class: "info" },
+        el("summary", null, t.title, el("span", { class: "tag", "data-q-count": t.key })),
+        el("div", null, list.map(function (q) {
+          return el("div", { class: "q-row" },
+            el("div", { class: "q-text" }, q.text, el("span", null, q.option.shortLabel)),
+            el("button", { class: "chip", type: "button", "data-agenda": q.id, "aria-pressed": state.agenda[q.id] ? "true" : "false", onclick: function () {
+              state.agenda[q.id] = !state.agenda[q.id];
+              if (!state.agenda[q.id]) { delete state.agenda[q.id]; }
+              persist();
+              syncReviewMarks();
+            } }, "Add to agenda"));
+        }))));
+    });
+  }
+  function syncQuestions() {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-agenda]"), function (b) {
+      b.setAttribute("aria-pressed", state.agenda[b.getAttribute("data-agenda")] ? "true" : "false");
+    });
+    H.tracks.forEach(function (t) {
+      var on = QUESTIONS.filter(function (q) { return q.option.track === t && state.agenda[q.id]; }).length;
+      var total = QUESTIONS.filter(function (q) { return q.option.track === t; }).length;
+      Array.prototype.forEach.call(document.querySelectorAll("[data-q-count='" + t.key + "']"), function (tag) {
+        tag.textContent = on + " of " + total + " on the agenda";
+      });
+    });
+  }
+
+  /* ---------- Readiness: what stops this being shown ---------- */
+  function manualChecks() {
+    var hasIpad = DEVICE_KEYS.some(function (k) { return k === "ipadL" || k === "ipadP"; });
+    var list = (H.manualChecks || [{
+      id: "real-device",
+      label: hasIpad ? "Opened it on a real iPad" : "Opened it on the device you'll show it on",
+      why: "The gate uses headless Chrome, so Safari and real touch only get checked by a person."
+    }]).map(function (m) { return { id: m.id || "manual-" + hash(m.label), label: m.label, why: m.why || "", action: "I checked" }; });
+    (H.checklist || []).forEach(function (text) {
+      list.push({ id: "check-" + hash(text), label: text, why: "From the list of things to do before you show this.", action: "Done" });
+    });
+    (H.openFindings || []).forEach(function (f) {
+      var o = BY_SLUG[f.slug];
+      list.push({ id: "finding-" + hash((f.slug || "") + "|" + f.problem), label: (o ? o.shortLabel + ": " : "") + f.problem, why: "A reviewer found this and it wasn't confirmed fixed.", action: "Accept as a known gap", slug: f.slug });
+    });
+    return list;
+  }
+  function tickValid(id) {
+    var tick = state.ticks[id];
+    if (!tick) { return false; }
+    return GATE ? tick.version === GATE.version : !tick.version;
+  }
+
+  function blockers() {
+    var out = [];
+    if (!GATE) {
+      out.push({ title: "The gate hasn't run on these pages", detail: "Run check.mjs on this folder, then reload this page." });
+    } else {
+      if (GATE.browser === false) { out.push({ title: "The last gate run skipped the browser checks", detail: "Run check.mjs without --no-browser, then reload this page." }); }
+      (GATE.failures || []).forEach(function (f) {
+        var o = BY_FILE[f.page];
+        out.push({
+          title: (o ? o.shortLabel : f.page) + ": " + (RULE_WORDS[f.rule] || f.rule) + (f.viewport ? " (" + f.viewport + ")" : ""),
+          detail: f.detail,
+          jump: o ? o.slug : null,
+          jumpText: "Open it"
+        });
+      });
+      var more = (GATE.failureCount || 0) - (GATE.failures || []).length;
+      if (more > 0) { out.push({ title: "And " + more + " more gate failures", detail: "Fix these and run the gate again to see them." }); }
+    }
+    manualChecks().forEach(function (m) {
+      if (tickValid(m.id)) { return; }
+      out.push({ title: m.label, detail: state.ticks[m.id] ? "You did this on an earlier version of the pages, so it needs doing again." : m.why, tick: m, jump: m.slug || null, jumpText: "Open it" });
+    });
+    H.tracks.forEach(function (t) {
+      if (!directionDone(t)) {
+        out.push({ title: "Set a direction for " + t.title, detail: isStages(t) ? "Mark each part OK, Change or Later." : "Pick what to start from, even if it's None of these.", jump: "direction-" + t.key, jumpText: "Go there" });
+      }
+    });
+    var left = DECISIONS.length - sortedCount();
+    if (left) { out.push({ title: left + " of " + DECISIONS.length + " open decisions aren't sorted", detail: "Mark each one Decided, with the answer, or Ask, or Later.", jump: "decisions", jumpText: "Go there" }); }
+    return out;
+  }
+
+  /* A fingerprint of the calls, so a sign-off can't quietly outlive a change of mind. */
+  function reviewDigest() {
+    return hash(JSON.stringify({
+      marks: OPTIONS.map(function (o) { var r = reviewOf(o.slug); return [o.slug, r.verdict, r.withSlugs, r.notes]; }),
+      direction: H.tracks.map(function (t) { var d = directionOf(t); return [t.key, d.base, d.borrow, d.notes]; }),
+      decisions: DECISIONS.map(function (d) { var t = triageOf(d.id); return [d.id, t.status, t.answer, t.ask]; })
+    }));
+  }
+  function changedFiles(signed, now) {
+    var seen = {};
+    Object.keys(signed || {}).concat(Object.keys(now || {})).forEach(function (f) { seen[f] = true; });
+    return Object.keys(seen).filter(function (f) { return (signed || {})[f] !== (now || {})[f]; });
+  }
+  function signStatus() {
+    var list = blockers();
+    var s = state.signoff;
+    if (!s) { return { kind: "none", blockers: list, reasons: [] }; }
+    var reasons = [];
+    if (GATE && s.version !== GATE.version) {
+      var files = changedFiles(s.pages, GATE.pages);
+      reasons.push(files.length + (files.length === 1 ? " file has" : " files have") + " changed since you signed: " + files.join(", ") + ".");
+    }
+    if (!GATE) { reasons.push("There's no gate result to compare it with."); }
+    if (s.digest !== reviewDigest()) { reasons.push("You changed the review after signing."); }
+    if (list.length) { reasons.push(list.length + (list.length === 1 ? " thing now blocks it." : " things now block it.")); }
+    return { kind: reasons.length ? "stale" : "signed", blockers: list, reasons: reasons };
+  }
+  function statusWords(st) {
+    if (st.kind === "signed") { return "Signed off by " + state.signoff.by; }
+    if (st.kind === "stale") { return "Sign-off out of date"; }
+    if (!st.blockers.length) { return "Ready to sign"; }
+    return "Not signed off: " + st.blockers.length + (st.blockers.length === 1 ? " thing blocks it" : " things block it");
+  }
+  function when(iso) {
+    var d = new Date(iso);
+    return isNaN(d.getTime()) ? String(iso) : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+
+  function renderGateWarnings() {
+    var box = clear(byId("gateWarnings"));
+    var list = GATE ? (GATE.warnings || []) : [];
+    if (!list.length) { return; }
+    box.appendChild(el("details", { class: "info" },
+      el("summary", null, "Gate warnings", el("span", { class: "tag" }, String(GATE.warningCount))),
+      el("div", null,
+        el("p", { class: "small muted" }, "These don't block the sign-off, but read them: a control that changed nothing may really be dead."),
+        el("ul", { class: "info-list" }, list.map(function (w) {
+          return el("li", null, w.page + ": " + w.detail, el("span", { class: "src" }, w.rule + (w.viewport ? " (" + w.viewport + ")" : "")));
+        })))));
+  }
+
+  function renderSignoff() {
+    var st = signStatus();
+    byId("signTitle").textContent = "Sign-off: ready to show " + CLIENT + "?";
+    var badge = clear(byId("signBadge"));
+    var n = st.blockers.length;
+    if (st.kind === "signed") { badge.appendChild(el("span", { class: "badge badge-under" }, "Signed off")); }
+    else if (st.kind === "stale") { badge.appendChild(el("span", { class: "badge badge-pin" }, "Out of date")); }
+    else if (n) { badge.appendChild(el("span", { class: "badge badge-over" }, n + (n === 1 ? " thing blocks this" : " things block this"))); }
+    else { badge.appendChild(el("span", { class: "badge badge-pin" }, "Ready to sign")); }
+
+    byId("gateLine").textContent = !GATE ? "The gate hasn't run yet."
+      : "Gate " + (GATE.ok ? "passed" : "failed") + " on " + when(GATE.at) + ": " + GATE.failureCount + (GATE.failureCount === 1 ? " failure, " : " failures, ") + GATE.warningCount + (GATE.warningCount === 1 ? " warning. " : " warnings. ") + "Pages version " + GATE.version + ".";
+
+    var list = clear(byId("blockerList"));
+    if (!n) { list.appendChild(el("p", { class: "notice notice-under", style: "margin:0" }, "Nothing is blocking this.")); }
+    st.blockers.forEach(function (b) {
+      list.appendChild(el("div", { class: "blocker" },
+        el("div", { class: "blocker-text" }, el("b", null, b.title), b.detail ? el("span", null, b.detail) : null),
+        b.jump ? el("a", { class: "btn", href: "#" + b.jump, "data-jump": b.jump }, b.jumpText) : null,
+        b.tick ? el("button", { class: "btn", type: "button", onclick: function () {
+          state.ticks[b.tick.id] = { at: new Date().toISOString(), version: GATE ? GATE.version : null };
+          persist();
+          syncReviewMarks();
+        } }, b.tick.action) : null));
+    });
+    manualChecks().filter(function (m) { return tickValid(m.id); }).forEach(function (m) {
+      list.appendChild(el("div", { class: "blocker" },
+        el("div", { class: "blocker-text" }, el("b", null, m.label), el("span", null, "Done on " + when(state.ticks[m.id].at) + ".")),
+        el("span", { class: "badge badge-under" }, "Done"),
+        el("button", { class: "btn btn-quiet", type: "button", onclick: function () {
+          delete state.ticks[m.id];
+          persist();
+          syncReviewMarks();
+        } }, "Undo")));
+    });
+
+    var groups = { decided: [], ask: [], later: [] };
+    DECISIONS.forEach(function (d) { var t = triageOf(d.id); if (groups[t.status] && isSorted(d)) { groups[t.status].push(d); } });
+    var onAgenda = QUESTIONS.filter(function (q) { return state.agenda[q.id]; }).length;
+    byId("triageSummary").textContent = "";
+    byId("triageSummary").appendChild(el("p", { style: "margin:0" },
+      "Decided " + groups.decided.length + ", Ask " + groups.ask.length + ", Later " + groups.later.length + ", not sorted " + (DECISIONS.length - sortedCount()) + ". " +
+      onAgenda + (onAgenda === 1 ? " question" : " questions") + " from the options on the agenda. ",
+      el("a", { href: "#decisions", "data-jump": "decisions" }, "Sort them")));
+
+    var box = clear(byId("signState"));
+    if (st.kind === "signed") {
+      box.appendChild(el("p", { class: "notice notice-under", style: "margin:0" }, "Signed off by " + state.signoff.by + " on " + when(state.signoff.at) + ", pages version " + state.signoff.version + "."));
+    } else if (st.kind === "stale") {
+      box.appendChild(el("div", { class: "notice notice-pin" },
+        el("b", null, state.signoff.by + " signed this on " + when(state.signoff.at) + ", but it's out of date. "),
+        st.reasons.join(" ")));
+    }
+    var name = byId("signName");
+    var ready = !n && !!name.value.trim();
+    var btn = byId("signBtn");
+    btn.disabled = !ready;
+    btn.textContent = st.kind === "stale" ? "Sign again: ready to show" : "Sign off: ready to show";
+    btn.classList.toggle("hidden", st.kind === "signed");
+    name.parentNode.classList.toggle("hidden", st.kind === "signed");
+    byId("signWithdraw").classList.toggle("hidden", !state.signoff);
+    byId("signWhy").textContent = st.kind === "signed" ? "" : n ? "Clear everything in What's blocking this first. The fix list and the agenda work now, without signing." : ready ? "This records your name, the time and the pages version." : "Add your name to sign.";
+  }
+
+  function setupSignForm() {
+    var name = byId("signName");
+    name.value = state.signName;
+    name.addEventListener("input", function () {
+      state.signName = name.value;
+      persist();
+      renderSignoff();
+    });
+    byId("signBtn").addEventListener("click", function () {
+      if (blockers().length || !name.value.trim()) { return; }
+      state.signoff = {
+        by: name.value.trim(),
+        at: new Date().toISOString(),
+        version: GATE.version,
+        pages: GATE.pages,
+        gateAt: GATE.at,
+        digest: reviewDigest()
+      };
+      persist();
+      syncReviewMarks();
+    });
+    byId("signWithdraw").addEventListener("click", function () {
+      state.signoff = null;
+      persist();
+      syncReviewMarks();
+    });
+  }
+
+  /* ---------- Every mark and note ---------- */
+  function renderReviewRows() {
+    var c = counts();
+    byId("reviewSummary").textContent = c.done
+      ? c.done + " of " + OPTIONS.length + " reviewed. " + tally(c) + ". Saved in this browser only."
+      : "Nothing marked yet. Your calls and notes show up here as you go. They're saved in this browser only.";
+    var box = clear(byId("reviewRows"));
+    H.tracks.forEach(function (t) {
+      box.appendChild(el("h3", { style: "margin-top:16px" }, t.title));
+      t.options.forEach(function (o) {
+        var r = reviewOf(o.slug);
+        box.appendChild(el("div", { class: "review-row" },
+          el("a", { href: "#" + o.slug, "data-jump": o.slug }, o.label),
+          verdictBadge(o.slug),
+          el("div", { class: "rv-notes" },
+            r.verdict === "combine" && r.withSlugs.length ? "With " + r.withSlugs.map(function (s) { return BY_SLUG[s].shortLabel; }).join(", ") + ". " : "",
+            r.notes || "")));
+      });
+    });
+    syncDirection();
+    syncQuestions();
+    byId("decisionCount").textContent = sortedCount() + " of " + DECISIONS.length + " sorted";
+    renderSignoff();
+    renderClear();
+    renderOutput();
+  }
+
+  var clearAsking = false;
+  function hasAnything() {
+    return counts().done > 0 || !!state.decisionNotes || !!state.signoff
+      || OPTIONS.some(function (o) { return !!reviewOf(o.slug).notes; })
+      || H.tracks.some(function (t) { var d = directionOf(t); return !!d.base || !!d.notes; })
+      || DECISIONS.some(function (d) { return !!triageOf(d.id).status; })
+      || Object.keys(state.agenda).length > 0 || Object.keys(state.ticks).length > 0;
+  }
+  function renderClear() {
+    var slot = clear(byId("clearSlot"));
+    if (!hasAnything()) { clearAsking = false; return; }
+    if (!clearAsking) {
+      slot.appendChild(el("button", { class: "btn btn-quiet", type: "button", onclick: function () { clearAsking = true; renderClear(); } }, "Clear my review"));
+      return;
+    }
+    slot.appendChild(el("span", { class: "confirm-row" },
+      el("button", { class: "btn btn-danger", type: "button", onclick: function () {
+        state.review = {};
+        state.decisionNotes = "";
+        state.direction = {};
+        state.triage = {};
+        state.agenda = {};
+        state.ticks = {};
+        state.signoff = null;
+        clearAsking = false;
+        persist();
+        /* Every field on the page holds a copy of what was just cleared, so rebuild them. */
+        OPTIONS.forEach(function (o) {
+          var n = byId("notes-" + o.slug);
+          if (n) { n.value = ""; }
+          syncCombineChips(o.slug);
+        });
+        byId("decisionNotes").value = "";
+        renderDecisionCards();
+        H.tracks.forEach(function (t) { clear(byId("direction-" + t.key)).appendChild(directionCard(t)); });
+        renderDirectionList();
+        syncReviewMarks();
+        setStatus("Review cleared.", false);
+      } }, "Yes, clear it"),
+      el("button", { class: "btn btn-quiet", type: "button", onclick: function () { clearAsking = false; renderClear(); } }, "Keep it")));
+  }
+
+  /* ---------- The three outputs ---------- */
+  var OUTPUTS = [
+    { key: "record", name: "Full record", file: "review", build: recordText },
+    { key: "fix", name: "Fix list", file: "fix-list", build: fixListText },
+    { key: "agenda", name: "Agenda for " + CLIENT, file: "agenda", build: agendaText }
+  ];
+  var outKey = "record";
+
+  function indent(lines, label, text) {
+    if (!text || !text.trim()) { return; }
+    text.trim().split("\n").forEach(function (n, i) { lines.push((i === 0 ? "  " + label + ": " : "  ") + n); });
+  }
+  function today() {
+    var d = new Date();
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+  function optionCall(o) {
+    var r = reviewOf(o.slug);
+    var call = verdictWord(o.slug);
+    if (r.verdict === "combine" && r.withSlugs.length) {
+      call += " with " + r.withSlugs.map(function (s) { return BY_SLUG[s].shortLabel; }).join(" and ");
+    }
+    return call;
+  }
+
+  function fixListLines() {
+    var lines = [];
+    var failures = GATE ? (GATE.failures || []) : [];
+    if (failures.length) {
+      lines.push("GATE FAILURES (fix these first)");
+      failures.forEach(function (f) {
+        var o = BY_FILE[f.page];
+        lines.push("- " + (o ? o.shortLabel + " (" + f.page + ")" : f.page) + ": " + (RULE_WORDS[f.rule] || f.rule) + (f.viewport ? " on " + f.viewport : "") + ". " + f.detail);
+      });
+      lines.push("");
+    }
+    lines.push("WHAT TO BUILD FROM HERE");
+    H.tracks.forEach(function (t) {
+      lines.push("- " + t.title + ": " + directionWords(t));
+      indent(lines, "Notes", directionOf(t).notes);
+    });
+    var marked = OPTIONS.filter(function (o) { var r = reviewOf(o.slug); return r.verdict || (r.notes && r.notes.trim()); });
+    if (marked.length) {
+      lines.push("");
+      lines.push("PAGE BY PAGE");
+      marked.forEach(function (o) {
+        lines.push("- " + o.label + " (" + o.file + "): " + optionCall(o));
+        indent(lines, "Notes", reviewOf(o.slug).notes);
+      });
+    }
+    var decided = DECISIONS.filter(function (d) { return triageOf(d.id).status === "decided" && isSorted(d); });
+    if (decided.length) {
+      lines.push("");
+      lines.push("DECIDED, SO CHECK THE PAGES MATCH");
+      decided.forEach(function (d) { lines.push("- " + d.title + " " + triageOf(d.id).answer.trim() + " (Shapes: " + d.affects + ")"); });
+    }
+    return lines;
+  }
+  function fixListText() {
+    return [(H.meta.title || "Prototypes").toUpperCase() + ": FIX LIST", "Pages version " + (GATE ? GATE.version : "unknown") + ". Written " + today() + ".", ""].concat(fixListLines()).join("\n");
+  }
+
+  function agendaLines() {
+    var lines = [];
+    lines.push("WHAT TO SHOW");
+    H.tracks.forEach(function (t) { lines.push("- " + t.title + ": " + directionWords(t)); });
+    lines.push("");
+    lines.push("QUESTIONS, BY WHO ANSWERS THEM");
+    var asks = DECISIONS.filter(function (d) { return triageOf(d.id).status === "ask" && isSorted(d); });
+    var who = [];
+    asks.forEach(function (d) { var w = triageOf(d.id).ask.trim(); if (who.indexOf(w) === -1) { who.push(w); } });
+    if (!asks.length) { lines.push("None marked Ask yet."); }
+    who.forEach(function (w) {
+      lines.push(w);
+      asks.filter(function (d) { return triageOf(d.id).ask.trim() === w; }).forEach(function (d) {
+        lines.push("- " + d.title);
+        if (d.why) { lines.push("  Why it matters: " + d.why); }
+        if (d.affects) { lines.push("  Shapes: " + d.affects); }
+      });
+    });
+    var extra = QUESTIONS.filter(function (q) { return state.agenda[q.id]; });
+    if (extra.length) {
+      lines.push("");
+      lines.push("QUESTIONS FROM THE OPTIONS");
+      extra.forEach(function (q) { lines.push("- " + q.text + " (" + q.option.shortLabel + ")"); });
+    }
+    var decided = DECISIONS.filter(function (d) { return triageOf(d.id).status === "decided" && isSorted(d); });
+    if (decided.length) {
+      lines.push("");
+      lines.push("ALREADY DECIDED");
+      decided.forEach(function (d) { lines.push("- " + d.title + " " + triageOf(d.id).answer.trim()); });
+    }
+    var later = DECISIONS.filter(function (d) { return triageOf(d.id).status === "later"; });
+    if (later.length) {
+      lines.push("");
+      lines.push("HOLDING FOR LATER");
+      later.forEach(function (d) { lines.push("- " + d.title); });
+    }
+    var left = DECISIONS.filter(function (d) { return !isSorted(d); });
+    if (left.length) {
+      lines.push("");
+      lines.push("NOT SORTED YET");
+      lines.push(left.length + " of " + DECISIONS.length + " open decisions aren't sorted, so this agenda isn't complete.");
+    }
+    return lines;
+  }
+  function agendaText() {
+    return [(CLIENT + " agenda").toUpperCase(), "Internal draft, written " + today() + ". Read it before you share it: it can name people and quote them.", ""].concat(agendaLines()).join("\n");
+  }
+
+  function recordData(st) {
+    return {
+      schema: "prototype-hub-review/1",
+      slug: H.meta.slug || null,
+      writtenAt: new Date().toISOString(),
+      signoff: state.signoff ? { status: st.kind, by: state.signoff.by, at: state.signoff.at, version: state.signoff.version, reasons: st.reasons } : null,
+      pages: GATE ? { version: GATE.version, files: GATE.pages } : null,
+      gate: GATE ? { ok: GATE.ok, at: GATE.at, browser: GATE.browser, clicks: GATE.clicks, failureCount: GATE.failureCount, warningCount: GATE.warningCount } : null,
+      blockers: st.blockers.map(function (b) { return b.title; }),
+      checks: manualChecks().map(function (m) { var t = state.ticks[m.id]; return { label: m.label, done: tickValid(m.id), at: t ? t.at : null, version: t ? t.version : null }; }),
+      direction: H.tracks.map(function (t) {
+        var d = directionOf(t);
+        return isStages(t)
+          ? { track: t.key, shape: "stages", parts: t.options.map(function (o) { return { slug: o.slug, file: o.file, call: reviewOf(o.slug).verdict }; }), notes: d.notes }
+          : { track: t.key, shape: "options", base: d.base, borrow: d.borrow, notes: d.notes };
+      }),
+      options: OPTIONS.map(function (o) { var r = reviewOf(o.slug); return { slug: o.slug, file: o.file, track: o.track.key, call: r.verdict, withSlugs: r.withSlugs, notes: r.notes }; }),
+      decisions: DECISIONS.map(function (d) { var t = triageOf(d.id); return { id: d.id, group: d.group, title: d.title, status: isSorted(d) ? t.status : null, answer: t.answer, ask: t.ask }; }),
+      agendaQuestions: QUESTIONS.filter(function (q) { return state.agenda[q.id]; }).map(function (q) { return { slug: q.option.slug, text: q.text }; }),
+      decisionNotes: state.decisionNotes
+    };
+  }
+  function recordText() {
+    var st = signStatus();
+    var lines = ["# " + (H.meta.title || "Prototypes") + ": review record", ""];
+    if (st.kind === "signed") {
+      lines.push("**Signed off, ready to show.** " + state.signoff.by + ", " + when(state.signoff.at) + ", pages version " + state.signoff.version + ".");
+    } else if (st.kind === "stale") {
+      lines.push("**Sign-off out of date.** " + state.signoff.by + " signed on " + when(state.signoff.at) + ". " + st.reasons.join(" "));
+    } else {
+      lines.push("**Not signed off.** " + st.blockers.length + (st.blockers.length === 1 ? " thing blocks it." : " things block it."));
+    }
+    lines.push("This covers readiness to show. It isn't a client approval and doesn't change scope.");
+    lines.push("");
+    lines.push("## What's blocking this");
+    if (!st.blockers.length) { lines.push("Nothing."); }
+    st.blockers.forEach(function (b) { lines.push("- " + b.title); });
+    lines.push("");
+    lines.push("## Fix list");
+    fixListLines().forEach(function (l) { lines.push(l); });
+    lines.push("");
+    lines.push("## Agenda for " + CLIENT);
+    lines.push("Internal draft. Read it before you share it: it can name people and quote them.");
+    lines.push("");
+    agendaLines().forEach(function (l) { lines.push(l); });
+    if (state.decisionNotes && state.decisionNotes.trim()) {
+      lines.push("");
+      lines.push("## Notes on the decisions");
+      lines.push(state.decisionNotes.trim());
+    }
+    lines.push("");
+    lines.push("## Data for the next step");
+    lines.push("```json");
+    lines.push(JSON.stringify(recordData(st), null, 1));
+    lines.push("```");
+    return lines.join("\n");
+  }
+
+  function outputOf(key) { return OUTPUTS.filter(function (o) { return o.key === key; })[0]; }
+  function renderOutTabs() {
+    var box = clear(byId("outTabs"));
+    OUTPUTS.forEach(function (o) {
+      box.appendChild(el("button", { class: "chip", type: "button", "data-out": o.key, "aria-pressed": "false", onclick: function () {
+        outKey = o.key;
+        setStatus("", false);
+        renderOutput();
+      } }, o.name));
+    });
+  }
+  function renderOutput() {
+    Array.prototype.forEach.call(document.querySelectorAll("[data-out]"), function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-out") === outKey ? "true" : "false");
+    });
+    byId("outText").value = outputOf(outKey).build();
+  }
+
+  function setStatus(text, bad) {
+    var s = byId("copyStatus");
+    s.textContent = text;
+    s.classList.toggle("is-bad", !!bad);
+  }
+
+  /* execCommand needs the text selected. Used when the clipboard API is missing or blocked. */
+  function legacyCopy() {
+    var area = byId("outText");
+    var ok = false;
+    try {
+      area.focus({ preventScroll: true });
+      area.select();
+      area.setSelectionRange(0, area.value.length);
+      ok = document.execCommand("copy");
+    } catch (e) {
+      ok = false;
+    }
+    return ok;
+  }
+
+  function copyFailed(fromBar) {
+    setStatus("The browser blocked the clipboard. Select the text below and copy it.", true);
+    var area = byId("outText");
+    if (fromBar) { byId("outText").scrollIntoView({ block: "center" }); }
+    try { area.focus({ preventScroll: true }); area.select(); } catch (e) { /* the text is still there to select by hand */ }
+  }
+
+  function copyOutput(key, fromBar) {
+    outKey = key || outKey;
+    renderOutput();
+    var text = byId("outText").value;
+    function done() {
+      setStatus(outKey === "record" ? "Copied. Paste it into the chat." : "Copied.", false);
+      if (fromBar) { flashBar(); }
+    }
+    function tryLegacy() {
+      if (legacyCopy()) { done(); } else { copyFailed(fromBar); }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, tryLegacy);
+    } else {
+      tryLegacy();
+    }
+  }
+
+  function flashBar() {
+    var b = byId("hubNav").querySelector(".chip-copy");
+    if (!b) { return; }
+    var was = "Copy my review";
+    b.textContent = "Copied";
+    setTimeout(function () { b.textContent = was; }, 1800);
+  }
+
+  function downloadOutput() {
+    renderOutput();
+    var o = outputOf(outKey);
+    var url = URL.createObjectURL(new Blob([byId("outText").value], { type: "text/markdown" }));
+    var a = el("a", { href: url, download: o.file + "-" + today() + ".md" });
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    setStatus("Downloaded " + o.file + "-" + today() + ".md", false);
+  }
+
+  byId("copyOutput").addEventListener("click", function () { copyOutput(null, false); });
+  byId("downloadOutput").addEventListener("click", downloadOutput);
+
+  /* ---------- Start ---------- */
+  function setBar() {
+    document.documentElement.style.setProperty("--bar-h", barHeight() + "px");
+  }
+
+  if (window.IntersectionObserver) {
+    io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting && en.target.__pv) { startFrame(en.target.__pv); }
+      });
+    }, { rootMargin: "240px 0px" });
+  }
+
+  /* The words at the top of the page come from hub-data.js */
+  document.title = (H.meta.title || "Prototypes") + ": review hub (internal)";
+  byId("barTitle").textContent = H.meta.barTitle || "Internal review copy";
+  byId("barSub").textContent = H.meta.barSub || "Made-up data. Not connected to anything.";
+  byId("hubTitle").textContent = (H.meta.title || "Prototypes") + ": review hub";
+  byId("hubIntro").textContent = H.meta.intro || "";
+  byId("hubNotice").textContent = H.meta.notice || "All data is made up. This hub may name real people and quote them, so it stays internal.";
+
+  renderNav();
+  renderOverview();
+  renderTracks();
+  renderDecisions();
+  renderQuestions();
+  renderDirectionList();
+  renderOutTabs();
+  renderGateWarnings();
+  setupSignForm();
+
+  H.tracks.forEach(function (t) {
+    var saved = state.tab[t.key];
+    var ok = saved === "compare" || (saved && t.options.some(function (o) { return o.slug === saved; }));
+    selectTab(t, ok ? saved : t.options[0].slug);
+  });
+  syncReviewMarks();
+  setBar();
+  fitVisible();
+  persist();
+
+  /* A finger on the hub puts every preview's shield back, so the page can scroll again. */
+  if (isTouch) {
+    document.addEventListener("touchstart", function (e) {
+      previews.forEach(function (pv) {
+        if (pv.started && !pv.wait && !pv.shield && !(pv.wrap.contains && pv.wrap.contains(e.target))) { armShield(pv); }
+      });
+    }, { passive: true });
+  }
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () { setBar(); fitVisible(); }, 80);
+  });
+
+  window.addEventListener("hashchange", function () { jumpTo(location.hash.slice(1)); });
+  if (location.hash) { jumpTo(location.hash.slice(1)); }
+})();
+</script>
+</body>
+</html>
