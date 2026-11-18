@@ -1,85 +1,92 @@
-Orchestrate a goal end-to-end: decompose it, route each piece to the best specialist agent, run pieces in parallel or as a pipeline, gate quality, and report. The smart layer above `/parallel` and `/subagent`.
+Orchestrate a goal end-to-end: decompose, route, verify, report. You are the orchestrator: you plan, delegate, check and ship. Agents do the building.
 
 Goal: $ARGUMENTS
 
-Where `/parallel` does flat fan-out and `/subagent` runs one background agent, `/orchestrate` decides the *shape* of the work, picks the *right specialist* per task, applies *isolation and structured output* automatically, and *graduates to the `Workflow` tool* when the work outgrows simple fan-out.
-
-`/orchestrate` is the planning front door to **Maestro** — the standing, cross-provider, cross-session command deck at `/maestro` (`docs/maestro-spec.md`). One-shot, quick jobs still run exactly as before, entirely inline; only *standing* work — spanning sessions, or handed to another provider — gets persisted to the board (step 8).
-
 ## Steps
 
-1. **Understand & decompose** — From `$ARGUMENTS`, determine the true goal (not just the surface ask). Break it into the smallest set of tasks that each have one clear owner and one clear output. For each task note: (a) is it read-only or does it write files? (b) does it depend on another task's output? (c) roughly how long / how much context does it need?
+1. **Decompose.** Find the true goal, not just the surface ask. Break it into the fewest tasks that each have one owner and one output. For each, note: read-only or writes files? Depends on another task? How much context does it need? If two readings of the goal are both plausible, ask one question before spawning anything.
 
-   If two readings of the goal are both plausible, ask one clarifying question (AskUserQuestion) before spawning anything. A wrong fan-out wastes more than a question does.
+2. **Decide the shape.**
 
-2. **Decide the shape** — Pick the execution model from this table. This is the most important step — it's the signpost that keeps simple work simple and routes heavy work to the right primitive.
+   | The work is… | Use |
+   |---|---|
+   | One task | A single `Agent` call |
+   | 2–7 **independent** tasks | Several `Agent` calls in **one message** (they run in parallel) |
+   | Stages where N needs N-1's output, or tasks that depend on each other | Sequential `Agent` calls (a pipeline). Long pipelines stay this way; they work. |
+   | A wide batch (~8+ similar items), or a multi-stage pipeline with verify/repair loops, resume or a budget | The `Workflow` tool, **only if the user has opted into workflows**. Otherwise describe the workflow you'd run and ask. |
+   | A workstream that should outlive this conversation and land on its own branch/PR | A separate session (`start_session`, where the app offers it), with the model set |
 
-   | The work is… | Use | Why |
+   Never use `Workflow` for a 3-task fan-out.
+
+3. **Route each task.** `subagent_type` picks the agent; `model` picks the brain. **Every `Agent` call passes `model`.**
+
+   | Task | `subagent_type` | `model` |
    |---|---|---|
-   | One task, right-sized (1–10 files, clear scope) | `/subagent` (or a single `Agent` call) | No orchestration overhead needed |
-   | 2–5 **independent** tasks, no handoff between them | `/orchestrate` flat fan-out (this skill) | True parallelism, clean rollup |
-   | Multi-stage where stage N needs stage N-1's output (research → write → review) | `/orchestrate` pipeline (this skill) | Sequenced handoff, still parallel within a stage |
-   | A loop until a condition (find-until-dry, accumulate-to-N), a conditional branch, >5–8 items to pipeline, or you need resume / a token budget / schema-validated fan-out at scale | **`Workflow` tool** | Deterministic control flow, concurrency cap, resume, budget — beyond what prose orchestration can hold |
-   | Tasks depend on each other but can't be expressed as clean stages | Sequential `Agent` calls | Correctness over speed |
+   | Write, change or debug code | `coder` → else `general-purpose` | `opus` |
+   | Audit a diff/PR, or a rendered UI from screenshots | `reviewer` → else `general-purpose` | `opus` |
+   | Plan an implementation before code | `planner` → else `Plan` | `opus` |
+   | Research, fact-check, comparison | `researcher` → else `general-purpose` | `opus` |
+   | Draft or edit prose (returns text; you land it) | `writer` → else `general-purpose` | `opus`, or `sonnet` for light edits |
+   | Broad read-only search across many files | `Explore` | `sonnet` (or `opus` for deep reads) |
+   | Lookups, inventories, formatting, test runs, simple edits | `general-purpose` | `sonnet` |
+   | Needs the current conversation's context to make sense | `fork` | ignored (inherits yours) |
 
-   **If the row says `Workflow`, stop and author a Workflow script instead** (see the Workflow tool). Note that the Workflow tool requires explicit opt-in — if the user hasn't opted in, briefly describe the workflow you'd run and ask. Do not silently downgrade a Workflow-grade job into a fragile flat fan-out.
+   - **Built-ins** always exist: `general-purpose`, `Explore` (read-only search), `Plan` (read-only planning), `fork`.
+   - **Custom agents** (`coder`, `reviewer`, `planner`, `researcher`, `writer`) exist only if the user defined them. Use one when it's in this session's agent list; otherwise fall back to `general-purpose` (or `Explore`/`Plan`) with the **same brief**: same task, pointers and output format. Name the type you actually spawn in the launch line.
+   - Read-only agents (`reviewer`, `researcher`, `writer`, `Explore`, `Plan`) can't write files. If the task must write, use `general-purpose`, or split it (specialist produces, `general-purpose` lands).
+   - **Models:** default `opus` for building, research, planning and review; `sonnet` for light or mechanical work. An explicit `model` overrides the agent definition's frontmatter, and definitions often default to a cheaper model, so never omit it and never let a subagent silently inherit the session model. Use the top-tier (most expensive) model only when the user names it. Set `effort` only when the user asks for one.
 
-3. **Route each task to a specialist** — Match the task to the richest-fit named agent, not a generic one. Named specialists carry their own system prompts and conventions — they beat `general-purpose` on quality.
+4. **Isolation and structured output.**
+   - **Worktrees** (`isolation: "worktree"`) for parallel agents writing to the same repo, but check `git status` first. If the real state lives in uncommitted WIP, worktrees branch from a commit that lacks it. Then run agents in the shared tree with **disjoint file sets**, type-check-only verification (no concurrent builds), told **not to touch git**, and run one build yourself afterwards.
+   - **Schema'd returns** when you'll aggregate results: e.g. `{status: "ok"|"fail"|"warn", summary, details, action_needed}`. Skip it for a single narrative result.
 
-   | Task is about… | `agentType` | Notes |
-   |---|---|---|
-   | Research, fact-check, comparison, market/tech scan | `researcher` | Returns cited findings; checks any existing notes first |
-   | Drafting/editing/repurposing content, docs, copy | `writer` | Read-only — can't write files; have it return text and you (or a writer-capable agent) land it |
-   | Writing/changing/debugging code | `coder` | Reads conventions first, verifies build/tests |
-   | Auditing a diff/PR/change before merge | `reviewer` | Read-only; reports, doesn't fix |
-   | Auditing how a rendered UI actually looks (hierarchy, spacing, contrast, responsive) | `designer` | Read-only; drives a browser, judges real pixels. Reports, doesn't fix |
-   | Designing an implementation strategy before code | `planner` | Returns a plan, not code |
-   | Broad read-only search across many files/dirs | `Explore` | Returns the conclusion, not file dumps. Specify breadth: "medium" or "very thorough" |
-   | Anything with no clean specialist, or that mixes read + write + bash | `general-purpose` | Full tool access — the fallback |
+5. **Brief every agent like a cold peer.** Include the repo/working directory and "read `CLAUDE.md` or the README first"; the specific files, docs or index that bear on the task; the goal, what's already ruled out, and the exact output format. Not the whole conversation. A thin brief is the top reason delegations come back shallow.
 
-   When in doubt between a specialist and `general-purpose`: if the specialist is read-only (`researcher`, `writer`, `reviewer`, `designer`, `Explore`) and the task must *write files*, either use `general-purpose` or split it (specialist produces, general-purpose lands).
+6. **Spawn.** Show one line first: `Running N in parallel / as a pipeline: [subagent_type · model · task] …`. Agents run in the background and you're notified when each hands back. Keep a visible fan-out to about 5–7.
 
-4. **Apply isolation & structured output automatically** — Don't make the user ask for these:
-   - **Worktree isolation** (`isolation: "worktree"`) for parallel agents that *write to the same repo* — but check `git status` first. Isolation is correct only when HEAD is actually the source of truth. If the repo's real state lives in **uncommitted or untracked WIP**, do NOT use worktrees: `git worktree add` branches from a commit, so the agents compile against a base missing that WIP and either fail to build or "succeed" against a fiction. In that case run them in the shared tree with **disjoint file sets**, **`tsc --noEmit`-only agent verification** (never `npm run build` inside agents — two concurrent builds clobber each other's output), agents told **not to touch git**, and **one orchestrator-run build after** as the real gate. Read-only agents never need isolation either way.
-   - **Schema'd returns** when you'll aggregate results programmatically. Give each agent a small JSON schema — e.g. `{status: "ok"|"fail"|"warn", summary, details, action_needed}` — so the rollup is reliable instead of prose-parsed. For a single narrative result, skip the schema.
+7. **Gate quality.** Don't accept "verified, no issues" at face value.
+   - **Independent review:** for code, a review agent that didn't write it reads the diff.
+   - **Re-run it yourself:** the main session re-runs build, type-check and tests before accepting any write task.
+   - **Look at it yourself:** for anything rendered (UI, design, report, motion), take the screenshots or frames and look personally. Check the final/resting state, where stuck-state bugs hide. Agents check mechanics, not meaning. For a second opinion, give a review agent the screenshots.
+   - **Fix loop:** send specific feedback to the **same agent with `SendMessage`** (it keeps its context). Up to 2 rounds, then flag it.
 
-5. **Mandate context pointers** — Every spawned prompt MUST tell the agent where to look first. A cold agent rediscovers what we already know. Include:
-   - The working directory / repo, and "read `CLAUDE.md` (or the README) first if it exists"
-   - The specific index/file/dir that bears on the task (a named source file, the relevant module, an architecture doc)
-   - The goal and the exact output format expected — not the full conversation history
+## Session mode
 
-6. **Spawn** — Launch all independent tasks in a **single message with multiple `Agent` calls** for true parallelism. Default long or independent tasks to `run_in_background: true` so the user isn't blocked (you're notified on completion). For a pipeline, spawn stage 1, then spawn stage 2 with stage 1's output once it lands.
+`/orchestrate` usually runs a whole session, not one shot. Re-typing it means "keep delegating". The loop:
 
-   Before spawning, show a one-line launch summary: "Running these N in parallel/as a pipeline: [list with agentType each]."
+1. Take the next task from the plan or roadmap.
+2. Spawn **one agent** for it (step 3 routing, explicit model).
+3. Main session re-runs build/tests and looks at the output.
+4. Problems → `SendMessage` the same agent with exact fixes. Don't spawn fresh, and don't fix it inline.
+5. Commit that task (main session), then go to 1.
 
-7. **Gate quality & retry** — When results come back, review before presenting. If a result is weak, wrong, or thin, re-delegate to the same agent with *specific* feedback (max 2 retries). Flag anything still uncertain or failed plainly. For write tasks, confirm the agent verified its work (build/type-check/tests) before accepting.
+**The main session owns** decomposition, verification, commits, deploys and talking to the user. It does **not** build: beyond trivial one-line fixes, every edit goes to an agent. Long browser QA passes go to an agent too (`sonnet`); you still look at the key screens yourself.
 
-   **A subagent's "verified, no issues" is not a visual QA gate.** Agents reliably check *mechanical* properties (overflow, clipping, cursor lands, tests pass) but not *semantic* ones — does the final frame say what it's supposed to say? is this element legible against what's actually behind it? For any delegated work whose output is *rendered pixels* — UI, design, motion, a generated report — the orchestrator extracts the frames/screenshots and looks at them personally before reporting done. It's a different check, not a redundant one; budget for it. Prioritize the **final/resting frame** — that's where "stuck state" bugs hide, because agents verify transitions more carefully than resting states. (This is also when to route the rendered result to a `designer` pass.)
+Commits, pushes and deploys are tail steps. Do them yourself, after the agents for that task finish, never in parallel with the edits they capture. Anything that sends, publishes, spends, deploys or is hard to reverse needs the user's approval, even when an agent could do it.
 
-   Sequencing-sensitive tail steps (git commit/push, deploy) are NOT parallel work — do them yourself *after* the relevant agents finish, so the commit stays clean. Never fan out a git commit alongside the file edits it's meant to capture.
+## Board tracking (optional)
 
-8. **Persist standing work to the Maestro board** — If the goal is a one-shot quick job, behave exactly as before (inline fan-out, done) — this step is a no-op for it. But if it's a *standing effort* — spans sessions, or you'll hand pieces to other providers (Codex/Cursor/Grok) — instead of (or in addition to) spawning inline, persist each decomposed task to the Maestro board with `/maestro new "<title>" --repo <R> --provider <hint>`, carrying the `provider_hint` from step 3's routing decision. Then print the board (`/maestro`). This is what makes the decomposition outlive the session.
+Only if the user runs **Maestro** and the work outlives one turn. Use the CLI (`node <maestro-skill-dir>/maestro.mjs …`):
 
-9. **Report** — Present a unified rollup in original task order, leading with the answer:
+- `new "<title>" --repo <repo>` creates the task (one per plan task, or one for the session).
+- `claim T-<id> --repo <repo>` when you start it.
+- `say T-<id> "progress" --repo <repo>` at each task boundary.
+- `ask T-<id> "question" --repo <repo>` when the user must decide. It lands in their inbox.
+- `set T-<id> --status review --repo <repo>` when finished.
+- **Never run `done` on your own work.** That's for a reviewer or the user.
 
-   ```
-   ORCHESTRATE  N/N complete
+No Maestro in use → skip this section entirely.
 
-   [1] researcher · Neon branching API scan     OK
-       Synthesized 8 sources → recommended copy-on-write per PR preview.
-   [2] coder · add webhook handler              OK
-       New route + Zod schema + test. Build + types pass.
-   [3] reviewer · audit the diff                OK (returned report; no blockers)
+## Report
 
-   Result: <the one thing that matters> · Open decisions: <if any>
-   ```
+Short. Result first.
 
-## Notes
-- This skill is orchestration made explicit. Reach for it whenever the work is substantive and multi-step; use `/parallel` for a quick flat fan-out you've already scoped, and `/subagent` for a single fire-and-forget change.
-- The graduation rule (step 2) is the point of this skill: don't force loops, conditionals, large pipelines, or resume/budget needs through prose orchestration — that's what the `Workflow` tool exists for. And don't reach for `Workflow` on a 3-task fan-out — that's over-engineering.
-- Specialist routing (step 3) is the quality lever. The named agents exist precisely so we stop spawning blank `general-purpose` agents for work that has a better-fit owner.
-- Respect autonomy boundaries: research/read is autonomous; anything that sends, publishes, spends, deploys, or is hard to reverse needs the user's approval — even when a subagent could technically do it.
-- Max ~5 agents per *visible* fan-out (rollup legibility, not a system limit). Need more concurrent units than that? That's a `Workflow` (its real cap is ~14 concurrent, 1000 lifetime).
-- Hand every agent context pointers (step 5). This is non-negotiable and is the most common reason a delegation comes back shallow.
-- Step 8 is the only regression risk in this evolution — it must stay a no-op for quick jobs. Don't persist a task to the board just because `/orchestrate` ran; persist only when the work is explicitly standing/cross-session or explicitly headed to another provider. When in doubt, ask rather than silently seeding the board.
-- Once persisted, `/maestro work`/`/maestro route` are what actually turn a board row into active work (worktree, `PROMPT.md`, provider launch string) — `/orchestrate` only seeds the row.
+```
+ORCHESTRATE  N/N complete
+Result: <the one thing that matters>
+Verified: <what you re-ran or looked at, and how: build/tests, screenshots, review agent>
+Not verified: <anything unchecked, failed or assumed>
+Open decisions: <what needs the user, if anything>
+```
+
+Add a per-task line (`[n] subagent_type · model · task  OK/FAIL`) only when there were several tasks.

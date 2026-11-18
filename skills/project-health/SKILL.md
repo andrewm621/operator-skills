@@ -2,16 +2,16 @@
 name: project-health
 description: >
   One-shot health check for the current project. Delegates to specialized skills where possible and aggregates results.
-argument-hint: "default: current working directory"
+argument-hint: "[dir] [--skip-build]"
 ---
 
 One-shot health check for the current project. Delegates to specialized skills where possible and aggregates results.
 
-Target directory: $ARGUMENTS (default: current working directory)
+Arguments: $ARGUMENTS (optional `--skip-build` flag and optional target directory; default: current working directory)
 
 ## Steps
 
-1. **Detect project** — If `$ARGUMENTS` is provided, `cd` to that directory. Verify `package.json` exists. Detect package manager (pnpm-lock.yaml = pnpm, package-lock.json = npm).
+1. **Parse arguments and detect project** — Pull flags out of `$ARGUMENTS` first: `--skip-build` skips check 2c (report Build as SKIP). Whatever remains, if anything, is the target directory: `cd` to it; if nothing remains, stay in the current working directory. Verify `package.json` exists. Detect package manager (pnpm-lock.yaml = pnpm, package-lock.json = npm).
 
 2. **Run checks in parallel** — Use parallel bash calls for speed:
 
@@ -24,6 +24,7 @@ Target directory: $ARGUMENTS (default: current working directory)
    - Categorize: major (breaking), minor, patch updates
 
    **c) Build check:**
+   - Skip this check if `--skip-build` was passed
    - Run `npm run build 2>&1` or `pnpm build 2>&1`
    - Capture exit code and any error output
    - Time the build
@@ -68,11 +69,11 @@ Target directory: $ARGUMENTS (default: current working directory)
    - Type errors → "Run `/test` to investigate failures"
    - Build errors → "Run `/test` or check the error output above"
    - Env issues → "Run `/env-check` for full env comparison"
-   - Database issues (if detected) → "Run `/db-status` for connection and migration check"
+   - Database issues (if detected) → "Run `/migrate status` for connection and migration check"
    - Git issues → "Run `/git-sync` for branch and sync status"
 
 ## Notes
 - This is the "run everything and summarize" skill — it surfaces issues, specialized skills fix them
-- The build step can be slow (30s-2min) — consider skipping with `/project-health --skip-build` argument
-- This skill does NOT modify any files — it only reports
-- For a narrower check, use the individual skills directly: `/deps`, `/test`, `/env-check`, `/db-status`
+- The build step can be slow (30s-2min) — skip it with `/project-health --skip-build`, optionally with a directory: `/project-health ../app --skip-build`
+- This skill makes no source changes — it only reports. The build and type check can write artifacts (`.next/`, `dist/`, `*.tsbuildinfo`)
+- For a narrower check, use the individual skills directly: `/deps`, `/test`, `/env-check`, `/migrate status`

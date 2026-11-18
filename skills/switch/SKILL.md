@@ -1,18 +1,20 @@
 ---
 name: switch
 description: >
-  Fast context switch into any project with full orientation. Fuzzy matches project names against ~/Projects/*.
+  Fast context switch into any project with full orientation. Fuzzy matches project names against the directories in your projects folder.
 argument-hint: "<project name>"
 ---
 
-Fast context switch into any project with full orientation. Fuzzy matches project names against ~/Projects/*.
+Fast context switch into any project with full orientation. Fuzzy matches project names against the directories in your projects folder.
 
 Target: $ARGUMENTS
 
+**Config:** `paths.projects` from `~/.config/operator-skills/config.yaml` (default `~/Projects`) — see `docs/config.md`. `<projects>` below is that directory; a missing file or key means the default.
+
 ## Steps
 
-1. **Find the project** — If `$ARGUMENTS` is a full path, use it directly. Otherwise, fuzzy match against directory names in `~/Projects/`:
-   - Run `ls ~/Projects/` and find the best match for `$ARGUMENTS` (case-insensitive, partial match OK)
+1. **Find the project** — If `$ARGUMENTS` is a full path, use it directly. Otherwise, fuzzy match against directory names in `<projects>/`:
+   - Run `ls <projects>/` and find the best match for `$ARGUMENTS` (case-insensitive, partial match OK)
    - If multiple matches, show them and ask the user to pick
    - If no match, tell the user and list similar names
 

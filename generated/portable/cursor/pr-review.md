@@ -2,21 +2,23 @@
 
 Structured code review of a pull request. Checks security, logic, patterns, and breaking changes.
 
-Arguments: {the text you type after the command} (PR number, branch name, or empty for current branch vs main)
+Arguments: {the text you type after the command} (PR number, branch name, or empty for current branch vs the default branch)
 
 ## Steps
 
-1. **Determine what to review** —
-   - If `{the text you type after the command}` is a number: fetch PR diff with `gh pr diff {the text you type after the command}`
-   - If `{the text you type after the command}` is a branch name: diff against main with `git diff main...{the text you type after the command}`
-   - If empty: diff current branch against main with `git diff main...HEAD`
-   - Also get the list of changed files: `git diff --name-only main...HEAD`
+1. **Determine what to review** — Resolve the base branch and the diff range first; every later step reuses them. Never assume the base is `main`.
+   - **Default branch** (`DEFAULT`): `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`; without `gh`, `git symbolic-ref --short refs/remotes/origin/HEAD` (strip the `origin/`); if both fail, whichever of `main` / `master` exists
+   - If `{the text you type after the command}` is a number (PR): `gh pr view {the text you type after the command} --json title,body,labels,baseRefName,headRefName,files,commits`. Base = `baseRefName`, head = `headRefName`. Diff with `gh pr diff {the text you type after the command}`. Changed files come from the `files` JSON. To read files in full without touching the working tree, run `git fetch origin pull/{the text you type after the command}/head` and use `git show FETCH_HEAD:<path>` (or read them directly if the PR branch is already checked out)
+   - If `{the text you type after the command}` is a branch name: base = `DEFAULT`, head = that branch. Range = `<base>...<branch>`. If the branch only exists on the remote, use `origin/<branch>`
+   - If empty: base = `DEFAULT`, head = current branch (`git branch --show-current`). Range = `<base>...HEAD`. If the current branch *is* the default branch (or the range is empty), say there is nothing to review and ask for a PR number or branch
+   - Prefer `origin/<base>` over the local `<base>` when it exists, since a stale local base inflates the diff
+   - For branch/empty modes: diff with `git diff <range>`, changed files with `git diff --name-only <range>`
 
 2. **Gather context** — Run in parallel:
-   - `git diff --stat main...HEAD` — summary of changes (files, insertions, deletions)
-   - `git log --oneline main...HEAD` — commits in the PR
+   - `git diff --stat <range>` — summary of changes (files, insertions, deletions). For a PR number, use the `files` JSON (`additions`/`deletions`) instead
+   - `git log --oneline <range>` — commits in the PR. For a PR number, use the `commits` JSON
    - Read all changed files fully (not just the diff) for complete context
-   - If PR number given: `gh pr view {the text you type after the command} --json title,body,labels` for PR metadata
+   - PR metadata (title, body, labels) comes from the `gh pr view` call in step 1 when a PR number was given
 
 3. **Review categories** — Analyze the diff for each category:
 
@@ -56,7 +58,7 @@ Arguments: {the text you type after the command} (PR number, branch name, or emp
 
    ```
    ## PR Review: #47 — Add event capacity limits
-   Branch: feature/event-capacity → main
+   Branch: feature/event-capacity → <base>
    Files changed: 8 | +245 / -32 | 5 commits
 
    ### Issues

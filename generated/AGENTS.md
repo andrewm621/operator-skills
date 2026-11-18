@@ -26,13 +26,14 @@ reads this file.
 ### Orchestration
 
 - **/maestro** — Standing cross-provider command deck for the Maestro task board — create, claim, work, route, and message across tasks/providers (Claude, Codex, Cursor, Grok Build), persisting across sessions and terminals via markdown + git so any agent can pick up where another left off, and ask/answer questions along the way.
-- **/switch** — Fast context switch into any project with full orientation. Fuzzy matches project names against ~/Projects/*.
+- **/handoff** — Hand a task off to Codex (or another agent) as a clean, well-scoped GitHub issue with acceptance criteria, file pointers, and constraints — the bridge between planning in one session and async execution elsewhere.
+- **/switch** — Fast context switch into any project with full orientation. Fuzzy matches project names against the directories in your projects folder.
 
 ### Planning
 
 - **/phases** — Display the current roadmap progress with visual phase indicators. Reads from /roadmap data or any roadmap file.
 - **/todo** — Manage tasks within the current roadmap phase or as a standalone list. Add, complete, skip, reprioritize, and view tasks.
-- **/log** — Update the daily work log — a living document that tracks progress, decisions, and context throughout the day. Creates a new log if none exists for today, or appends to the existing one.
+- **/log** — Update the daily work log — a living document that tracks progress, decisions, and context throughout the day. Creates a new log if none exists for today, or appends to the existing one. `/log wrap` finalizes the day (and replaces the old one-shot session note).
 
 ### Code Quality
 
@@ -46,23 +47,24 @@ reads this file.
 - **/dark-mode** — Add a Light / Dark / System theme toggle to the current project, defaulting to the OS preference and persisting the user's explicit choice — flash-free, across Next.js, Vite/React, and plain HTML.
 - **/report** — Generate a polished, interactive HTML report for: {the text you type after the command}
 - **/motion-artifact** — Animate a product feature or process as a self-contained HTML scene, then export it deterministically to GIF, MP4, WebM, or PNG frames. For demo clips, release notes, launch posts, and slides — without hand-animating.
+- **/premium-video-ad** — Make a premium motion-design video ad, promo cut or product walkthrough for a product or brand, in 16:9 and 9:16, from bundled code-rendered engines (six beat, timeline, continuous flow) with a beat-locked synthesized soundtrack. Use for a video ad, promo, Reels or Instagram ad, explainer or walkthrough video, or a new skin of an earlier cut. Not for editing user-supplied footage.
 
 ### Git & Infrastructure
 
 - **/git-sync** — Full git sync report for the current repository. Shows local vs remote status, all branches, uncommitted changes, stashes, and potential conflicts. Optional: pass a project directory as argument.
 - **/changelog** — Generate a changelog from git commits since the last tag or a custom starting point.
 - **/env-check** — Compare expected vs actual environment variables and flag mismatches. Never displays secret values.
-- **/db-status** — Database connection check and quick status. For full migration workflows, use `/migrate`.
-- **/migrate** — Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely.
+- **/migrate** — Database migration workflow for Drizzle, Prisma, or Supabase projects. Guides through generating, reviewing, and applying migrations safely. `/migrate status` is the read-only health check — connection test, migration state, schema drift, table inventory.
+- **/port-check** — Show what's running on common development ports. Identifies projects and offers to kill stale processes.
 - **/test-desktop-app** — Test a local macOS desktop app (Tauri first; Electron and native later) without stealing focus from the person using the machine — picks the most background layer that can verify the claim, enforces the focus policy and guardrails, and reports what was verified live, what wasn't, and what is left for a human.
 - **/gleap** — Work with Gleap (in-app feedback, support inbox, surveys, product tours) — install the widget, query the server REST API, or debug an existing integration. Covers the two-key auth model, the inconsistent response envelopes, and the query syntax.
 
 ### Knowledge
 
 - **/learn** — Extract, catalog, and recall lessons learned — mistakes, gotchas, surprising behaviors, and solutions. Builds a searchable knowledge base from real work sessions so the same problems don't bite twice.
-- **/session-notes** — Write up a structured session note capturing what was done, decisions made, and what's next. Saves to dev-notes.
-- **/document** — Document a feature, decision, architecture, or workflow. Writes to dev-notes, Notion, or inline code docs.
-- **/search-all** — Search across all ~/Projects/* directories for a pattern. Finds packages, code references, and files across 50+ projects.
+- **/note** — Add a note to your personal knowledge base (second brain) — a local Markdown vault such as Obsidian, Tolaria, Logseq, or a plain folder. Reads the vault location from a per-user config outside the repo, follows the vault's own conventions, routes the note to the right folder, avoids duplicates, and never overwrites.
+- **/document** — Document a feature, decision, architecture, or workflow. Writes decision records, inline code docs, or a README, and hands Notion pages to `/notion` and learnings to `/learn`.
+- **/search-all** — Search across every project directory in your workspace for a pattern. Finds packages, code references, and files across 50+ projects.
 - **/help** — Show a categorized cheat sheet of all available custom slash commands with one-line descriptions.
 
 ## Claude Code-specific (needs Anthropic tooling/MCP)
@@ -75,7 +77,7 @@ that underlying Claude-specific tooling or MCP server is also present.
 
 ### Orchestration
 
-- **/orchestrate** — Orchestrate a goal end-to-end: decompose it, route each piece to the best specialist agent, run pieces in parallel or as a pipeline, gate quality, and report. The smart layer above /parallel and /subagent.
+- **/orchestrate** — Orchestrate a goal end-to-end: decompose it, route each piece to the right agent with an explicit model, run pieces in parallel or as a pipeline, verify the results yourself, and report. Usually becomes a whole-session mode: delegate, verify, fix via SendMessage, commit per task.
 - **/parallel** — Run multiple tasks in parallel using subagents. Pipe-separated tasks are spawned simultaneously and results are aggregated.
 - **/subagent** — Dispatch a task to a background agent that explores the codebase, plans the implementation, and makes the changes — all while you keep working in the primary session.
 - **/research** — Research a topic in the background using a subagent while you keep working. Returns a structured summary.
@@ -89,27 +91,25 @@ that underlying Claude-specific tooling or MCP server is also present.
 
 ### Code Quality
 
-- **/perf** — Performance audit for web apps. Runs Lighthouse via Dia Browser, analyzes bundle size, checks Core Web Vitals, and suggests optimizations.
-- **/parallel-check** — Check if a shared dependency change breaks consumer projects. Thin wrapper around `/parallel build-check` with auto-detected consumers.
+- **/perf** — Performance audit for web apps. Runs Lighthouse, analyzes bundle size, checks Core Web Vitals, and suggests optimizations.
 
 ### Scaffolding & Architecture
 
-- **/scaffold** — Create a new project from templates tuned to your stack conventions. Scaffolds full project structure with framework, database, auth, and design system pre-wired.
+- **/scaffold** — Create a new project from templates tuned to your stack conventions. Scaffolds full project structure with framework, database, auth, and UI kit pre-wired.
 - **/foundation-loop** — Drive a fresh or near-fresh app from generated skeleton to a working foundation — auth wired, one core data flow proven end-to-end, clean build — through bounded implement/verify/critique rounds with a real stop condition and a hard round ceiling, cutting the back-and-forth of babysitting early build-out.
 - **/map** — Generate or update an architectural map of a project — folder structure, dependencies, data flow, and component relationships — with Mermaid diagrams.
 - **/walkthrough** — Turn a real app, or a described flow, into a self-contained auto-playing guided walkthrough page (60-90 seconds, 5-8 scenes, captions, a moving cursor, player controls, a step list). Storyboards first and waits for approval, checks for real people's data, QAs headlessly in light, dark and phone, then publishes a private artifact and, only on an explicit yes, a public Cloudflare link.
 - **/collateral-set** — Produce a cohesive set of client-facing HTML artifacts (explainers, pitch, landing page, calculator, case study, playbook) in one sitting — build one anchor by hand to lock the design system, fan the rest out to parallel subagents, gate every page for accuracy and cohesion, and publish them centrally as live Artifacts.
+- **/prototype-hub** — Turn client conversations into clickable prototype options on desktop and iPad, plus one internal review hub with live previews, a direction per track, sorted open decisions and a versioned sign-off that produces a fix list, the client's agenda and a dated record. Fable writes a sourced brief, agents build in parallel on shared made-up data, an automated gate runs after every build and fix, and a time limit is enforced. Sends nothing and publishes nothing.
 
 ### Git & Infrastructure
 
-- **/port-check** — Show what's running on common development ports. Identifies projects and offers to kill stale processes.
-- **/verify-app** — Verify a running web app in Dia Browser via CDP. URL defaults to http://localhost:3000 unless specified.
+- **/verify-app** — Verify a running web app in a real browser via `agent-browser`. URL defaults to http://localhost:3000 unless specified.
 
 ### Knowledge
 
-- **/ai-export** — Export AI chat threads (ChatGPT verified; Claude.ai and Grok unverified) from your logged-in browser through the app's own JSON API, convert them locally to markdown, archive the raw JSON, and file the notes into your knowledge vault.
-- **/email-triage** — Triage Andrew's Gmail inbox into a two-axis urgency × context report — read-only, never touches labels, archive state, drafts, or sends.
-- **/notion** — Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current.
-- **/notion-ctx** — Manage a per-project registry of relevant Notion documents with cached summaries for fast context loading. Keeps Notion knowledge fresh and token-efficient.
-- **/slack-reply** — Draft a reply to a Slack message or thread in Andrew's voice. Resolves the target from a pasted URL, the local Slack directory, or search; reads the thread for context; stages the reply as a Slack draft for approval. Never sends.
+- **/ai-export** — Export AI chat threads (ChatGPT verified; Claude.ai and Grok unverified) from your logged-in browser through the app's own JSON API, convert them locally to markdown, archive the raw JSON, and file the notes into your knowledge vault (a plain folder of Markdown works).
+- **/email-triage** — Triage your Gmail inbox into a two-axis urgency × context report — read-only, never touches labels, archive state, drafts, or sends.
+- **/notion** — Sync work progress, decisions, and notes to any project's Notion workspace. Auto-detects project from cwd via the notion-context registry. Creates dev notes, updates existing pages, searches for context, and keeps project workspaces current. `/notion ctx ...` manages that registry and its cached page summaries for fast, token-efficient context loading.
+- **/slack-reply** — Draft a reply to a Slack message or thread in your voice. Resolves the target from a pasted URL, the local Slack directory, or search; reads the thread for context; stages the reply as a Slack draft for approval. Never sends.
 - **/slack-ctx** — Manage the local Slack directory — the cached map of people, channels, and threads that makes /slack-reply resolve a target without searching. Save, find, list, sync, prune, and regenerate the vault mirror.

@@ -1,0 +1,36 @@
+# Maestro policy — copy to <projects>/.maestro/policy.yaml and keep it by hand.
+# (Paths: <projects> is paths.projects / MAESTRO_PROJECTS, see docs/config.md.)
+#
+# Same lenient, flat style as registry.yaml: not general YAML. Maestro never
+# writes this file; `maestro sync` only reads it.
+#
+# P1a reads ONE section:
+#
+# repos: maps a registry repo name to the client it works for. `sync` writes
+# the result into each index.jsonl row as `client`:
+#     the task's own `client:` frontmatter field   (wins)
+#   > this map                                      (fallback)
+#   > null
+# Quote names that contain spaces. Trailing `# comments` are fine.
+#
+# Canonical form: `repos:` followed by `  repo: client` pairs, as below. Maestro also
+# tolerates `  - repo: client` items and a `  client:` header followed by
+# `    - repo` lines (the dashboard reads the same three shapes), but write pairs.
+repos:
+  acme-app: acme
+  "acme marketing site": acme
+  internal-tools: internal
+
+hard_terms:            # optional; the dashboard masks these (case-insensitive) in free text
+  - Acme Corp
+  - Project Zebra
+
+# Reserved for later phases (docs/maestro-spec.md §14.8). Ignored today — unknown
+# sections are skipped — so it is safe to draft them now.
+#
+# clients:
+#   acme:
+#     tier: 1            # 1 > 2 > 3 when ranking work
+#     wip: 3             # live claims allowed at once
+#     daily_attempts: 6
+# wip: 6                 # global live-claim ceiling
