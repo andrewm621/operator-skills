@@ -40,7 +40,8 @@ RULES FOR EVERY PROTOTYPE:
 - Made-up data only. Never copy a real person, client, supplier or job from the sources onto a screen, even in a note, a label or a code comment, because viewers can read the source. If a note needs to refer to someone, use their role.
 - shared/data.js is the only data source. Pages read it and never change it.
 - Plain static HTML, CSS and classic (non-module) JavaScript. No build step, no npm, no CDN, no web fonts, no external requests. Must work opened straight from file:// and inside an iframe, using relative links only.
-- Each page loads ../shared/tokens.css, ../shared/data.js, ../shared/domain.js if it exists, and ../shared/kit.js, and calls Kit.mountProtoLabel. That gives it the persistent prototype label and Reset demo.
+- Each page loads ../shared/theme.css, ../kit/kit.css and ../shared/proto.css (in that order), then ../shared/data.js, ../shared/domain.js if it exists, and ../shared/kit.js, and calls Kit.mountProtoLabel. That gives it the persistent prototype label and Reset demo. <html data-mode="light"> and <body data-kit>.
+- The look is the Theme Core theme in shared/theme.css, never your own colours. Use the classes in shared/proto.css (btn, chip, card, badge-*, table, notice-*, topbar ...) and kit's bare HTML. Page CSS goes in one <style>, reads only theme vars (var(--primary), var(--card), var(--muted-foreground), var(--border), var(--tone-success-bg) ...) and sets no colour values, no :root tokens and no data-theme. --muted and --accent are surfaces, not text colours. No style="" attributes in the markup. Every <section> has an aria-label. Never edit anything in kit/.
 - Really clickable. State changes on tap, and it stays in Kit.safeGet and Kit.safeSet. No dead buttons: a control that isn't built shouldn't be there.
 - Works at every size in the device list without sideways page scroll. Touch targets at least 44px. Nothing depends on hover.
 - Use the client's own words, in plain language. No lorem ipsum and no placeholder screens.
@@ -216,11 +217,11 @@ const optionCount = plan.tracks.reduce((n, t) => n + t.options.length, 0)
 log(`Brief: ${plan.tracks.length} tracks, ${optionCount} options, ${plan.conflicts.length} conflicts in the sources`)
 
 phase('Foundation')
-await agent(`Set up the shared foundation in ${OUT}/shared/. tokens.css and kit.js are already there. Read them, and ${OUT}/BRIEF.md.
+await agent(`Set up the shared foundation in ${OUT}/shared/. theme.css, proto.css and kit.js are already there, and the Theme Core kit is in ${OUT}/kit/. Read them, and ${OUT}/BRIEF.md.
 
 1. Write shared/data.js: one global, window.PROTO_DATA = { meta: {...}, ... }, holding made-up records every option shares, so the same job or person reads the same everywhere. meta needs: slug ("${A.slug || 'demo'}"), prototypeLabel (${JSON.stringify(A.prototypeLabel || 'Prototype. Made-up data. Not connected to anything.')}), ideaLabel, onlyIfLabel, aiOffLabel and sourceLabel. It must cover: ${plan.dataNeeds}
 2. If several pages will need the same client-specific logic, put it in shared/domain.js (classic script, loaded after data.js and before kit.js, extending window.PROTO_DOMAIN). Otherwise skip it.
-3. ${A.look ? `Set the palette values in tokens.css from: ${A.look}. Keep every token name.` : 'Leave the palette alone.'}
+3. Leave the look alone: it is the theme imported by shared/theme.css (config.theme), and no colours or tokens get added anywhere.${A.look ? ` If this note asks for something the theme can't give, say so in shared/README.md: ${A.look}` : ''}
 4. Write shared/README.md: a short list of what's in the data, for the builders.
 
 Make the names plainly fictional, and don't reuse any real name from the sources.
@@ -240,7 +241,7 @@ Best on: ${o.primaryDevice}
 Spec:
 ${o.buildSpec}
 
-Read ${OUT}/BRIEF.md for context, then ${OUT}/shared/README.md, data.js and kit.js, and tokens.css. Use the shared data as it is.
+Read ${OUT}/BRIEF.md for context, then ${OUT}/shared/README.md, data.js and kit.js, and proto.css (the classes to use). Use the shared data as it is.
 
 Make it feel like a real tool someone would use, not a slide. Check your work:
 1. ${SHOT} with a prefix under ${WORK}/shots/, then read the images and fix what looks wrong.
