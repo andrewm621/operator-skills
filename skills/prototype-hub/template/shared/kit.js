@@ -11,6 +11,18 @@
   var resetHandler = null;
   var labelMounted = false;
 
+  /* ---------- Mode: light or dark comes from data-mode on <html> and the theme ----------
+     The hub opens each preview with ?mode=light|dark, so a page follows the hub's switch. */
+  var MODES = ["light", "dark", "auto"];
+  function setMode(mode) {
+    if (MODES.indexOf(mode) === -1) { return; }
+    document.documentElement.setAttribute("data-mode", mode);
+  }
+  try {
+    var asked = (window.location.search.match(/[?&]mode=(light|dark|auto)\b/) || [])[1];
+    if (asked) { setMode(asked); }
+  } catch (e) { /* no location in a locked-down frame: keep the page's own mode */ }
+
   /* ---------- DOM ---------- */
   /* el("button", { class: "btn", onclick: fn, dataset: { id: 1 }, disabled: true }, "Text", childNode, [more]) */
   function el(tag, attrs) {
@@ -232,7 +244,8 @@
     toast: toast, copyText: copyText,
     roleSwitcher: roleSwitcher, currentRole: currentRole,
     badge: badge, source: source, ideaLabel: ideaLabel, onlyIfLabel: onlyIfLabel, aiSample: aiSample,
-    byId: byId, formatDate: formatDate
+    byId: byId, formatDate: formatDate,
+    setMode: setMode
   };
 
   window.Kit = Kit;

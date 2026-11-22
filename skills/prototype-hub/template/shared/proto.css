@@ -1,0 +1,222 @@
+/* Prototype components for every page and the hub, on the Theme Core kit.
+   Load order on every page: ../shared/theme.css (the run's theme), ../kit/kit.css, then this file,
+   with data-kit on <body> and data-mode on <html> (light | dark | auto; absent = light).
+
+   No colours and no tokens live here. Every colour is a Theme Core var from the theme
+   (--background, --foreground, --card, --primary, --muted-foreground, --border, --input,
+   --secondary, --destructive, --success, --warning, --info, --tone-*-bg/fg/border), so changing
+   the theme in shared/theme.css changes every page. Every selector sits under [data-kit], so it
+   wins over kit.css's bare-element styles (buttons, labels, tables) and over nothing outside.
+   Text stays on pairs the theme's contrast gate checks. */
+
+[data-kit] {
+  --proto-line: 1px;          /* border width; 2px in field mode */
+  --proto-label-space: 72px;  /* room kept clear under the page for the prototype label */
+  --proto-radius-sm: calc(var(--radius) * 0.6);
+  --proto-shadow: 0 1px 2px var(--shadow-color, transparent);
+  padding-bottom: var(--proto-label-space);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The canvas under a short page: kit's container query on <body> stops the body's ground from
+   reaching it, so <html> paints the same theme ground (dark mode would show white below). */
+html:has(> body[data-kit]) { background: var(--background); }
+
+/* Field mode: larger, heavier text and full-strength lines, for outdoor or glare use.
+   .sun and .field-mode are the same thing. Same theme, muted text and borders at full ink. */
+[data-kit] :is(.sun, .field-mode),
+[data-kit]:is(.sun, .field-mode) {
+  --muted-foreground: var(--foreground);
+  --border: var(--foreground);
+  --input: var(--foreground);
+  --proto-line: 2px;
+  --proto-shadow: none;
+  --kit-target: 52px;
+  font-size: 1.15em;
+  font-weight: 500;
+}
+
+/* ---------- Flow ----------
+   Prototypes lay out with components and gap, so kit's sibling margins are off here and
+   headings and paragraphs keep a bottom margin instead. Kit blocks keep their own spacing. */
+[data-kit] :where(main, article, section, aside, header, footer, blockquote, figure, details, form, fieldset, li, dd, div) > * + * { margin-block-start: 0; }
+[data-kit] :where(main, article, section, aside, div) > * + :where(h2, h3, h4) { margin-block-start: 0; }
+[data-kit] :where(main, article, section, aside, div) > :where(h2, h3, h4) + * { margin-block-start: 0; }
+[data-kit] :where(h1, h2, h3, h4) { margin: 0 0 0.4em; }
+[data-kit] :where(p) { margin: 0 0 0.75em; }
+[data-kit] img, [data-kit] svg, [data-kit] video, [data-kit] canvas { max-width: 100%; height: auto; }
+[data-kit] :where(code, .mono) { font-family: var(--kit-mono-font); font-size: 0.92em; }
+
+[data-kit] .muted { color: var(--muted-foreground); }
+[data-kit] .small { font-size: 0.86em; }
+[data-kit] .strong { font-weight: 650; }
+[data-kit] .nowrap { white-space: nowrap; }
+[data-kit] .eyebrow { font-size: 0.78em; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-foreground); }
+[data-kit] .hidden { display: none !important; }
+
+/* ---------- Layout ---------- */
+[data-kit] .page { max-width: 1360px; margin: 0 auto; padding: 20px 24px; }
+[data-kit] .topbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 24px;
+  background: var(--foreground); color: var(--background);
+}
+[data-kit] .topbar :is(h1, h2, h3) { margin: 0; color: var(--background); }
+[data-kit] .topbar .muted { color: var(--background); }
+[data-kit] :is(.topbar, .row) .spacer { flex: 1 1 auto; }
+[data-kit] .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+[data-kit] .row-top { align-items: flex-start; }
+[data-kit] .stack { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+[data-kit] :is(.grid-2, .grid-3, .grid-4) { display: grid; gap: 16px; }
+[data-kit] .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+[data-kit] .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+[data-kit] .grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+[data-kit] .sidebar-layout { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr) 320px; align-items: start; }
+@media (max-width: 900px) {
+  [data-kit] .page { padding: 16px; }
+  [data-kit] .topbar { padding: 10px 16px; }
+  [data-kit] :is(.grid-3, .grid-4) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  [data-kit] .sidebar-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 640px) {
+  [data-kit] :is(.grid-2, .grid-3, .grid-4) { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- Cards ---------- */
+[data-kit] .card {
+  min-width: 0; padding: 16px; background: var(--card); color: var(--card-foreground);
+  border: var(--proto-line) solid var(--border); border-radius: var(--radius); box-shadow: var(--proto-shadow);
+}
+[data-kit] .card-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+[data-kit] .card-hd :is(h2, h3, h4) { margin: 0; }
+[data-kit] .divider { border: 0; border-top: var(--proto-line) solid var(--border); margin: 14px 0; }
+
+/* ---------- Buttons ---------- */
+[data-kit] .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: var(--kit-target); min-width: var(--kit-target); padding: 8px 16px;
+  font: inherit; font-weight: 600; line-height: 1.2; text-align: center; text-decoration: none;
+  color: var(--card-foreground); background: var(--card);
+  border: max(1.5px, var(--proto-line)) solid var(--primary); border-radius: var(--proto-radius-sm);
+  cursor: pointer; touch-action: manipulation;
+}
+[data-kit] .btn:active { transform: translateY(1px); }
+[data-kit] .btn-primary { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+[data-kit] .btn-primary:active { background: color-mix(in oklch, var(--primary) 85%, var(--foreground)); }
+[data-kit] .btn-quiet { background: transparent; border-color: var(--input); color: var(--foreground); }
+[data-kit] .btn-danger { background: var(--background); border-color: var(--destructive); color: var(--destructive); }
+[data-kit] .btn-lg { min-height: 72px; padding: 14px 24px; font-size: 1.2em; font-family: var(--kit-heading-font); }
+[data-kit] .btn-block { width: 100%; }
+[data-kit] :is(.btn[disabled], .btn[aria-disabled="true"]) {
+  background: var(--muted); color: var(--muted-foreground); border-color: var(--input);
+  border-style: dashed; cursor: not-allowed; transform: none;
+}
+
+/* ---------- Inputs (kit styles the fields; these are the prototype layouts) ---------- */
+[data-kit] .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; min-width: 0; }
+[data-kit] .field-hint { font-size: 0.86em; font-weight: 400; color: var(--muted-foreground); }
+[data-kit] .input { width: 100%; max-width: 100%; }
+[data-kit] :is(input[readonly], textarea[readonly], .input[readonly]) { background: var(--muted); color: var(--foreground); }
+[data-kit] textarea { min-height: 96px; resize: vertical; }
+[data-kit] .check {
+  display: inline-flex; align-items: center; gap: 10px;
+  min-height: var(--kit-target); padding: 6px 4px; font-weight: 500; cursor: pointer;
+}
+[data-kit] .check input { width: 26px; height: 26px; margin: 0; accent-color: var(--primary); flex: none; }
+
+/* ---------- Chips, tabs and the role switcher ---------- */
+[data-kit] .chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: var(--kit-target); padding: 6px 14px;
+  font: inherit; font-weight: 600; font-size: 0.92em; line-height: 1.2;
+  color: var(--card-foreground); background: var(--card);
+  border: max(1.5px, var(--proto-line)) solid var(--input); border-radius: 999px;
+  cursor: pointer; touch-action: manipulation;
+}
+[data-kit] :is(.chip.is-active, .chip[aria-pressed="true"]) { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+[data-kit] .topbar .chip { background: transparent; border-color: var(--background); color: var(--background); }
+[data-kit] .topbar :is(.chip.is-active, .chip[aria-pressed="true"]) { background: var(--background); border-color: var(--background); color: var(--foreground); }
+[data-kit] .tag {
+  display: inline-block; padding: 1px 8px; font-size: 0.82em; font-weight: 600;
+  color: var(--secondary-foreground); background: var(--secondary); border-radius: 999px; white-space: nowrap;
+}
+[data-kit] .seg { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; max-width: 100%; }
+[data-kit] .seg-label { font-size: 0.86em; font-weight: 650; }
+[data-kit] .tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid var(--input); margin-bottom: 16px; }
+[data-kit] .tab {
+  min-height: var(--kit-target); padding: 8px 16px; margin-bottom: -2px; font: inherit; font-weight: 600;
+  color: var(--muted-foreground); background: transparent; border: 0; border-bottom: 4px solid transparent; border-radius: 0;
+  cursor: pointer;
+}
+[data-kit] :is(.tab.is-active, .tab[aria-selected="true"]) { color: var(--foreground); border-bottom-color: var(--primary); }
+
+/* ---------- Badges: the variance states (over budget, under, pinned, manual) ---------- */
+[data-kit] .badge {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 3px 10px;
+  font-size: 0.86em; font-weight: 650; line-height: 1.3; white-space: nowrap;
+  border: max(1.5px, var(--proto-line)) solid transparent; border-radius: 999px;
+}
+[data-kit] .badge-neutral { background: var(--secondary); color: var(--secondary-foreground); border-color: var(--input); }
+[data-kit] .badge-under { background: var(--tone-success-bg); color: var(--tone-success-fg); border-color: var(--success); }
+[data-kit] .badge-over { background: var(--tone-destructive-bg); color: var(--tone-destructive-fg); border-color: var(--destructive); }
+[data-kit] .badge-pin { background: var(--tone-warning-bg); color: var(--tone-warning-fg); border-color: var(--warning); }
+[data-kit] .badge-manual { background: var(--tone-info-bg); color: var(--tone-info-fg); border-color: var(--info); }
+/* "Not calculated": dashed, so it never reads as a result */
+[data-kit] .badge-unknown { background: transparent; color: var(--muted-foreground); border-color: var(--muted-foreground); border-style: dashed; }
+[data-kit] .badge-late { background: var(--destructive); color: var(--background); border-color: var(--destructive); }
+
+/* ---------- Tables ---------- */
+[data-kit] .table-wrap {
+  max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  background: var(--card); border: var(--proto-line) solid var(--border); border-radius: var(--radius);
+}
+[data-kit] .table { width: 100%; border-collapse: collapse; }
+[data-kit] :is(.table th, .table td) { padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: var(--proto-line) solid var(--border); }
+[data-kit] .table th { font-size: 0.82em; font-weight: 650; color: var(--secondary-foreground); background: var(--secondary); white-space: nowrap; }
+[data-kit] .table tbody tr:last-child td { border-bottom: 0; }
+[data-kit] .table .num { text-align: right; font-variant-numeric: tabular-nums; }
+[data-kit] .table tr.is-clickable { cursor: pointer; }
+
+/* ---------- Honest-state labels ---------- */
+[data-kit] .source { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82em; font-weight: 600; color: var(--muted-foreground); }
+[data-kit] .source::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 2px; background: var(--muted-foreground); }
+[data-kit] .notice {
+  padding: 10px 14px; background: var(--card); color: var(--card-foreground);
+  border: var(--proto-line) solid var(--input); border-left-width: 5px; border-radius: var(--proto-radius-sm);
+}
+[data-kit] .notice-pin { border-color: var(--warning); background: var(--tone-warning-bg); color: var(--tone-warning-fg); }
+[data-kit] .notice-over { border-color: var(--destructive); background: var(--tone-destructive-bg); color: var(--tone-destructive-fg); }
+[data-kit] .notice-under { border-color: var(--success); background: var(--tone-success-bg); color: var(--tone-success-fg); }
+[data-kit] :is(.label-idea, .label-onlyif) {
+  display: inline-block; padding: 2px 10px; font-size: 0.82em; font-weight: 700;
+  border: 1.5px dashed var(--info); border-radius: var(--proto-radius-sm); color: var(--tone-info-fg); background: var(--tone-info-bg);
+}
+[data-kit] .label-onlyif { border-color: var(--muted-foreground); color: var(--muted-foreground); background: var(--muted); }
+[data-kit] .is-greyed { color: var(--muted-foreground); background: var(--muted); border-style: dashed; border-color: var(--input); }
+[data-kit] .sample-output { padding: 12px 14px; color: var(--muted-foreground); background: var(--muted); border: 1.5px dashed var(--input); border-radius: var(--proto-radius-sm); }
+[data-kit] .sample-output .sample-label { display: block; margin-bottom: 4px; font-size: 0.82em; font-weight: 700; color: var(--foreground); }
+[data-kit] .dictate-hint { display: inline-flex; align-items: center; gap: 6px; font-size: 0.86em; font-weight: 400; color: var(--muted-foreground); }
+
+/* ---------- The persistent label and the toast: the page's ink, inverted ---------- */
+[data-kit] .proto-label {
+  position: fixed; left: 10px; bottom: 10px; z-index: 9000;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; max-width: calc(100vw - 20px);
+  padding: 5px 6px 5px 12px; font-family: var(--kit-body-font); font-size: 12.5px; font-weight: 600; line-height: 1.25;
+  color: var(--background); background: var(--foreground); border: 1px solid var(--background); border-radius: 8px;
+  box-shadow: 0 2px 8px var(--shadow-color-lg, transparent);
+}
+[data-kit] .proto-label .proto-option { font-weight: 400; color: var(--background); }
+[data-kit] .proto-reset {
+  min-height: 44px; min-width: 44px; padding: 4px 10px; font: inherit; font-weight: 650;
+  color: var(--foreground); background: var(--background); border: 0; border-radius: 6px;
+  cursor: pointer; touch-action: manipulation;
+}
+[data-kit] .toast {
+  position: fixed; left: 50%; bottom: 76px; z-index: 9100; transform: translateX(-50%);
+  max-width: min(560px, calc(100vw - 32px)); padding: 12px 18px;
+  font-family: var(--kit-body-font); font-size: 16px; font-weight: 600;
+  color: var(--background); background: var(--foreground); border: 1px solid var(--background); border-radius: 8px;
+  box-shadow: 0 4px 14px var(--shadow-color-lg, transparent);
+}
+/* The label and toast are information, not controls: a tap goes through to whatever is under them */
+[data-kit] :is(.proto-label, .toast) { pointer-events: none; }
+[data-kit] .proto-label .proto-reset { pointer-events: auto; }
+@media print { [data-kit] .proto-reset { display: none; } [data-kit] .proto-label { position: static; } }

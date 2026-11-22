@@ -29,7 +29,7 @@ Where things live. `~` is expanded.
 
 | Key | Default | Meaning | Read by |
 |-----|---------|---------|---------|
-| `paths.projects` | `~/Projects` | Workspace root that holds your projects (one subfolder per project) | `/switch`, `/search-all`, `/deps`, `/scaffold`, `/map`, `/roadmap`, `/parallel`, `/subagent`, `/research`, `/port-check`, `/ai-export`, `/maestro`, `/test-desktop-app`, `/prototype-hub` |
+| `paths.projects` | `~/Projects` | Workspace root that holds your projects (one subfolder per project) | `/switch`, `/search-all`, `/deps`, `/scaffold`, `/map`, `/roadmap`, `/parallel`, `/subagent`, `/research`, `/port-check`, `/ai-export`, `/maestro`, `/test-desktop-app`, `/prototype-hub`, `/collateral-set` |
 | `paths.notes` | `~/.claude/dev-notes` | Dev-notes root. Skills create these subfolders on first use: `decisions/`, `learnings/`, `sessions/`, `freezes/`, `roadmaps/`, plus `INDEX.md` | `/log`, `/learn`, `/document`, `/freeze`, `/roadmap`, `/phases`, `/todo`, `/parallel`, `/invert`, `/pre-mortem` |
 | `paths.memory` | none | Workspace memory directory (for example Claude Code auto-memory). **When unset, steps that write memory are skipped.** | `/map`, `/log`, `/document`, `/email-triage` |
 

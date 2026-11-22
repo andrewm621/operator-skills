@@ -58,11 +58,12 @@ If the answer is "none", pages carry no customer names, quotes, or logos.
 - [e.g. "fully automated" where a human reviews]
 - [e.g. competitor names or comparisons]
 
-## 7. Brand tokens
+## 7. Theme and voice
 
-- **Colours:** bg [#], panel [#], line [#], text [#], muted [#], accent [#], accent-2 [#], series [#,#,#], good [#], flag [#]
-- **Theme per archetype:** explainers [dark / light] · landing & funnel [dark / light]
-- **Type pairing (Google Fonts):** display [family] · body [family] · mono [family]
+- **Theme:** [built-in slug: house / paper / obsidian / midnight-cyan / slate-amber] or [client: theme/<client>.theme.json → theme/<client>.vars.css, contrast gate passed on YYYY-MM-DD]
+- **Brand colours seen (source):** [primary, neutral, any status colours, and where they came from: site, brand guide, app CSS]. They go into the client theme.json, never onto a page.
+- **Fonts (Google Fonts):** [body] · [heading] · [mono], or "the theme's"
+- **Mode per archetype:** explainers [auto / dark] · landing & funnel [auto / light] · everything else auto
 - **Voice:** [3 adjectives] · words to avoid: [list]
 
 ## 8. Links and calls to action

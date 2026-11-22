@@ -5,12 +5,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import vm from 'node:vm';
-import { pagesVersion, runCheck, scanText } from '../scripts/check.mjs';
+import { pagesVersion, runCheck, scanCss, scanText } from '../scripts/check.mjs';
 import { findChrome } from '../scripts/_cdp.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -26,9 +26,9 @@ const CONFIG = {
   devices: ['desktop', 'phone'],
 };
 
-const page = (body, extra = '') => `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Test page</title>
+const page = (body, extra = '') => `<!DOCTYPE html><html data-mode="light"><head><meta charset="utf-8"><title>Test page</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="../shared/tokens.css">${extra}</head><body>
+<link rel="stylesheet" href="../shared/theme.css"><link rel="stylesheet" href="../kit/kit.css"><link rel="stylesheet" href="../shared/proto.css">${extra}</head><body data-kit>
 <main class="page" id="root">${body}</main>
 <script src="../shared/data.js"></script><script src="../shared/kit.js"></script>
 <script>Kit.mountProtoLabel("Test");</script></body></html>`;
@@ -141,7 +141,7 @@ test('browser: overflow-x hidden does not hide content cut off at the edge', { s
 });
 
 test('browser: a wide table inside its own scrolling frame is fine', { skip: !hasChrome }, async (t) => {
-  const html = page('<div style="overflow-x:auto"><div style="width:900px">a wide table</div></div>');
+  const html = page('<div class="scroller"><div class="wide">a wide table</div></div>', '<style>.scroller { overflow-x: auto; } .wide { width: 900px; }</style>');
   const r = await runCheck(setup(t, html));
   assert.deepEqual(r.failures, []);
 });
@@ -159,6 +159,94 @@ test('browser: warns about a dead button and fails a click that throws', { skip:
   const r = await runCheck(setup(t, html));
   assert.ok(r.warnings.some((w) => w.rule === 'possibly-dead-control' && /Get directions/.test(w.detail)));
   assert.ok(rules(r).includes('click-error'));
+});
+
+/* ---------- The kit gate ---------- */
+
+test('new.mjs scaffolds the vendored kit and a theme.css that imports one vars file', (t) => {
+  const out = setup(t);
+  assert.ok(readFileSync(path.join(out, 'kit', 'kit.lock.json'), 'utf8').includes('"rev"'));
+  const theme = readFileSync(path.join(out, 'shared', 'theme.css'), 'utf8');
+  assert.match(theme, /@import url\("\.\.\/kit\/themes\/house\.vars\.css"\);/);
+  assert.ok(!existsSync(path.join(out, 'shared', 'tokens.css')), 'tokens.css is gone');
+  assert.equal(spawnSync('node', [path.join(out, 'kit', 'render.mjs'), 'verify'], { encoding: 'utf8' }).status, 0);
+});
+
+test('new.mjs takes a vendored theme or a client vars file, and refuses an unknown theme', (t) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'proto-hub-theme-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const run = (theme, name) => {
+    const cfg = path.join(dir, `${name}.json`);
+    writeFileSync(cfg, JSON.stringify({ ...CONFIG, theme }));
+    return spawnSync('node', [NEW, path.join(dir, name), '--config', cfg], { encoding: 'utf8' });
+  };
+  assert.equal(run('paper', 'a').status, 0);
+  assert.match(readFileSync(path.join(dir, 'a', 'shared', 'theme.css'), 'utf8'), /kit\/themes\/paper\.vars\.css/);
+  cpSync(path.join(SKILL, 'kit', 'themes', 'verdant.vars.css'), path.join(dir, 'copperline.vars.css'));
+  assert.equal(run('copperline.vars.css', 'b').status, 0);
+  assert.match(readFileSync(path.join(dir, 'b', 'shared', 'theme.css'), 'utf8'), /@import url\("copperline\.vars\.css"\)/);
+  assert.ok(existsSync(path.join(dir, 'b', 'shared', 'copperline.vars.css')));
+  const bad = run('neon', 'c');
+  assert.equal(bad.status, 2);
+  assert.match(bad.stderr, /isn't vendored here/);
+  assert.ok(!existsSync(path.join(dir, 'c')));
+});
+
+test('kit-lint: an inline style and an unlabelled section fail, through the run\'s own kit/render.mjs', async (t) => {
+  const r = await runCheck(setup(t, page('<section><h2>Orders</h2></section><p style="color:red">x</p>')), { browser: false });
+  const lint = r.failures.filter((f) => f.rule === 'kit-lint');
+  assert.ok(lint.some((f) => /inline style/.test(f.detail) && f.page === 'orders/a.html'), JSON.stringify(lint));
+  assert.ok(lint.some((f) => /accessible label/.test(f.detail)));
+});
+
+test('kit-verify: an edited kit file fails', async (t) => {
+  const out = setup(t);
+  writeFileSync(path.join(out, 'kit', 'kit.css'), readFileSync(path.join(out, 'kit', 'kit.css'), 'utf8') + '\n/* mine */\n');
+  const r = await runCheck(out, { browser: false });
+  assert.ok(r.failures.some((f) => f.rule === 'kit-verify' && /kit\.css/.test(f.detail)), JSON.stringify(r.failures));
+});
+
+test('a page\'s own CSS: colours, a :root token block, old token names and old --muted meaning fail', async (t) => {
+  const css = '<style>:root { --brand: #2f4a3c; } .x { color: var(--ink); border-color: var(--line-strong); } .y { color: var(--muted); background: rgb(0 0 0); }</style>';
+  const r = await runCheck(setup(t, page('<h1>Orders</h1>', css)), { browser: false });
+  const got = rules(r);
+  assert.ok(got.includes('colour-literal'));
+  assert.ok(got.includes('token-block'));
+  assert.equal(r.failures.filter((f) => f.rule === 'legacy-token').length, 3, JSON.stringify(r.failures));
+  assert.ok(r.failures.some((f) => /--muted is a surface/.test(f.detail)));
+});
+
+test('theme vars are fine: var(), color-mix of vars, and --muted as a surface pass', () => {
+  assert.deepEqual(scanCss('.a { color: var(--muted-foreground); background: var(--muted); border-color: color-mix(in oklch, var(--primary) 30%, var(--card)); }', 'a.css'), []);
+});
+
+test('data-theme as a dark toggle fails; a page missing a kit sheet or data-kit fails', async (t) => {
+  const html = page('<h1>Orders</h1>').replace('<html data-mode="light">', '<html data-theme="dark">').replace('<link rel="stylesheet" href="../shared/proto.css">', '').replace('<body data-kit>', '<body>');
+  const r = await runCheck(setup(t, html), { browser: false });
+  assert.ok(rules(r).includes('data-theme'));
+  const noKit = r.failures.filter((f) => f.rule === 'no-kit').map((f) => f.detail).join(' | ');
+  assert.match(noKit, /shared\/proto\.css/);
+  assert.match(noKit, /data-kit/);
+});
+
+test('theme: shared/theme.css that declares tokens or imports a missing file fails', async (t) => {
+  const out = setup(t);
+  writeFileSync(path.join(out, 'shared', 'theme.css'), '@import url("../kit/themes/nope.vars.css");\n:root { --primary: var(--card); }\n');
+  const r = await runCheck(out, { browser: false });
+  const theme = r.failures.filter((f) => f.rule === 'theme').map((f) => f.detail).join(' | ');
+  assert.match(theme, /nope\.vars\.css, which isn't there/);
+  assert.match(theme, /declares tokens/);
+});
+
+test('a run with no kit/ fails, and a run made before kit only warns', async (t) => {
+  const out = setup(t);
+  rmSync(path.join(out, 'kit'), { recursive: true });
+  let r = await runCheck(out, { browser: false });
+  assert.ok(rules(r).includes('kit-missing'));
+  writeFileSync(path.join(out, 'shared', 'tokens.css'), '/* old */');
+  r = await runCheck(out, { browser: false });
+  assert.ok(!rules(r).includes('kit-missing'));
+  assert.ok(r.warnings.some((w) => w.rule === 'legacy-run'));
 });
 
 /* The example hub, with a real page behind each option. */

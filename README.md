@@ -104,7 +104,7 @@ The file is `~/.config/operator-skills/config.yaml` (or `$XDG_CONFIG_HOME/operat
 | `/report` | Interactive HTML reports and dashboards | `/report sprint 3 review` |
 | `/motion-artifact` | Animated product-demo scenes in HTML → deterministic GIF/MP4/WebM export | `/motion-artifact onboarding flow gif` |
 | `/walkthrough` | Guided, auto-playing app walkthrough — storyboard first, real-data gate, headless QA, private artifact, guarded public link | `/walkthrough weekly plan --from ~/Projects/my-app` |
-| `/collateral-set` | Cohesive set of client-facing HTML artifacts — anchor-first design system, parallel fan-out, gated central publish | `/collateral-set acme explainers x3 + landing + roi calculator` |
+| `/collateral-set` | Cohesive set of client-facing HTML artifacts on the vendored kit and one theme — anchor first, parallel fan-out, kit-linted central publish | `/collateral-set acme explainers x3 + landing + roi calculator` |
 | `/prototype-hub` | Client conversations into clickable options and an internal review hub — sourced brief, automated gate after every build, enforced time limit | `/prototype-hub northfield --time 60m` |
 | `/premium-video-ad` | Motion-design video ad or walkthrough in 16:9 and 9:16 — bundled six beat, timeline and continuous-flow engines, beat-locked synthesized soundtrack | `/premium-video-ad acme launch --vertical` |
 

@@ -14,6 +14,19 @@
      broken-ref       a relative src or href whose file isn't there
      no-label         a page that doesn't load shared/kit.js, so it has no prototype label
 
+   Kit (every page and the hub are Theme Core kit pages: shared/theme.css, kit/kit.css, shared/proto.css)
+     kit-missing      the run has no kit/ folder (a run made before kit: a warning, legacy-run, instead)
+     kit-verify       kit/ no longer matches kit/kit.lock.json (node kit/render.mjs verify)
+     kit-lint         node kit/render.mjs check on every page and the hub: an inline style, a colour
+                      in markup, an unknown data-block or option, an unsafe link, an unlabelled section
+     no-kit           a page that doesn't load the theme, kit.css and proto.css, or has no data-kit
+     theme            shared/theme.css is missing, imports a file that isn't there, or declares tokens
+     colour-literal   a hex, rgb(), hsl() or oklch() colour in a page's <style> or a shared .css file
+     token-block      a :root rule that declares custom properties (the theme holds every token)
+     legacy-token     a name from the deleted tokens.css (--paper, --ink, --forest ...), or --muted /
+                      --accent read as a text colour (in Theme Core they are surfaces)
+     data-theme       data-theme used for light/dark; kit reads data-mode on <html>
+
    Hub
      hub-data         hub-data.js doesn't load, or has no meta or tracks
      hub-bad-file     an option's file doesn't exist
@@ -32,6 +45,7 @@
    the result plus a hash of every page and shared file. That hash is what a sign-off is tied to.
    A browser can't hash the pages itself, so the hub only sees a page change after the gate reruns. */
 
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -68,11 +82,89 @@ export function loadConfig(out) {
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
 }
 
+/* What the kit gate reads. Names from the deleted tokens.css, mapped to what replaces them. */
+const LEGACY_TOKENS = {
+  paper: 'background', ink: 'foreground', forest: 'primary', 'forest-dark': 'foreground', 'on-forest': 'primary-foreground',
+  over: 'destructive', 'over-ink': 'tone-destructive-fg', 'over-tint': 'tone-destructive-bg', under: 'success',
+  'under-tint': 'tone-success-bg', pin: 'warning', 'pin-ink': 'tone-warning-fg', 'pin-tint': 'tone-warning-bg',
+  manual: 'info', 'manual-tint': 'tone-info-bg', 'neutral-tint': 'secondary', line: 'border', 'line-strong': 'input',
+  'font-sans': 'kit-body-font', 'font-serif': 'kit-heading-font', 'font-mono': 'kit-mono-font', 'radius-sm': 'proto-radius-sm',
+  target: 'kit-target', 'border-w': 'proto-line', 'label-space': 'proto-label-space',
+};
+const LEGACY_RE = new RegExp(`var\\(\\s*--(${Object.keys(LEGACY_TOKENS).map(escapeRe).join('|')})\\s*[,)]`, 'g');
+const OLD_MEANING = /(?:^|[;{\s])(?:color|fill|stroke|text-decoration-color|caret-color)\s*:\s*var\(\s*--(muted|accent)\s*\)/g;
+const COLOUR_VALUE = /:[^;{}]*?(#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\()/g;
+const TOKEN_BLOCK = /:root\b[^{]*\{[^}]*--[\w-]+\s*:/;
+
+const lineAt = (text, index) => text.slice(0, index).split('\n').length;
+
+/* The CSS a page carries: its <style> blocks, as [offset, css] so line numbers hold. */
+function styleBlocks(html) {
+  return [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map((m) => [m.index + m[0].indexOf(m[1]), m[1]]);
+}
+
+/* Colours, token blocks and old token names in one page's CSS (or one shared .css file). */
+export function scanCss(text, file, blocks = [[0, text]]) {
+  const failures = [];
+  for (const [offset, css] of blocks) {
+    const at = (i) => lineAt(text, offset + i);
+    for (const m of css.matchAll(COLOUR_VALUE)) failures.push({ page: file, rule: 'colour-literal', line: at(m.index), detail: `${m[1]}${m[1].endsWith('(') ? '...)' : ''}: colours come from the theme; use a Theme Core var such as var(--primary)` });
+    const block = TOKEN_BLOCK.exec(css);
+    if (block) failures.push({ page: file, rule: 'token-block', line: at(block.index), detail: 'a :root rule declares custom properties; tokens come from the theme in shared/theme.css' });
+    for (const m of css.matchAll(LEGACY_RE)) failures.push({ page: file, rule: 'legacy-token', line: at(m.index), detail: `--${m[1]} was removed with tokens.css; use var(--${LEGACY_TOKENS[m[1]]})` });
+    for (const m of css.matchAll(OLD_MEANING)) failures.push({ page: file, rule: 'legacy-token', line: at(m.index), detail: `--${m[1]} is a surface in Theme Core; text uses var(--${m[1]}-foreground)` });
+  }
+  return failures;
+}
+
+/* The theme every page loads first: an @import of a vars file that exists, and nothing else. */
+export function checkTheme(out) {
+  const file = path.join(out, 'shared', 'theme.css');
+  if (!existsSync(file)) return [{ page: 'shared/theme.css', rule: 'theme', detail: 'missing; new.mjs writes it from config.theme' }];
+  const css = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const imports = [...css.matchAll(/@import\s+(?:url\()?\s*["']?([^"')\s]+)["']?\s*\)?/g)].map((m) => m[1]);
+  const failures = [];
+  if (imports.length !== 1 || !imports[0].endsWith('.vars.css')) failures.push({ page: 'shared/theme.css', rule: 'theme', detail: 'must @import exactly one <slug>.vars.css' });
+  for (const href of imports) if (!existsSync(path.resolve(out, 'shared', href))) failures.push({ page: 'shared/theme.css', rule: 'theme', detail: `imports ${href}, which isn't there` });
+  if (/--[\w-]+\s*:/.test(css)) failures.push({ page: 'shared/theme.css', rule: 'theme', detail: 'declares tokens; it only imports the theme' });
+  return failures;
+}
+
+/* The run's vendored kit: verify the copy, and lint every page and the hub with it. */
+export function checkKit(out, files) {
+  const render = path.join(out, 'kit', 'render.mjs');
+  if (!existsSync(render)) {
+    const legacy = existsSync(path.join(out, 'shared', 'tokens.css'));
+    return legacy
+      ? { failures: [], warnings: [{ page: 'kit/', rule: 'legacy-run', detail: 'made before kit (shared/tokens.css, no kit/); kit checks skipped. New runs from new.mjs are on kit' }] }
+      : { failures: [{ page: 'kit/', rule: 'kit-missing', detail: 'no kit/render.mjs; new.mjs copies the skill\'s kit/ into every run' }], warnings: [] };
+  }
+  const node = (args) => spawnSync(process.execPath, [render, ...args], { cwd: out, encoding: 'utf8' });
+  const failures = [];
+  const verify = node(['verify']);
+  if (verify.status !== 0) {
+    const lines = verify.stderr.split('\n').filter((l) => /^\s+(missing|edited)\s/.test(l)).map((l) => l.trim());
+    failures.push({ page: 'kit/', rule: 'kit-verify', detail: `kit/ differs from kit.lock.json: ${lines.join('; ') || verify.stderr.trim().split('\n').pop()}` });
+  }
+  if (files.length) {
+    const lint = node(['check', ...files]);
+    let current = null;
+    for (const line of `${lint.stdout}\n${lint.stderr}`.split('\n')) {
+      const head = /^(.+?): \d+ problem\(s\)$/.exec(line);
+      if (head) { current = head[1]; continue; }
+      const problem = /^\s+line (\d+): (.*)$/.exec(line);
+      if (problem && current) failures.push({ page: current, rule: 'kit-lint', line: Number(problem[1]), detail: problem[2] });
+    }
+    if (lint.status !== 0 && !failures.some((f) => f.rule === 'kit-lint')) failures.push({ page: 'kit/', rule: 'kit-lint', detail: (lint.stderr || lint.stdout).trim().split('\n').pop() });
+  }
+  return { failures, warnings: [] };
+}
+
 /* A version for what a reviewer actually looked at: the prototype pages and shared/.
    The hub's own files are left out, because rewording a note doesn't change what gets shown. */
 export function pagesVersion(out, files = walk(out)) {
   const tracked = files
-    .filter((f) => (f.endsWith('.html') && !NOT_PAGES.has(f)) || (f.startsWith('shared' + path.sep) && !INTERNAL_FILES.has(path.basename(f))))
+    .filter((f) => (f.endsWith('.html') && !NOT_PAGES.has(f)) || ((f.startsWith('shared' + path.sep) || f.startsWith('kit' + path.sep)) && !INTERNAL_FILES.has(path.basename(f))))
     .sort();
   const pages = {};
   for (const f of tracked) pages[f.split(path.sep).join('/')] = createHash('sha256').update(readFileSync(path.join(out, f))).digest('hex').slice(0, 16);
@@ -116,6 +208,19 @@ function checkPageFile(out, page, config) {
     if (!existsSync(path.resolve(out, path.dirname(page), m[1]))) failures.push({ page, rule: 'broken-ref', detail: m[1] });
   }
   if (!/shared\/kit\.js/.test(text)) failures.push({ page, rule: 'no-label', detail: 'does not load shared/kit.js, so the page has no prototype label or Reset demo' });
+  failures.push(...kitPageFailures(text, page));
+  return failures;
+}
+
+/* A page (or the hub) on kit: the three sheets, data-kit, its own CSS free of colours and old tokens, no data-theme. */
+export function kitPageFailures(text, page) {
+  const failures = [];
+  const missing = ['shared/theme.css', 'kit/kit.css', 'shared/proto.css'].filter((sheet) => !new RegExp(`href="[^"]*${escapeRe(sheet)}"`).test(text));
+  if (missing.length) failures.push({ page, rule: 'no-kit', detail: `doesn't load ${missing.join(', ')}` });
+  if (!/<body\b[^>]*\sdata-kit\b/.test(text)) failures.push({ page, rule: 'no-kit', detail: '<body> has no data-kit, so kit.css does not apply' });
+  failures.push(...scanCss(text, page, styleBlocks(text)));
+  const theme = /\bdata-theme\s*=|\[data-theme\b|dataset\.theme\b|["']data-theme["']\s*,/.exec(text);
+  if (theme) failures.push({ page, rule: 'data-theme', line: lineAt(text, theme.index), detail: 'light/dark is data-mode on <html> (light | dark | auto); data-theme does nothing on kit' });
   return failures;
 }
 
@@ -252,18 +357,25 @@ export async function runCheck(out, opts = {}) {
   const present = pages.filter((p) => !missing.includes(p));
   for (const page of present) failures.push(...checkPageFile(out, page, config));
   for (const file of files.filter((f) => f.startsWith('shared' + path.sep) && !INTERNAL_FILES.has(path.basename(f)))) {
-    failures.push(...scanText(readFileSync(path.join(out, file), 'utf8'), config, file));
+    const text = readFileSync(path.join(out, file), 'utf8');
+    failures.push(...scanText(text, config, file));
+    if (file.endsWith('.css') && !file.endsWith('.vars.css')) failures.push(...scanCss(text, file.split(path.sep).join('/')));
   }
+  const hubPage = !opts.pages && existsSync(path.join(out, 'index.html')) ? ['index.html'] : [];
+  if (hubPage.length) failures.push(...kitPageFailures(readFileSync(path.join(out, 'index.html'), 'utf8'), 'index.html'));
+  failures.push(...checkTheme(out));
+  const kit = checkKit(out, [...present, ...hubPage]);
+  failures.push(...kit.failures);
   if (!opts.pages) failures.push(...checkHub(out, allPages));
 
-  let warnings = [];
+  let warnings = [...kit.warnings];
   if (opts.browser !== false) {
     const hub = !opts.pages && existsSync(path.join(out, 'index.html')) && existsSync(path.join(out, 'hub-data.js')) ? ['index.html'] : [];
     /* The hub loads this file, so it has to exist before the hub is opened in the browser check. */
     if (hub.length && !existsSync(path.join(out, GATE_FILE))) writeGateResult(out, null);
     const seen = await checkInBrowser(out, [...present, ...hub], config, { click: opts.click !== false });
     failures.push(...seen.failures);
-    warnings = seen.warnings;
+    warnings.push(...seen.warnings);
   }
 
   failures = collapse(failures);

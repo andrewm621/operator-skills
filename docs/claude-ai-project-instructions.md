@@ -36,7 +36,7 @@ You have 47 operator skills for software projects. Use them when a user's reques
 | `/map` | Architectural diagrams (Mermaid) — folders, data flow, DB |
 | `/report` | Interactive HTML reports and dashboards |
 | `/motion-artifact` | Animated product-demo scenes in HTML → deterministic GIF/MP4/WebM export |
-| `/collateral-set` | Cohesive set of client-facing HTML artifacts — anchor-first, parallel fan-out, gated central publish |
+| `/collateral-set` | Cohesive set of client-facing HTML artifacts on the vendored kit and one theme — anchor first, parallel fan-out, kit-linted central publish |
 | `/prototype-hub` | Client conversations into clickable options and an internal review hub — sourced brief, automated gate, enforced time limit |
 | `/walkthrough` | Guided, auto-playing app walkthrough — storyboard first, real-data gate, headless QA, private artifact, optional guarded public link |
 | `/premium-video-ad` | Motion-design video ad or walkthrough video, 16:9 and 9:16, from bundled engines with a beat-locked soundtrack |

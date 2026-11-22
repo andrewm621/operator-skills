@@ -1,0 +1,148 @@
+/* collateral-set: the explainer board, the one component kit has no block for.
+   Copied once into the set's folder next to kit/ and linked by every explainer, after
+   kit/kit.css and kit/blocks.css. Reads Theme Core vars only: no colours, no tokens of its
+   own, nothing on :root. The theme (kit/themes/<slug>.vars.css or the client's
+   <slug>.vars.css) decides every colour; data-mode on <html> decides light or dark.
+
+   Parts (classes, scoped under [data-kit]):
+     .board               N stages joined by rails; a column on phones, a row from 900px
+     .stage .st-head .st-num .st-sub   one stage and its header (the stage name is an <h3>)
+     .rail .track .mote   the joint between stages, with travelling dots (aria-hidden)
+     .doc .scan .route    input card with a scanning sweep + routing line
+     .voters .dot         participant chips, three series colours (chart-2..4)
+     .frow .pips .pip .verdict   a row with agreement pips and a verdict (JS cycles .is-active)
+     .arb .arb-chip .arb-field   the resolver and a before/after field
+     .payload .pl-row .chk       key/value output card
+     .dest .dest-tag             destination row with a glowing tag
+   Everything else on the page (header, numbers, legend, notes, footer) is a kit block. */
+
+[data-kit] { --kit-measure: 70rem; }
+[data-kit] p { max-width: 68ch; }
+
+[data-kit] .board { display: flex; flex-direction: column; gap: var(--kit-s1); }
+[data-kit] :is(.board, .stage, .stage *) > * { margin-block-start: 0; }
+@media (min-width: 900px) {
+  [data-kit] .board { flex-direction: row; align-items: stretch; gap: 2px; }
+  [data-kit] .board .stage { flex: 1 1 0; }
+}
+
+/* flex: none on phones: a column flexbox with flex-basis 0 and overflow: hidden collapses every
+   stage to its padding. Basis 0 only in the row layout. */
+[data-kit] .stage {
+  flex: none; min-width: 0; position: relative; overflow: hidden;
+  display: flex; flex-direction: column; gap: var(--kit-s3);
+  padding: var(--kit-s4); background: var(--card); color: var(--card-foreground);
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+[data-kit] .stage::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 2px; opacity: 0.6;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+}
+[data-kit] .st-head { display: flex; align-items: center; gap: var(--kit-s2); }
+[data-kit] .st-head h3 { font-size: 1rem; }
+[data-kit] .st-num {
+  flex: none; display: grid; place-items: center; width: 1.4rem; height: 1.4rem;
+  font-family: var(--kit-mono-font); font-size: 0.75rem; font-weight: 600;
+  color: var(--primary-foreground); background: var(--primary); border-radius: calc(var(--radius) * 0.6);
+}
+[data-kit] .st-sub, [data-kit] .route, [data-kit] .arb-note, [data-kit] .flagslot {
+  font-family: var(--kit-mono-font); font-size: 0.75rem; color: var(--muted-foreground);
+}
+
+/* rails between stages */
+[data-kit] .rail { position: relative; flex: none; height: 26px; overflow: hidden; }
+[data-kit] .rail .track {
+  position: absolute; left: 50%; top: 8px; bottom: 8px; width: 2px; transform: translateX(-50%);
+  background: linear-gradient(180deg, transparent, var(--border), transparent);
+}
+[data-kit] .rail .mote {
+  position: absolute; left: 50%; width: 6px; height: 6px; border-radius: 50%; transform: translateX(-50%);
+  background: var(--primary); box-shadow: 0 0 8px 1px var(--primary); animation: cs-mote-v 2.4s linear infinite;
+}
+[data-kit] .rail .mote:nth-child(3) { animation-delay: 0.8s; background: var(--chart-2); box-shadow: 0 0 8px 1px var(--chart-2); }
+[data-kit] .rail .mote:nth-child(4) { animation-delay: 1.6s; background: var(--chart-4); box-shadow: 0 0 8px 1px var(--chart-4); }
+@media (min-width: 900px) {
+  [data-kit] .rail { width: 34px; height: auto; align-self: stretch; }
+  [data-kit] .rail .track {
+    left: 8px; right: 8px; top: 50%; bottom: auto; width: auto; height: 2px; transform: translateY(-50%);
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+  }
+  [data-kit] .rail .mote { top: 50%; left: 0; transform: translateY(-50%); animation-name: cs-mote-h; }
+}
+@keyframes cs-mote-v { 0% { top: -8px; opacity: 0 } 12% { opacity: 1 } 88% { opacity: 1 } 100% { top: calc(100% + 8px); opacity: 0 } }
+@keyframes cs-mote-h { 0% { left: -8px; opacity: 0 } 12% { opacity: 1 } 88% { opacity: 1 } 100% { left: calc(100% + 8px); opacity: 0 } }
+
+/* input card */
+[data-kit] .doc { position: relative; overflow: hidden; padding: var(--kit-s2) var(--kit-s3); border: 1px solid var(--border); border-radius: calc(var(--radius) * 0.7); background: var(--background); }
+[data-kit] .doc b { display: block; font-size: 0.875rem; }
+[data-kit] .doc span { display: block; font-family: var(--kit-mono-font); font-size: 0.75rem; color: var(--muted-foreground); }
+[data-kit] .scan {
+  position: absolute; left: 0; right: 0; top: 0; height: 22px; pointer-events: none;
+  background: linear-gradient(180deg, color-mix(in oklch, var(--primary) 22%, transparent), transparent);
+  animation: cs-scan 3s ease-in-out infinite;
+}
+@keyframes cs-scan { 0%, 100% { top: -22px; opacity: 0 } 40% { opacity: 1 } 60% { opacity: 1 } 100% { top: 100% } }
+[data-kit] .route b { color: var(--tone-success-fg, var(--foreground)); font-weight: 600; }
+
+/* participants and agreement rows */
+[data-kit] .voters { display: flex; flex-wrap: wrap; gap: var(--kit-s1); }
+[data-kit] .voters span {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px;
+  font-family: var(--kit-mono-font); font-size: 0.75rem; color: var(--muted-foreground);
+  border: 1px solid var(--border); border-radius: 999px;
+}
+[data-kit] .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--chart-2); }
+[data-kit] .voters span:nth-child(2) .dot { background: var(--chart-3); }
+[data-kit] .voters span:nth-child(3) .dot { background: var(--chart-4); }
+[data-kit] .frow {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--kit-s2);
+  padding: 6px 8px; border: 1px solid transparent; border-radius: calc(var(--radius) * 0.6);
+  transition: border-color 0.3s, background 0.3s;
+}
+[data-kit] .frow.is-active { border-color: var(--border); background: var(--secondary); color: var(--secondary-foreground); }
+[data-kit] .frow > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
+[data-kit] .pips { display: flex; flex: none; gap: 4px; }
+[data-kit] .pip { width: 8px; height: 8px; border-radius: 2px; background: var(--chart-2); animation: cs-pop 3.4s ease-in-out infinite; }
+[data-kit] .pip:nth-child(2) { background: var(--chart-3); animation-delay: 0.18s; }
+[data-kit] .pip:nth-child(3) { background: var(--chart-4); animation-delay: 0.36s; }
+[data-kit] .pip.miss { background: var(--secondary); outline: 1px solid var(--warning, var(--destructive)); outline-offset: 1px; }
+@keyframes cs-pop { 0%, 70%, 100% { transform: scale(1) } 78% { transform: scale(1.5) } }
+[data-kit] .verdict { flex: none; padding: 1px 6px; font-family: var(--kit-mono-font); font-size: 0.7rem; border-radius: 5px; }
+[data-kit] .verdict[data-state="ok"] { color: var(--tone-success-fg, var(--foreground)); background: var(--tone-success-bg, var(--secondary)); }
+[data-kit] .verdict[data-state="warn"] { color: var(--tone-warning-fg, var(--foreground)); background: var(--tone-warning-bg, var(--secondary)); }
+
+/* resolver */
+[data-kit] .arb { display: flex; flex: 1; flex-direction: column; justify-content: center; gap: var(--kit-s2); }
+[data-kit] .arb-chip {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 4px 11px;
+  font-family: var(--kit-mono-font); font-size: 0.75rem; color: var(--accent-foreground); background: var(--accent);
+  border: 1px solid var(--border); border-radius: 999px; animation: cs-glow 2.6s ease-in-out infinite;
+}
+[data-kit] .arb-chip::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--primary); }
+@keyframes cs-glow { 0%, 100% { box-shadow: 0 0 0 0 transparent } 50% { box-shadow: 0 0 16px 1px color-mix(in oklch, var(--primary) 35%, transparent) } }
+[data-kit] .arb-field { padding: var(--kit-s2) var(--kit-s3); border: 1px solid var(--border); border-radius: calc(var(--radius) * 0.7); background: var(--background); }
+[data-kit] .arb-field span { display: block; font-family: var(--kit-mono-font); font-size: 0.8rem; }
+[data-kit] .arb-field span:first-child { font-family: var(--kit-body-font); color: var(--muted-foreground); }
+[data-kit] .arb-field del { display: block; font-family: var(--kit-mono-font); font-size: 0.75rem; color: var(--tone-destructive-fg, var(--foreground)); }
+[data-kit] .arb-field ins { display: block; font-family: var(--kit-mono-font); font-size: 0.8rem; color: var(--tone-success-fg, var(--foreground)); text-decoration: none; }
+
+/* output card and destination */
+[data-kit] .payload { overflow: hidden; border: 1px solid var(--border); border-radius: calc(var(--radius) * 0.7); background: var(--background); }
+[data-kit] .pl-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--kit-s2);
+  padding: 6px 11px; font-family: var(--kit-mono-font); font-size: 0.75rem; border-top: 1px solid var(--border);
+}
+[data-kit] .pl-row:first-child { border-top: 0; }
+[data-kit] .pl-row > span:first-child { color: var(--muted-foreground); }
+[data-kit] .chk { color: var(--tone-success-fg, var(--foreground)); }
+[data-kit] .dest { display: flex; align-items: center; justify-content: space-between; gap: var(--kit-s2); }
+[data-kit] .dest-tag {
+  padding: 3px 10px; font-family: var(--kit-mono-font); font-size: 0.75rem; border-radius: calc(var(--radius) * 0.6);
+  color: var(--tone-success-fg, var(--foreground)); background: var(--tone-success-bg, var(--secondary));
+  border: 1px solid var(--tone-success-border, var(--border)); animation: cs-glow2 2.8s ease-in-out infinite;
+}
+@keyframes cs-glow2 { 0%, 100% { box-shadow: 0 0 0 0 transparent } 50% { box-shadow: 0 0 14px 0 color-mix(in oklch, var(--success, var(--primary)) 30%, transparent) } }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-kit] .board *, [data-kit] .board *::before { animation: none !important; transition: none !important; }
+}

@@ -12,6 +12,7 @@ Use this when you're about to show a client what could be possible and want seve
 - **One set of made-up records.** Every page reads the same shared data, so a job reads the same everywhere and the options can be compared fairly.
 - **A script catches what a script can catch.** Real names on a screen, CDNs, sideways scroll and console errors are found by `check.mjs` right after each build. In the first real run, reviewers spent their most expensive rounds finding these. Reviewers now spend their time on meaning and behavior.
 - **The hub is a template.** Agents only write its content, so it works the same every time.
+- **The look is a theme, not a palette.** Every page and the hub sit on the vendored Theme Core kit (`kit/`) and one theme. Builders use the prototype classes in `shared/proto.css` and theme vars, never colours, so the options can't drift apart and the gate can lint them.
 - **The hub stays internal.** It may name people and quote them. Prototype pages may not, so they're the only part that could ever be shown to a client.
 - **A review ends in decisions, not opinions.** Each track gets a direction, each open decision gets sorted, and signing off is tied to a hash of the pages. That produces what happens next: a fix list, the client's agenda and a dated record.
 - **Sign-off means ready to show.** It's internal. It never means the client approved anything, and scope stays in the signed proposal. Whatever the client says about a prototype is a reaction.
@@ -30,6 +31,8 @@ done; echo "${PH_HOME:-NOT FOUND}"
 
 If it's `NOT FOUND`, stop and say so. The scripts need Node 22+ and Chrome, with no install step. A run goes in the **client's** repo, at `docs/prototypes-<date>/`. Client names, rules and deny lists go in that folder's config and never in this skill.
 
+`$PH_HOME/kit/` is a pinned copy of the Theme Core kit (`kit.css`, `render.mjs`, themes `house`, `paper`, `obsidian`, `verdant`, `kit.lock.json`). `new.mjs` copies it into every run, so a run renders and gates from its own copy, offline, and an old run doesn't shift when the skill's kit is updated.
+
 ## Steps
 
 1. **Intake.** Read the project's `CLAUDE.md` or `AGENTS.md` first, because its rules become this run's rules. Settle these, and ask only for what you can't find.
@@ -42,7 +45,9 @@ If it's `NOT FOUND`, stop and say so. The scripts need Node 22+ and Chrome, with
    | Deny terms | Every real person, client, supplier and job name in the sources | Build the list by reading the sources. Add any required label to `allowPhrases` |
    | Time limit | The request | 60 minutes |
    | Devices | Who uses it where | Desktop, both iPad orientations and phone |
-   | Look | The client's app or site | The template's palette |
+   | Theme | The client's app or site, matched to a theme (below) | `house` |
+
+   **Theme.** Set `theme` in the config: a built-in vendored here (`house` warm paper and terracotta, `paper` editorial with forest focus, `obsidian` neutral grey, `verdant` deep forest), or a path to a client `<slug>.vars.css`. To match a client's brand, write `<client>.theme.json` (Theme Core contract 1; see `src/theme-core/types.ts` in the design-system repo) next to the config and gate it from the design-system checkout on this machine (`$PROJECTS/design-system`), with absolute paths: `pnpm --dir "$PROJECTS/design-system" theme:resolve "<abs dir>/<client>.theme.json"`. It writes `<client>.vars.css` only when every text pair passes AA; then set `"theme": "<client>.vars.css"` (relative to the config). The six-line minimum usually fails on the derived status colours and dark muted text: set `status` and a dark `muted-foreground` override. No checkout, or the gate won't pass quickly: use the nearest built-in and say so. Never hand-write colours into a page to get closer. The `look` note is only for the brief.
 
 2. **Pick the size from the time limit.** Say which you picked and what it costs.
 
@@ -58,7 +63,7 @@ If it's `NOT FOUND`, stop and say so. The scripts need Node 22+ and Chrome, with
    node "$PH_HOME/scripts/new.mjs" <absolute out dir> --config <config.json>
    ```
 
-   It refuses a folder that already has files in it.
+   It refuses a folder that already has files in it, and a theme that isn't vendored here or a client vars file that doesn't exist. It copies the hub, `shared/kit.js` and `shared/proto.css`, the kit into `kit/`, and writes `shared/theme.css`, one `@import` of the run's theme. Every page loads `../shared/theme.css`, `../kit/kit.css` and `../shared/proto.css`, with `data-kit` on `<body>`.
 
 4. **Run the workflow.** Say in one line how many agents and how long, then run it, unless the user has asked to confirm first. Load the `workflow-authoring` skill only if you need to change the script.
 
@@ -69,11 +74,11 @@ If it's `NOT FOUND`, stop and say so. The scripts need Node 22+ and Chrome, with
    Get `deadlineEpoch` from `date +%s` plus the limit in seconds. Workflow scripts have no clock, so the gate's result supplies the time. Past the limit, optional critique rounds are skipped and the result names them. A stage already running isn't cut off, so the limit can still be overrun; say by how much.
 
 5. **Check the result yourself.** The workflow's "passed" covers mechanics, not meaning.
-   - Run `node "$PH_HOME/scripts/check.mjs" <out>` and read every warning. A `possibly-dead-control` may be real. A full run also writes `gate-result.js`, which is how the hub knows the gate's result and the pages version.
+   - Run `node "$PH_HOME/scripts/check.mjs" <out>` and read every warning. A `possibly-dead-control` may be real. A full run also writes `gate-result.js`, which is how the hub knows the gate's result and the pages version. Besides names, links and the browser checks, the gate is the kit contract: `kit/render.mjs verify` on the run's kit copy, `kit/render.mjs check` on every page and the hub (no `style=""`, no colours in markup, known blocks only, safe links, labelled sections), and a scan of every page's CSS and `shared/*.css` for colour values, `:root` token blocks, names from the old `tokens.css` and `data-theme` toggles.
    - Open `index.html` and read the main screen of every page with `shot.mjs`.
    - Report `unresolved`, `skipped`, `conflicts`, any unverified tracks, and the actual time against the limit. Never round a failed gate or a skipped stage up to done.
 
-6. **Hand over the hub.** Open it in the browser pane, or give the path. Say that it's internal, what wasn't tested (Safari and a real iPad, unless you did), and the top open decisions. Then wait. The user sets a direction per track, sorts the open decisions, clears the blockers, signs off and pastes back **Copy my review**. The fix list and agenda work without signing, so they can paste back early.
+6. **Hand over the hub.** Open it in the browser pane, or give the path. Its **Dark mode** button switches the hub and every preview (pages get `?mode=dark`, which `shared/kit.js` applies). Say that it's internal, what wasn't tested (Safari and a real iPad, unless you did), and the top open decisions. Then wait. The user sets a direction per track, sorts the open decisions, clears the blockers, signs off and pastes back **Copy my review**. The fix list and agenda work without signing, so they can paste back early.
 
 7. **Act on the review.** Save the pasted record first, as `<out>/reviews/review-<YYYY-MM-DD>.md` (add `-2` for a second one that day). It's the lasting copy, because marks in the hub live in one browser. The JSON at the end of it is what to work from.
    - **Direction, options:** brief one builder to start from `base` and take what the notes say from each `borrow` page. `none` means none of them worked: say that back and ask before rebuilding.
@@ -120,6 +125,8 @@ Nothing was sent, published or committed.
 
 ## Notes
 
-- **Files:** `scripts/check.mjs` (the gate), `scripts/shot.mjs` (screenshots), `scripts/new.mjs` (setup), `scripts/_cdp.mjs` (headless Chrome with its own temporary profile), `template/` (hub, kit, tokens, workflow, examples), `tests/` (`node --test skills/prototype-hub/tests/`).
+- **Files:** `scripts/check.mjs` (the gate), `scripts/shot.mjs` (screenshots), `scripts/new.mjs` (setup), `scripts/_cdp.mjs` (headless Chrome with its own temporary profile), `template/` (hub, `shared/kit.js` helpers, `shared/proto.css` components, workflow, examples), `kit/` (the vendored Theme Core kit), `tests/` (`node --test skills/prototype-hub/tests/`).
+- **Two things called kit.** `shared/kit.js` is the prototype helper script (`window.Kit`: label, storage, role switcher). `kit/` is the Theme Core kit (`kit.css`, themes, `render.mjs`). To update `kit/` or its themes, from the design-system checkout: `pnpm kit:sync <this skill>/kit [--themes a,b]`, then commit it. Runs keep their own copy.
+- **Old runs** made before kit (with `shared/tokens.css`) still gate: the kit checks are skipped with a `legacy-run` warning.
 - **Tested so far:** the gate, the hub and the whole sign-off ran against a real nine-page run in headless Chrome, and the workflow's control flow ran with stubbed agents. Timings other than the 2-hour row are estimates until they've been measured.
 - `/collateral-set` shares the "cohesion comes from a file" idea, for published marketing pages. `/foundation-loop` is where the bounded-rounds rule comes from. `/walkthrough` can demo whichever option wins.

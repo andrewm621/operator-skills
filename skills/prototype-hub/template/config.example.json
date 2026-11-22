@@ -24,6 +24,7 @@
   "allowPhrases": ["Only if Dana approves"],
   "checkStreetAddresses": true,
   "prototypeLabel": "Prototype. Made-up data. Not connected to anything.",
-  "look": "The bakery's site: warm cream background, deep brown text, one rust accent.",
+  "theme": "house",
+  "look": "The bakery's site: warm cream background, deep brown text, one rust accent. house is the nearest built-in theme.",
   "planModel": "fable"
 }
