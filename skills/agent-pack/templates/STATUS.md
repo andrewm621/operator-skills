@@ -7,7 +7,7 @@
 2. <optional; at most 3 in all>
 
 ## Live
-- Repo backup: <remote name and whether HEAD is pushed, or "no remote: this machine has the only copy">
+- Repo backup: <remote name and host, whether HEAD is pushed (per last fetch), commits behind default; or "no remote: this machine has the only copy">
 - <what's deployed and where, as of the stamp>
 
 ## In flight
@@ -17,5 +17,5 @@
 - <date>: <what was checked, with the command or URL>
 
 ## Open questions
-- <question>, owner: <who decides>
+- <question>, owner: <role, e.g. repo owner or client>
 <!-- agent-pack:end status -->
