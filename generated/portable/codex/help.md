@@ -7,7 +7,7 @@ Arguments: $ARGUMENTS (optional: category name to filter, or "all" for full list
 Display the following skill catalog directly. Do NOT read files or run commands — just print this reference. If `$ARGUMENTS` names a category, show only that section. If empty, show all categories.
 
 ```
- SKILL CATALOG  50 custom commands
+ SKILL CATALOG  51 custom commands
 
 ═══════════════════════════════════════════════════════════════
  WORKFLOW & PLANNING
@@ -38,6 +38,7 @@ Display the following skill catalog directly. Do NOT read files or run commands 
  /foundation-loop <dir>   Bounded harness: skeleton → working foundation (auth + 1 core flow)
  /dark-mode [where]       Light/Dark/System toggle — OS default, no-flash
  /map [project]           Architectural diagrams (Mermaid) → ARCHITECTURE.md
+ /agent-pack [check|close] Agent context pack per repo: build, check, close
  /search-all <query>      Search code/files/packages across all projects
  /ai-export <plat> <url>  Export AI chat threads (ChatGPT verified) → markdown + vault
  /document <subject>      Write docs: decision records, inline, README (Notion/learnings handed off)
