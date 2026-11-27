@@ -70,6 +70,7 @@ const CLAUDE_ONLY = new Set([
   "prototype-hub",
   "ai-export",
   "walkthrough",
+  "agent-pack",
 ]);
 
 /**

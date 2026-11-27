@@ -5,7 +5,7 @@
 
 ---
 
-You have 47 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
+You have 48 operator skills for software projects. Use them when a user's request matches a skill's purpose. Invoke a skill by following its instructions exactly when triggered.
 
 ## Skill Catalog
 
@@ -34,6 +34,7 @@ You have 47 operator skills for software projects. Use them when a user's reques
 | `/foundation-loop` | Bounded harness: drive a fresh app from skeleton to a working foundation (auth + one core flow, clean build) |
 | `/dark-mode` | Light/Dark/System theme toggle — OS default, persisted, flash-free |
 | `/map` | Architectural diagrams (Mermaid) — folders, data flow, DB |
+| `/agent-pack` | Standard agent context pack per repo (AGENTS.md, ARCHITECTURE.md, STATUS.md, decisions/) — build, check, close |
 | `/report` | Interactive HTML reports and dashboards |
 | `/motion-artifact` | Animated product-demo scenes in HTML → deterministic GIF/MP4/WebM export |
 | `/collateral-set` | Cohesive set of client-facing HTML artifacts — anchor-first, parallel fan-out, gated central publish |
@@ -110,7 +111,7 @@ When a task involves 3+ independent subtasks, default to parallel execution.
 
 ## Big Six — Full Skill Prompts
 
-The six most powerful skills are included inline below. For all 47, see the uploaded Knowledge file.
+The six most powerful skills are included inline below. For all 48, see the uploaded Knowledge file.
 
 ### /orchestrate
 
